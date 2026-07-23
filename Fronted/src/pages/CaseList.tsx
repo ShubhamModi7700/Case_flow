@@ -148,7 +148,7 @@ export default function CaseList() {
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="p-4">Case ID</th>
-                <th className="p-4">Title</th>
+                <th className="p-4">Company / Department</th>
                 <th className="p-4">Responsible</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Risk</th>
@@ -177,7 +177,7 @@ export default function CaseList() {
                       to={`/cases/${caseItem.id}`}
                       className="font-semibold text-slate-950 hover:underline"
                     >
-                      {caseItem.title}
+                      {caseItem.company}{caseItem.department ? ` — ${caseItem.department}` : ""}
                     </Link>
                   </td>
 

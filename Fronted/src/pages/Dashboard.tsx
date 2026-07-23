@@ -177,7 +177,7 @@ export default function Dashboard() {
                   <p className="font-medium text-slate-950">
                     {formatCaseNumber(action.case_id)}
                     {" — "}
-                    {action.title}
+                    {action.company}{action.department ? ` — ${action.department}` : ""}
                   </p>
 
                   <p className="mt-1 text-sm text-slate-500">

@@ -189,8 +189,10 @@ class Document(Base):
     )
 
     file_name = Column(String(255), nullable=False)
+    storage_path = Column(String(500), nullable=False)
+    content_type = Column(String(255), nullable=False)
+    file_size = Column(Integer, nullable=False)
     description = Column(Text, nullable=True)
-    file_path = Column(String(500), nullable=False)
     uploaded_by = Column(String(200), nullable=True)
 
     uploaded_at = Column(

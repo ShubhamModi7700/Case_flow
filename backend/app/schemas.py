@@ -315,6 +315,8 @@ class DocumentResponse(BaseModel):
     id: int
     case_id: int
     file_name: str
+    content_type: str
+    file_size: int
     description: str | None = None
     uploaded_by: str | None = None
     uploaded_at: datetime
@@ -322,6 +324,12 @@ class DocumentResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+
+class DocumentDownloadResponse(BaseModel):
+    download_url: str
+    file_name: str
+    expires_in: int
 
 
 class TimelineEventCreate(BaseModel):

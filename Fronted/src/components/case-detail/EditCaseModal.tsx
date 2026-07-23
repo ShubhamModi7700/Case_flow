@@ -24,11 +24,9 @@ export default function EditCaseModal({
   onCancel,
   onSave,
 }: EditCaseModalProps) {
-  const [title, setTitle] = useState(caseItem.title);
+  const [company, setCompany] = useState(caseItem.company);
   const [category, setCategory] = useState<CaseCategory>(caseItem.category);
-  const [companyDepartment, setCompanyDepartment] = useState(
-    caseItem.company_department ?? "",
-  );
+  const [department, setDepartment] = useState(caseItem.department ?? "");
   const [externalContact, setExternalContact] = useState(
     caseItem.external_contact ?? "",
   );
@@ -51,13 +49,13 @@ export default function EditCaseModal({
   ): Promise<void> {
     event.preventDefault();
 
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) return;
+    const normalizedCompany = company.trim();
+    if (!normalizedCompany) return;
 
     await onSave({
-      title: normalizedTitle,
+      company: normalizedCompany,
+      department: department.trim() || null,
       category,
-      company_department: companyDepartment.trim() || null,
       external_contact: externalContact.trim() || null,
       responsible_person: responsiblePerson.trim() || null,
       status,
@@ -110,11 +108,19 @@ export default function EditCaseModal({
           onSubmit={submitForm}
           className="mt-6 grid gap-4 sm:grid-cols-2"
         >
-          <Field label="Title" className="sm:col-span-2">
+          <Field label="Company" className="sm:col-span-2">
             <input
               required
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              value={company}
+              onChange={(event) => setCompany(event.target.value)}
+              className="input"
+            />
+          </Field>
+
+          <Field label="Department">
+            <input
+              value={department}
+              onChange={(event) => setDepartment(event.target.value)}
               className="input"
             />
           </Field>
@@ -175,14 +181,6 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Company / Department">
-            <input
-              value={companyDepartment}
-              onChange={(event) => setCompanyDepartment(event.target.value)}
-              className="input"
-            />
-          </Field>
-
           <Field label="External contact">
             <input
               value={externalContact}
@@ -239,7 +237,7 @@ export default function EditCaseModal({
 
             <button
               type="submit"
-              disabled={saving || !title.trim()}
+              disabled={saving || !company.trim()}
               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save changes"}

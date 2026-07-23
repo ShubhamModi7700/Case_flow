@@ -8,6 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app import models  # noqa: F401 - registers SQLAlchemy models
 from app.database import Base, engine
+from app.migrations import migrate_document_storage_fields
 from app.routes import auth, cases, dashboard, documents, history, tasks, users
 from app.routes.timeline import router as timeline_router
 from app.seed import create_users
@@ -31,6 +32,7 @@ async def lifespan(_: FastAPI):
     # Idempotent startup for the current MVP. Use Alembic migrations when the
     # schema begins changing in production.
     Base.metadata.create_all(bind=engine)
+    migrate_document_storage_fields(engine)
     create_users()
     yield
 
