@@ -16,6 +16,7 @@ import CaseDetail from "./pages/CaseDetail";
 import CaseList from "./pages/CaseList";
 import CreateCase from "./pages/CreateCase";
 import Dashboard from "./pages/Dashboard";
+import DocumentsPage from "./pages/DocumentsPage";
 import Login from "./pages/Login";
 import Users from "./pages/Users";
 
@@ -76,6 +77,13 @@ function ApplicationLayout() {
             Create Case
           </NavLink>
 
+          <NavLink
+            to="/documents"
+            className={navClass}
+          >
+            Documents
+          </NavLink>
+
           {user?.role === "Admin" && (
             <NavLink
               to="/users"
@@ -131,6 +139,11 @@ function ApplicationLayout() {
           <Route
             path="/cases/:caseId"
             element={<CaseDetail />}
+          />
+
+          <Route
+            path="/documents"
+            element={<DocumentsPage />}
           />
 
           {user?.role === "Admin" && (

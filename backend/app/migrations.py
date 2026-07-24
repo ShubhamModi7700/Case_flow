@@ -63,3 +63,42 @@ def migrate_document_storage_fields(engine: Engine) -> None:
         connection.execute(text("ALTER TABLE documents ALTER COLUMN file_size SET NOT NULL"))
         if "file_path" in columns:
             connection.execute(text("ALTER TABLE documents ALTER COLUMN file_path DROP NOT NULL"))
+
+
+def migrate_documents_independent(engine: Engine) -> None:
+    """Allow documents without cases and preserve them when a case is removed."""
+    inspector = inspect(engine)
+    if "documents" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"]: column for column in inspector.get_columns("documents")}
+    foreign_keys = inspector.get_foreign_keys("documents")
+
+    with engine.begin() as connection:
+        case_column = columns.get("case_id")
+        if case_column and not case_column.get("nullable", True):
+            connection.execute(text("ALTER TABLE documents ALTER COLUMN case_id DROP NOT NULL"))
+
+        # PostgreSQL cannot alter ON DELETE in place. Recreate only the FK that
+        # points documents.case_id to cases.id. Constraint names come from the
+        # inspector and are quoted before execution.
+        for foreign_key in foreign_keys:
+            if (
+                foreign_key.get("referred_table") == "cases"
+                and foreign_key.get("constrained_columns") == ["case_id"]
+            ):
+                name = foreign_key.get("name")
+                ondelete = (foreign_key.get("options") or {}).get("ondelete")
+                if name and str(ondelete).upper() != "SET NULL":
+                    safe_name = name.replace('\"', '\"\"')
+                    connection.execute(text(f'ALTER TABLE documents DROP CONSTRAINT "{safe_name}"'))
+                    connection.execute(text(
+                        'ALTER TABLE documents '
+                        'ADD CONSTRAINT fk_documents_case_id '
+                        'FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE SET NULL'
+                    ))
+                break
+
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_documents_case_id ON documents (case_id)"
+        ))

@@ -126,7 +126,7 @@ class Case(Base):
     documents = relationship(
         "Document",
         back_populates="case",
-        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     history_entries = relationship(
@@ -182,10 +182,13 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    # Documents are independent records. They can be linked to a case now,
+    # assigned later, or unlinked again without deleting the stored file.
     case_id = Column(
         Integer,
-        ForeignKey("cases.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("cases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
     file_name = Column(String(255), nullable=False)

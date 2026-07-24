@@ -52,7 +52,7 @@ export type TaskStatus = "Open" | "Completed";
 
 export type TaskItem = {
   id: number;
-  case_id: number;
+  case_id: number | null;
   title: string;
   description: string | null;
   responsible_person: string | null;
@@ -73,13 +73,15 @@ export type HistoryItem = {
 
 export type DocumentItem = {
   id: number;
-  case_id: number;
+  case_id: number | null;
   file_name: string;
   content_type: string;
   file_size: number;
   description: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
+  company?: string | null;
+  department?: string | null;
 };
 
 export type DashboardAction = {

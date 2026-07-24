@@ -313,13 +313,15 @@ class HistoryResponse(BaseModel):
 
 class DocumentResponse(BaseModel):
     id: int
-    case_id: int
+    case_id: int | None = None
     file_name: str
     content_type: str
     file_size: int
     description: str | None = None
     uploaded_by: str | None = None
     uploaded_at: datetime
+    company: str | None = None
+    department: str | None = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -330,6 +332,10 @@ class DocumentDownloadResponse(BaseModel):
     download_url: str
     file_name: str
     expires_in: int
+
+
+class DocumentCaseUpdate(BaseModel):
+    case_id: int | None = None
 
 
 class TimelineEventCreate(BaseModel):
