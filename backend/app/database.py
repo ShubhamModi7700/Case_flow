@@ -21,7 +21,7 @@ print(f".env exists: {ENV_FILE.exists()}")
 # DATABASE_URL already present in the process environment.
 loaded = load_dotenv(
     dotenv_path=ENV_FILE,
-    override=True,
+    override=False,
 )
 
 print(f".env loaded: {loaded}")
