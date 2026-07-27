@@ -77,7 +77,7 @@ export default function DocumentsPage() {
 
       const [caseResponse, documentResponse] = await Promise.all([
         api.get<CaseItem[]>("/cases/"),
-        api.get<DocumentItem[]>("/documents/"),
+        api.get<DocumentItem[]>("/documents"),
       ]);
 
       setCases(
@@ -126,7 +126,7 @@ export default function DocumentsPage() {
         formData.append("case_id", selectedCaseId);
       }
 
-      await api.post("/documents/", formData);
+      await api.post("/documents", formData);
 
       setFile(null);
       setDescription("");
