@@ -24,6 +24,7 @@ export default function EditCaseModal({
   onCancel,
   onSave,
 }: EditCaseModalProps) {
+  const [title, setTitle] = useState(caseItem.title);
   const [company, setCompany] = useState(caseItem.company);
   const [category, setCategory] = useState<CaseCategory>(caseItem.category);
   const [department, setDepartment] = useState(caseItem.department ?? "");
@@ -49,10 +50,12 @@ export default function EditCaseModal({
   ): Promise<void> {
     event.preventDefault();
 
+    const normalizedTitle = title.trim();
     const normalizedCompany = company.trim();
-    if (!normalizedCompany) return;
+    if (!normalizedTitle || !normalizedCompany) return;
 
     await onSave({
+      title: normalizedTitle,
       company: normalizedCompany,
       department: department.trim() || null,
       category,
@@ -108,6 +111,16 @@ export default function EditCaseModal({
           onSubmit={submitForm}
           className="mt-6 grid gap-4 sm:grid-cols-2"
         >
+          <Field label="Title" className="sm:col-span-2">
+            <input
+              required
+              minLength={3}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="input"
+            />
+          </Field>
+
           <Field label="Company" className="sm:col-span-2">
             <input
               required
@@ -237,7 +250,7 @@ export default function EditCaseModal({
 
             <button
               type="submit"
-              disabled={saving || !company.trim()}
+              disabled={saving || !title.trim() || !company.trim()}
               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save changes"}

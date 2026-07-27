@@ -16,6 +16,7 @@ export default function OverviewTab({ caseItem }: { caseItem: CaseItem }) {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
         <h2 className="text-lg font-semibold text-slate-950">Case information</h2>
         <dl className="mt-6 grid gap-6 sm:grid-cols-2">
+          <Detail label="Title" value={caseItem.title} />
           <Detail label="Category" value={caseItem.category} />
           <Detail label="Company" value={caseItem.company} />
           <Detail label="Department" value={caseItem.department ?? "Not provided"} />

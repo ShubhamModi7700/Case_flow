@@ -111,7 +111,7 @@ export default function CaseList() {
           onChange={(event) =>
             setSearch(event.target.value)
           }
-          placeholder="Search company, contact or responsible person"
+          placeholder="Search title, company, contact or responsible person"
           className="rounded-xl border border-slate-300 px-4 py-3"
         />
 
@@ -183,6 +183,7 @@ export default function CaseList() {
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="p-4">Case ID</th>
+                <th className="p-4">Title</th>
                 <th className="p-4">
                   Company / Department
                 </th>
@@ -214,6 +215,15 @@ export default function CaseList() {
                       {formatCaseNumber(
                         caseItem.id,
                       )}
+                    </Link>
+                  </td>
+
+                  <td className="p-4">
+                    <Link
+                      to={`/cases/${caseItem.id}`}
+                      className="font-semibold text-slate-950 hover:underline"
+                    >
+                      {caseItem.title}
                     </Link>
                   </td>
 

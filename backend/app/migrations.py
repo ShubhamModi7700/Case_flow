@@ -102,3 +102,27 @@ def migrate_documents_independent(engine: Engine) -> None:
         connection.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_documents_case_id ON documents (case_id)"
         ))
+
+
+def migrate_case_title(engine: Engine) -> None:
+    """Add a required case title and backfill existing records safely."""
+    inspector = inspect(engine)
+    if "cases" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("cases")}
+
+    with engine.begin() as connection:
+        if "title" not in columns:
+            connection.execute(text("ALTER TABLE cases ADD COLUMN title VARCHAR(255)"))
+
+        connection.execute(text("""
+            UPDATE cases
+            SET title = COALESCE(
+                NULLIF(TRIM(title), ''),
+                NULLIF(TRIM(company), ''),
+                'Untitled case ' || id::text
+            )
+            WHERE title IS NULL OR TRIM(title) = ''
+        """))
+        connection.execute(text("ALTER TABLE cases ALTER COLUMN title SET NOT NULL"))

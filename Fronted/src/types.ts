@@ -30,6 +30,7 @@ export type LoginResponse = {
 
 export type CaseItem = {
   id: number;
+  title: string;
   company: string;
   department: string | null;
   category: CaseCategory;
@@ -86,8 +87,7 @@ export type DocumentItem = {
 
 export type DashboardAction = {
   case_id: number;
-  company: string;
-  department: string | null;
+  title: string;
   next_action: string;
   deadline: string | null;
 };

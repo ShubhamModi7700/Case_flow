@@ -78,6 +78,11 @@ def clean_required_text(value: str, field_name: str) -> str:
 
 
 class CaseBase(BaseModel):
+    title: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
     company: str = Field(
         min_length=1,
         max_length=255,
@@ -109,6 +114,11 @@ class CaseBase(BaseModel):
     primary_deadline: date | None = None
     follow_up_date: date | None = None
 
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_case_title(cls, value: str) -> str:
+        return clean_required_text(value, "Title")
+
     @field_validator("company", mode="before")
     @classmethod
     def normalize_company(cls, value: str) -> str:
@@ -135,6 +145,12 @@ class CaseCreate(CaseBase):
 
 
 class CaseUpdate(BaseModel):
+    title: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
+
     company: str | None = Field(
         default=None,
         min_length=1,
@@ -166,6 +182,16 @@ class CaseUpdate(BaseModel):
 
     primary_deadline: date | None = None
     follow_up_date: date | None = None
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_optional_case_title(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+        return clean_required_text(value, "Title")
 
     @field_validator("company", mode="before")
     @classmethod

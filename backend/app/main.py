@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import models  # noqa: F401 - registers SQLAlchemy models
 from app.database import Base, engine
 from app.migrations import (
+    migrate_case_title,
     migrate_document_storage_fields,
     migrate_documents_independent,
 )
@@ -35,6 +36,7 @@ async def lifespan(_: FastAPI):
     # Idempotent startup for the current MVP. Use Alembic migrations when the
     # schema begins changing in production.
     Base.metadata.create_all(bind=engine)
+    migrate_case_title(engine)
     migrate_document_storage_fields(engine)
     migrate_documents_independent(engine)
     create_users()

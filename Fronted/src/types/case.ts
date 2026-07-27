@@ -20,7 +20,8 @@ export interface CaseItem {
   id: number;
   title: string;
   category: CaseCategory;
-  company_department: string | null;
+  company: string;
+  department: string | null;
   external_contact: string | null;
   responsible_person: string | null;
   status: CaseStatus;

@@ -130,7 +130,8 @@ export default function CaseDetail() {
       <header className="mt-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{formatCaseNumber(caseItem.id)}</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">{caseItem.company}</h1>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">{caseItem.title}</h1>
+          <p className="mt-2 text-sm text-slate-500">{caseItem.company}{caseItem.department ? ` — ${caseItem.department}` : ""}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <StatusBadge value={caseItem.status} />
             <RiskBadge value={caseItem.risk} />

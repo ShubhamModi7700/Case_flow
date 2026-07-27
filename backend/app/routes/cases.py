@@ -64,6 +64,7 @@ def list_cases(
 
         query = query.filter(
             or_(
+                models.Case.title.ilike(search_value),
                 models.Case.company.ilike(search_value),
                 models.Case.department.ilike(search_value),
                 models.Case.external_contact.ilike(search_value),

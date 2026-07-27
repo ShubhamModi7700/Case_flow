@@ -6,6 +6,7 @@ import { api } from "../api";
 import type { CaseItem } from "../types";
 
 type CaseForm = {
+  title: string;
   company: string;
   department: string;
   category: string;
@@ -20,6 +21,7 @@ type CaseForm = {
 };
 
 const initialForm: CaseForm = {
+  title: "",
   company: "",
   department: "",
   category: "Customer",
@@ -58,6 +60,11 @@ export default function CreateCase() {
   ) {
     event.preventDefault();
 
+    if (!form.title.trim()) {
+      setError("Title is required.");
+      return;
+    }
+
     if (!form.company.trim()) {
       setError("Company is required.");
       return;
@@ -68,6 +75,7 @@ export default function CreateCase() {
       setError("");
 
       const payload = {
+        title: form.title.trim(),
         company: form.company.trim(),
         department: form.department.trim() || null,
         category: form.category,
@@ -160,6 +168,17 @@ export default function CreateCase() {
         onSubmit={handleSubmit}
         className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-7 shadow-sm md:grid-cols-2"
       >
+        <Field label="Title" wide>
+          <input
+            name="title"
+            value={form.title}
+            onChange={handleChange}
+            required
+            minLength={3}
+            className="input"
+          />
+        </Field>
+
         <Field label="Company">
           <input
             name="company"
@@ -302,7 +321,7 @@ export default function CreateCase() {
           <button
             type="submit"
             disabled={
-              submitting || !form.company.trim()
+              submitting || !form.title.trim() || !form.company.trim()
             }
             className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
