@@ -1,8 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://case-flow-swart.vercel.app/:path*"
+      "destination": "https://case-flow-backend.vercel.app/:path*"
     },
     {
       "source": "/(.*)",
