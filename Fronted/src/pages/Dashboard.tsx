@@ -114,8 +114,8 @@ export default function Dashboard() {
           title="Überfällige Fristen"
           value={data.overdue_deadlines}
           description="Fälle mit überfälligen Aufgaben oder Fristen"
-          containerClass="border-red-200 bg-red-50"
-          textClass="text-red-700"
+          containerClass="border-slate-300 bg-slate-50"
+          textClass="text-slate-700"
         />
 
         <DashboardCard
@@ -123,8 +123,8 @@ export default function Dashboard() {
           title="Anstehende Fristen"
           value={data.upcoming_deadlines}
           description="Innerhalb der nächsten sieben Tage"
-          containerClass="border-amber-200 bg-amber-50"
-          textClass="text-amber-700"
+          containerClass="border-blue-200 bg-blue-50"
+          textClass="text-blue-700"
         />
 
         <DashboardCard
