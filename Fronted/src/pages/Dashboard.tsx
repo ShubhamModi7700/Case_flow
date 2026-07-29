@@ -58,12 +58,9 @@ export default function Dashboard() {
           </p>
 
           <h1 className="mt-2 text-3xl font-bold text-slate-950">
-            Management-Übersicht
+            Management Übersicht
+          
           </h1>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Wo müssen wir jetzt handeln?
-          </p>
         </div>
 
         <Link
