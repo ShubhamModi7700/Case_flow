@@ -22,9 +22,9 @@ def create_case(case_data: schemas.CaseCreate, db: Session = Depends(get_db)):
     db.flush()
     db.add(models.History(
         case_id=new_case.id,
-        change="Case created",
+        change="Fall erstellt",
         responsible_person=case_data.responsible_person,
-        note="The case was created.",
+        note="Der Fall wurde erstellt.",
     ))
     db.commit()
     db.refresh(new_case)
@@ -134,7 +134,7 @@ def list_cases(
 def get_case(case_id: int, db: Session = Depends(get_db)):
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     return case
 
 
@@ -142,7 +142,7 @@ def get_case(case_id: int, db: Session = Depends(get_db)):
 def update_case(case_id: int, case_data: schemas.CaseUpdate, db: Session = Depends(get_db)):
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
 
     update_values = case_data.model_dump(exclude_unset=True)
     changes: list[str] = []
@@ -155,7 +155,7 @@ def update_case(case_id: int, case_data: schemas.CaseUpdate, db: Session = Depen
     if changes:
         db.add(models.History(
             case_id=case.id,
-            change="Case updated",
+            change="Fall aktualisiert",
             responsible_person=case.responsible_person,
             note="; ".join(changes),
         ))
@@ -168,13 +168,13 @@ def update_case(case_id: int, case_data: schemas.CaseUpdate, db: Session = Depen
 def archive_case(case_id: int, db: Session = Depends(get_db)):
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     case.is_archived = True
     db.add(models.History(
         case_id=case.id,
-        change="Case archived",
+        change="Fall archiviert",
         responsible_person=case.responsible_person,
-        note="The case was archived.",
+        note="Der Fall wurde archiviert.",
     ))
     db.commit()
-    return {"message": "Case archived successfully"}
+    return {"message": "Fall erfolgreich archiviert"}

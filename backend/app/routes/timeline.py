@@ -13,7 +13,7 @@ router = APIRouter(prefix="/cases", tags=["Timeline"])
 def get_case_or_404(case_id: int, db: Session) -> models.Case:
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     return case
 
 

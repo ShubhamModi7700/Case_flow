@@ -15,7 +15,7 @@ def require_admin(
     if current_user.role != "Admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator access required",
+            detail="Administratorzugriff erforderlich",
         )
     return current_user
 
@@ -43,7 +43,7 @@ def create_user(
     if db.query(models.User).filter(models.User.email == email).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with this email already exists",
+            detail="Ein Benutzer mit dieser E-Mail-Adresse existiert bereits",
         )
 
     user = models.User(
@@ -62,7 +62,7 @@ def create_user(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with this email already exists",
+            detail="Ein Benutzer mit dieser E-Mail-Adresse existiert bereits",
         )
 
     return user
@@ -77,7 +77,7 @@ def update_user(
 ):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
 
     changes = user_data.model_dump(exclude_unset=True)
 
@@ -89,7 +89,7 @@ def update_user(
             .first()
         )
         if duplicate:
-            raise HTTPException(status_code=409, detail="Email already in use")
+            raise HTTPException(status_code=409, detail="Diese E-Mail-Adresse wird bereits verwendet")
         user.email = email
 
     if "full_name" in changes:
@@ -99,7 +99,7 @@ def update_user(
         if user.id == current_admin.id and changes["role"] != "Admin":
             raise HTTPException(
                 status_code=400,
-                detail="You cannot remove your own administrator role",
+                detail="Sie können Ihre eigene Administratorrolle nicht entfernen",
             )
         user.role = changes["role"]
 
@@ -107,7 +107,7 @@ def update_user(
         if user.id == current_admin.id and changes["is_active"] is False:
             raise HTTPException(
                 status_code=400,
-                detail="You cannot disable your own account",
+                detail="Sie können Ihr eigenes Konto nicht deaktivieren",
             )
         user.is_active = changes["is_active"]
 

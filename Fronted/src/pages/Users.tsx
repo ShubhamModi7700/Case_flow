@@ -31,7 +31,7 @@ export default function Users() {
       const response = await api.get<UserItem[]>("/users/");
       setUsers(response.data);
     } catch {
-      setError("Users could not be loaded.");
+      setError("Benutzer konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function Users() {
       setForm(emptyForm);
       await loadUsers();
     } catch {
-      setError("The user could not be created. Check the email and password.");
+      setError("Der Benutzer konnte nicht erstellt werden. Prüfen Sie E-Mail-Adresse und Passwort.");
     } finally {
       setSubmitting(false);
     }
@@ -72,7 +72,7 @@ export default function Users() {
       await api.patch(`/users/${target.id}`, changes);
       await loadUsers();
     } catch {
-      setError("The user could not be updated.");
+      setError("Der Benutzer konnte nicht aktualisiert werden.");
     }
   }
 
@@ -84,7 +84,7 @@ export default function Users() {
     if (!password) return;
 
     if (password.length < 8) {
-      setError("The new password must contain at least 8 characters.");
+      setError("Das neue Passwort muss mindestens 8 Zeichen enthalten.");
       return;
     }
 
@@ -105,7 +105,7 @@ export default function Users() {
     <div className="p-8">
       <div className="mx-auto max-w-6xl space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-950">Users</h1>
+          <h1 className="text-3xl font-bold text-slate-950">Benutzer</h1>
           <p className="mt-2 text-sm text-slate-500">
             Create individual logins and manage access. Only administrators can use this page.
           </p>
@@ -121,10 +121,10 @@ export default function Users() {
           onSubmit={handleCreate}
           className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-2"
         >
-          <h2 className="text-lg font-semibold md:col-span-2">Add user</h2>
+          <h2 className="text-lg font-semibold md:col-span-2">Benutzer hinzufügen</h2>
 
           <label>
-            <span className="mb-2 block text-sm font-medium">Full name</span>
+            <span className="mb-2 block text-sm font-medium">Vollständiger Name</span>
             <input
               className="input"
               required
@@ -136,7 +136,7 @@ export default function Users() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-medium">Email</span>
+            <span className="mb-2 block text-sm font-medium">E-Mail</span>
             <input
               className="input"
               type="email"
@@ -149,7 +149,7 @@ export default function Users() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-medium">Password</span>
+            <span className="mb-2 block text-sm font-medium">Passwort</span>
             <input
               className="input"
               type="password"
@@ -163,7 +163,7 @@ export default function Users() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-medium">Role</span>
+            <span className="mb-2 block text-sm font-medium">Rolle</span>
             <select
               className="input"
               value={form.role}
@@ -174,8 +174,8 @@ export default function Users() {
                 })
               }
             >
-              <option value="User">User</option>
-              <option value="Admin">Admin</option>
+              <option value="User">Benutzer</option>
+              <option value="Admin">Administrator</option>
             </select>
           </label>
 
@@ -185,24 +185,24 @@ export default function Users() {
               type="submit"
               disabled={submitting}
             >
-              {submitting ? "Creating..." : "Create user"}
+              {submitting ? "Wird erstellt..." : "Benutzer erstellen"}
             </button>
           </div>
         </form>
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {loading ? (
-            <p className="p-6 text-sm text-slate-500">Loading users...</p>
+            <p className="p-6 text-sm text-slate-500">Benutzer werden geladen...</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-5 py-4">Name</th>
-                    <th className="px-5 py-4">Email</th>
-                    <th className="px-5 py-4">Role</th>
+                    <th className="px-5 py-4">E-Mail</th>
+                    <th className="px-5 py-4">Rolle</th>
                     <th className="px-5 py-4">Status</th>
-                    <th className="px-5 py-4">Actions</th>
+                    <th className="px-5 py-4">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -223,12 +223,12 @@ export default function Users() {
                             })
                           }
                         >
-                          <option value="User">User</option>
-                          <option value="Admin">Admin</option>
+                          <option value="User">Benutzer</option>
+                          <option value="Admin">Administrator</option>
                         </select>
                       </td>
                       <td className="px-5 py-4">
-                        {item.is_active ? "Active" : "Disabled"}
+                        {item.is_active ? "Aktiv" : "Deaktiviert"}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap gap-2">
@@ -249,7 +249,7 @@ export default function Users() {
                             }
                             className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium disabled:opacity-40"
                           >
-                            {item.is_active ? "Disable" : "Enable"}
+                            {item.is_active ? "Deaktivieren" : "Aktivieren"}
                           </button>
                         </div>
                       </td>

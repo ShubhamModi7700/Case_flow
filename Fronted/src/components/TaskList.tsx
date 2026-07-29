@@ -30,7 +30,7 @@ export default function TaskList({
       setError(
         getApiErrorMessage(
           requestError,
-          "The task could not be completed.",
+          "Die Aufgabe konnte nicht abgeschlossen werden.",
         ),
       );
     } finally {
@@ -83,7 +83,7 @@ export default function TaskList({
 
                   {overdue && (
                     <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                      Overdue
+                      Überfällig
                     </span>
                   )}
                 </div>
@@ -95,17 +95,17 @@ export default function TaskList({
                 )}
 
                 <p className="mt-3 text-xs text-slate-500">
-                  Responsible: {task.responsible_person ?? "Not assigned"}
+                  Responsible: {task.responsible_person ?? "Nicht zugewiesen"}
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Due: {task.due_date ?? "No due date"}
+                  Due: {task.due_date ?? "Keine Frist"}
                 </p>
               </div>
 
               {completed ? (
                 <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                  Completed
+                  Abgeschlossen
                 </span>
               ) : (
                 <button

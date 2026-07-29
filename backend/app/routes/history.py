@@ -29,7 +29,7 @@ def get_case_history(
     if case is None:
         raise HTTPException(
             status_code=404,
-            detail="Case not found",
+            detail="Fall nicht gefunden",
         )
 
     return (

@@ -88,7 +88,7 @@ export default function EditCaseModal({
             id="edit-case-title"
             className="text-xl font-semibold text-slate-950"
           >
-            Edit case
+            Fall bearbeiten
           </h2>
 
           <button
@@ -111,7 +111,7 @@ export default function EditCaseModal({
           onSubmit={submitForm}
           className="mt-6 grid gap-4 sm:grid-cols-2"
         >
-          <Field label="Title" className="sm:col-span-2">
+          <Field label="Titel" className="sm:col-span-2">
             <input
               required
               minLength={3}
@@ -121,7 +121,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Company" className="sm:col-span-2">
+          <Field label="Unternehmen" className="sm:col-span-2">
             <input
               required
               value={company}
@@ -130,7 +130,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Department">
+          <Field label="Abteilung">
             <input
               value={department}
               onChange={(event) => setDepartment(event.target.value)}
@@ -138,7 +138,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Category">
+          <Field label="Kategorie">
             <select
               value={category}
               onChange={(event) =>
@@ -146,12 +146,12 @@ export default function EditCaseModal({
               }
               className="input"
             >
-              <option value="Customer">Customer</option>
-              <option value="Contract">Contract</option>
-              <option value="Supplier">Supplier</option>
-              <option value="Employee">Employee</option>
-              <option value="Project">Project</option>
-              <option value="Other">Other</option>
+              <option value="Customer">Kunde</option>
+              <option value="Contract">Vertrag</option>
+              <option value="Supplier">Lieferant</option>
+              <option value="Employee">Mitarbeiter</option>
+              <option value="Project">Projekt</option>
+              <option value="Other">Sonstiges</option>
             </select>
           </Field>
 
@@ -163,12 +163,12 @@ export default function EditCaseModal({
               }
               className="input"
             >
-              <option value="New">New</option>
-              <option value="Under Review">Under Review</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Waiting">Waiting</option>
-              <option value="Completed">Completed</option>
-              <option value="Critical">Critical</option>
+              <option value="New">Neu</option>
+              <option value="Under Review">In Prüfung</option>
+              <option value="In Progress">In Bearbeitung</option>
+              <option value="Waiting">Wartend</option>
+              <option value="Completed">Abgeschlossen</option>
+              <option value="Critical">Kritisch</option>
             </select>
           </Field>
 
@@ -180,13 +180,13 @@ export default function EditCaseModal({
               }
               className="input"
             >
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
+              <option value="Low">Niedrig</option>
+              <option value="Medium">Mittel</option>
+              <option value="High">Hoch</option>
             </select>
           </Field>
 
-          <Field label="Responsible person">
+          <Field label="Verantwortliche Person">
             <input
               value={responsiblePerson}
               onChange={(event) => setResponsiblePerson(event.target.value)}
@@ -194,7 +194,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="External contact">
+          <Field label="Externer Kontakt">
             <input
               value={externalContact}
               onChange={(event) => setExternalContact(event.target.value)}
@@ -202,7 +202,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Primary deadline">
+          <Field label="Hauptfrist">
             <input
               type="date"
               value={primaryDeadline}
@@ -211,7 +211,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Follow-up date">
+          <Field label="Wiedervorlage">
             <input
               type="date"
               value={followUpDate}
@@ -220,7 +220,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Next action" className="sm:col-span-2">
+          <Field label="Nächste Maßnahme" className="sm:col-span-2">
             <textarea
               value={nextAction}
               onChange={(event) => setNextAction(event.target.value)}
@@ -229,7 +229,7 @@ export default function EditCaseModal({
             />
           </Field>
 
-          <Field label="Description" className="sm:col-span-2">
+          <Field label="Beschreibung" className="sm:col-span-2">
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
@@ -245,7 +245,7 @@ export default function EditCaseModal({
               disabled={saving}
               className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              Cancel
+              Abbrechen
             </button>
 
             <button
@@ -253,7 +253,7 @@ export default function EditCaseModal({
               disabled={saving || !title.trim() || !company.trim()}
               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? "Wird gespeichert..." : "Änderungen speichern"}
             </button>
           </div>
         </form>

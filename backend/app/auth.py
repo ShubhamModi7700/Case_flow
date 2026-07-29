@@ -71,7 +71,7 @@ def get_current_user(
     if not isinstance(user_id, int):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
+            detail="Authentifizierung erforderlich",
         )
 
     user = (
@@ -85,7 +85,7 @@ def get_current_user(
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
+            detail="Ungültige oder abgelaufene Sitzung",
         )
 
     return user

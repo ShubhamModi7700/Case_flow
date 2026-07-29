@@ -69,7 +69,7 @@ export default function CaseDetail() {
       console.error("Case detail loading failed:", requestError);
 
       setError(
-        "The case details could not be loaded. Check the backend routes and the selected case ID.",
+        "Die Falldetails konnten nicht geladen werden. Prüfen Sie die Backend-Routen und die ausgewählte Fall-ID.",
       );
     } finally {
       setLoading(false);
@@ -125,7 +125,7 @@ export default function CaseDetail() {
 
       await loadTimeline();
     } catch (requestError: any) {
-      console.error("Case update failed:", requestError);
+      console.error("Fallaktualisierung fehlgeschlagen:", requestError);
 
       const detail = requestError.response?.data?.detail;
 
@@ -138,10 +138,10 @@ export default function CaseDetail() {
           .join("; ");
 
         setEditError(
-          validationMessage || "The case could not be updated.",
+          validationMessage || "Der Fall konnte nicht aktualisiert werden.",
         );
       } else {
-        setEditError("The case could not be updated.");
+        setEditError("Der Fall konnte nicht aktualisiert werden.");
       }
     } finally {
       setSavingCase(false);
@@ -180,7 +180,7 @@ export default function CaseDetail() {
   if (!caseItem) {
     return (
       <div className="p-8">
-        <p>Case not found.</p>
+        <p>Fall wurde nicht gefunden.</p>
 
         <Link
           to="/cases"
@@ -232,7 +232,7 @@ export default function CaseDetail() {
           }}
           className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
-          Edit case
+          Fall bearbeiten
         </button>
       </header>
 

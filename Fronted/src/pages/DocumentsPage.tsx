@@ -43,18 +43,18 @@ function getErrorMessage(error: unknown, fallback: string): string {
     }
 
     if (status === 404) {
-      return "The requested document resource was not found.";
+      return "Die angeforderte Dokumentressource wurde nicht gefunden.";
     }
 
     if (status === 405) {
-      return "The document API route is not configured correctly.";
+      return "Die Dokument-API-Route ist nicht korrekt konfiguriert.";
     }
 
     if (status) {
       return `${fallback} Server returned ${status}.`;
     }
 
-    return "The backend could not be reached.";
+    return "Das Backend konnte nicht erreicht werden.";
   }
 
   return fallback;
@@ -91,7 +91,7 @@ export default function DocumentsPage() {
       setError(
         getErrorMessage(
           requestError,
-          "The documents could not be loaded.",
+          "Die Dokumente konnten nicht geladen werden.",
         ),
       );
     } finally {
@@ -109,7 +109,7 @@ export default function DocumentsPage() {
     event.preventDefault();
 
     if (!file) {
-      setError("Please select a file.");
+      setError("Bitte wählen Sie eine Datei aus.");
       return;
     }
 
@@ -140,7 +140,7 @@ export default function DocumentsPage() {
       setError(
         getErrorMessage(
           requestError,
-          "The document could not be uploaded.",
+          "Das Dokument konnte nicht hochgeladen werden.",
         ),
       );
     } finally {
@@ -166,7 +166,7 @@ export default function DocumentsPage() {
       setError(
         getErrorMessage(
           requestError,
-          "The document assignment could not be changed.",
+          "Die Dokumentzuordnung konnte nicht geändert werden.",
         ),
       );
     } finally {
@@ -191,7 +191,7 @@ export default function DocumentsPage() {
       setError(
         getErrorMessage(
           requestError,
-          "The document could not be downloaded.",
+          "Das Dokument konnte nicht heruntergeladen werden.",
         ),
       );
     } finally {
@@ -203,7 +203,7 @@ export default function DocumentsPage() {
     documentId: number,
   ): Promise<void> {
     const confirmed = window.confirm(
-      "Delete this document permanently from Supabase Storage?",
+      "Dieses Dokument dauerhaft aus dem Supabase-Speicher löschen?",
     );
 
     if (!confirmed) {
@@ -221,7 +221,7 @@ export default function DocumentsPage() {
       setError(
         getErrorMessage(
           requestError,
-          "The document could not be deleted.",
+          "Das Dokument konnte nicht gelöscht werden.",
         ),
       );
     } finally {
@@ -259,7 +259,7 @@ export default function DocumentsPage() {
         </p>
 
         <h1 className="mt-2 text-3xl font-bold text-slate-950">
-          Documents
+          Dokumente
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
@@ -276,7 +276,7 @@ export default function DocumentsPage() {
       <div className="mt-8 grid gap-6 xl:grid-cols-[380px_1fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">
-            Upload document
+            Dokument hochladen
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
@@ -299,7 +299,7 @@ export default function DocumentsPage() {
                 }
                 className="input"
               >
-                <option value="">No linked case</option>
+                <option value="">Kein verknüpfter Fall</option>
 
                 {cases.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -314,7 +314,7 @@ export default function DocumentsPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium">
-                File
+                Datei
               </label>
 
               <DocumentFilePicker
@@ -327,7 +327,7 @@ export default function DocumentsPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium">
-                Description
+                Beschreibung
               </label>
 
               <textarea
@@ -356,7 +356,7 @@ export default function DocumentsPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">
-                All documents
+                Alle Dokumente
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
@@ -370,7 +370,7 @@ export default function DocumentsPage() {
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              placeholder="Search documents..."
+              placeholder="Dokumente durchsuchen..."
               className="input max-w-xs"
             />
           </div>
@@ -399,13 +399,13 @@ export default function DocumentsPage() {
 
                         <p className="mt-1 text-sm text-slate-500">
                           {item.description ??
-                            "No description"}
+                            "Keine Beschreibung"}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
                           {formatFileSize(item.file_size)} ·
                           Uploaded by{" "}
-                          {item.uploaded_by ?? "Unknown"}
+                          {item.uploaded_by ?? "Unbekannt"}
                         </p>
                       </div>
 
@@ -427,7 +427,7 @@ export default function DocumentsPage() {
                           }
                           className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
                         >
-                          Download
+                          Herunterladen
                         </button>
 
                         <button
@@ -438,7 +438,7 @@ export default function DocumentsPage() {
                           }
                           className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                         >
-                          Delete
+                          Löschen
                         </button>
                       </div>
                     </div>

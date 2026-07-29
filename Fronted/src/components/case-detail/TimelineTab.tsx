@@ -56,7 +56,7 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
       setShowForm(false);
     } catch (requestError) {
       console.error(requestError);
-      setError("The timeline entry could not be saved.");
+      setError("Der Zeitleisteneintrag konnte nicht gespeichert werden.");
     } finally {
       setSaving(false);
     }
@@ -66,7 +66,7 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Case timeline</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Fallzeitleiste</h2>
           <p className="mt-1 text-sm text-slate-500">
             History, documents, tasks, and upcoming deadlines in one view.
           </p>
@@ -77,7 +77,7 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
           onClick={() => setShowForm((value) => !value)}
           className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
-          {showForm ? "Cancel" : "+ Add entry"}
+          {showForm ? "Abbrechen" : "+ Eintrag hinzufügen"}
         </button>
       </div>
 
@@ -96,15 +96,15 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
               }
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="Note">Note</option>
-              <option value="Update">Update</option>
-              <option value="Milestone">Milestone</option>
+              <option value="Note">Notiz</option>
+              <option value="Update">Aktualisierung</option>
+              <option value="Milestone">Meilenstein</option>
             </select>
 
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Timeline entry title"
+              placeholder="Titel des Zeitleisteneintrags"
               required
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
             />
@@ -113,7 +113,7 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Optional details"
+            placeholder="Optionale Details"
             rows={3}
             className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           />
@@ -125,7 +125,7 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
             disabled={saving}
             className="mt-3 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Save entry"}
+            {saving ? "Saving..." : "Eintrag speichern"}
           </button>
         </form>
       )}

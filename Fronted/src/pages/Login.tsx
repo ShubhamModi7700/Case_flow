@@ -59,7 +59,7 @@ export default function Login() {
         </div>
 
         <h1 className="mt-6 text-3xl font-bold">
-          Sign in
+          Anmelden
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
@@ -78,7 +78,7 @@ export default function Login() {
         >
           <label className="block">
             <span className="mb-2 block text-sm font-medium">
-              Email
+              E-Mail
             </span>
 
             <input
@@ -94,7 +94,7 @@ export default function Login() {
 
           <label className="block">
             <span className="mb-2 block text-sm font-medium">
-              Password
+              Passwort
             </span>
 
             <input
@@ -115,7 +115,7 @@ export default function Login() {
           >
             {submitting
               ? "Signing in..."
-              : "Sign in"}
+              : "Anmelden"}
           </button>
         </form>
       </div>

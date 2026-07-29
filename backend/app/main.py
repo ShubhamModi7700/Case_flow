@@ -87,7 +87,7 @@ app.include_router(users.router)
 @app.get("/")
 def root():
     return {
-        "message": "Case Flow API is running",
+        "message": "Case-Flow API ist aktiv",
         "version": "1.1.1",
     }
 

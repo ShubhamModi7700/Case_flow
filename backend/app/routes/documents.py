@@ -33,7 +33,7 @@ ALLOWED_CONTENT_TYPES = {
 def _get_case_or_404(case_id: int, db: Session) -> models.Case:
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     return case
 
 
@@ -45,7 +45,7 @@ def _get_document_or_404(document_id: int, db: Session) -> models.Document:
         .first()
     )
     if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
     return document
 
 
@@ -77,15 +77,15 @@ async def _store_document(
 
     content_type = file.content_type or "application/octet-stream"
     if content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=415, detail="Unsupported file type")
+        raise HTTPException(status_code=415, detail="Nicht unterstützter Dateityp")
 
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     await file.close()
 
     if not content:
-        raise HTTPException(status_code=400, detail="The selected file is empty")
+        raise HTTPException(status_code=400, detail="Die ausgewählte Datei ist leer")
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File exceeds the 10 MB limit")
+        raise HTTPException(status_code=413, detail="Die Datei überschreitet das Limit von 10 MB")
 
     original_name = Path(file.filename or "document").name
     # A neutral document path keeps storage independent from case assignment.

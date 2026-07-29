@@ -61,12 +61,12 @@ export default function CreateCase() {
     event.preventDefault();
 
     if (!form.title.trim()) {
-      setError("Title is required.");
+      setError("Ein Titel ist erforderlich.");
       return;
     }
 
     if (!form.company.trim()) {
-      setError("Company is required.");
+      setError("Unternehmen ist erforderlich.");
       return;
     }
 
@@ -102,7 +102,7 @@ export default function CreateCase() {
         replace: true,
       });
     } catch (requestError: unknown) {
-      console.error("Create case failed:", requestError);
+      console.error("Fallerstellung fehlgeschlagen:", requestError);
 
       if (axios.isAxiosError(requestError)) {
         const status = requestError.response?.status;
@@ -116,7 +116,7 @@ export default function CreateCase() {
               .map((item) => item?.msg)
               .filter(Boolean)
               .join("; ") ||
-              "The submitted data is invalid.",
+              "Die übermittelten Daten sind ungültig.",
           );
         } else if (status === 401) {
           setError(
@@ -124,7 +124,7 @@ export default function CreateCase() {
           );
         } else if (status === 405) {
           setError(
-            "The API route is not configured correctly. Check the Vercel rewrite.",
+            "Die API-Route ist nicht korrekt konfiguriert. Prüfen Sie die Vercel-Weiterleitung.",
           );
         } else if (status) {
           setError(
@@ -132,12 +132,12 @@ export default function CreateCase() {
           );
         } else {
           setError(
-            "The backend could not be reached.",
+            "Das Backend konnte nicht erreicht werden.",
           );
         }
       } else {
         setError(
-          "An unexpected error occurred while creating the case.",
+          "Beim Anlegen des Falls ist ein unerwarteter Fehler aufgetreten.",
         );
       }
     } finally {
@@ -149,7 +149,7 @@ export default function CreateCase() {
     <div className="mx-auto max-w-5xl p-8">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-slate-950">
-          Create case
+          Fall anlegen
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
@@ -168,7 +168,7 @@ export default function CreateCase() {
         onSubmit={handleSubmit}
         className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-7 shadow-sm md:grid-cols-2"
       >
-        <Field label="Title" wide>
+        <Field label="Titel" wide>
           <input
             name="title"
             value={form.title}
@@ -179,7 +179,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Company">
+        <Field label="Unternehmen">
           <input
             name="company"
             value={form.company}
@@ -189,7 +189,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Department">
+        <Field label="Abteilung">
           <input
             name="department"
             value={form.department}
@@ -198,7 +198,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Category">
+        <Field label="Kategorie">
           <select
             name="category"
             value={form.category}
@@ -220,7 +220,7 @@ export default function CreateCase() {
           </select>
         </Field>
 
-        <Field label="External Contact">
+        <Field label="Externer Kontakt">
           <input
             name="external_contact"
             value={form.external_contact}
@@ -229,7 +229,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Responsible Person">
+        <Field label="Verantwortliche Person">
           <input
             name="responsible_person"
             value={form.responsible_person}
@@ -277,7 +277,7 @@ export default function CreateCase() {
           </select>
         </Field>
 
-        <Field label="Primary Deadline">
+        <Field label="Hauptfrist">
           <input
             type="date"
             name="primary_deadline"
@@ -287,7 +287,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Follow-up Date">
+        <Field label="Wiedervorlage">
           <input
             type="date"
             name="follow_up_date"
@@ -297,7 +297,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Description" wide>
+        <Field label="Beschreibung" wide>
           <textarea
             name="description"
             value={form.description}
@@ -307,7 +307,7 @@ export default function CreateCase() {
           />
         </Field>
 
-        <Field label="Next Action" wide>
+        <Field label="Nächste Maßnahme" wide>
           <textarea
             name="next_action"
             value={form.next_action}
@@ -327,7 +327,7 @@ export default function CreateCase() {
           >
             {submitting
               ? "Creating..."
-              : "Create case"}
+              : "Fall anlegen"}
           </button>
         </div>
       </form>

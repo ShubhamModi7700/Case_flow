@@ -38,14 +38,14 @@ def login(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="E-Mail-Adresse oder Passwort ist falsch",
         )
 
     request.session.clear()
     request.session["user_id"] = user.id
 
     return {
-        "message": "Login successful",
+        "message": "Anmeldung erfolgreich",
         "user": user,
     }
 
@@ -55,7 +55,7 @@ def logout(request: Request):
     request.session.clear()
 
     return {
-        "message": "Logout successful",
+        "message": "Abmeldung erfolgreich",
     }
 
 

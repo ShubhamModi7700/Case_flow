@@ -11,7 +11,7 @@ type DocumentsTabProps = {
 
 function formatFileSize(size: number): string {
   if (size <= 0) {
-    return "Unknown size";
+    return "Unbekannte Größe";
   }
 
   if (size < 1024) {
@@ -57,13 +57,13 @@ export default function DocumentsTab({
       );
     } catch (requestError) {
       console.error("Document download failed:", requestError);
-      setError("The document could not be downloaded.");
+      setError("Das Dokument konnte nicht heruntergeladen werden.");
     }
   }
 
   async function deleteDocument(documentId: number): Promise<void> {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this document?",
+      "Möchten Sie dieses Dokument wirklich löschen?",
     );
 
     if (!confirmed) {
@@ -78,7 +78,7 @@ export default function DocumentsTab({
       await reload();
     } catch (requestError) {
       console.error("Document deletion failed:", requestError);
-      setError("The document could not be deleted.");
+      setError("Das Dokument konnte nicht gelöscht werden.");
     } finally {
       setDeletingId(null);
     }
@@ -89,7 +89,7 @@ export default function DocumentsTab({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">
-            Documents
+            Dokumente
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
@@ -102,7 +102,7 @@ export default function DocumentsTab({
           to="/documents"
           className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
-          Open Documents
+          Dokumente öffnen
         </Link>
       </div>
 
@@ -122,7 +122,7 @@ export default function DocumentsTab({
             to="/documents"
             className="mt-4 inline-block text-sm font-semibold text-slate-700 hover:text-slate-950"
           >
-            Go to Documents
+            Zu den Dokumenten
           </Link>
         </div>
       ) : (
@@ -138,7 +138,7 @@ export default function DocumentsTab({
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  {document.description || "No description"}
+                  {document.description || "Keine Beschreibung"}
                 </p>
 
                 <p className="mt-1 text-xs text-slate-400">
@@ -158,7 +158,7 @@ export default function DocumentsTab({
                   onClick={() => void downloadDocument(document.id)}
                   className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  Download
+                  Herunterladen
                 </button>
 
                 <button

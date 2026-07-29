@@ -60,28 +60,28 @@ function ApplicationLayout() {
             end
             className={navClass}
           >
-            Dashboard
+            Übersicht
           </NavLink>
 
           <NavLink
             to="/cases"
             className={navClass}
           >
-            Cases
+            Fälle
           </NavLink>
 
           <NavLink
             to="/cases/new"
             className={navClass}
           >
-            Create Case
+            Fall anlegen
           </NavLink>
 
           <NavLink
             to="/documents"
             className={navClass}
           >
-            Documents
+            Dokumente
           </NavLink>
 
           {user?.role === "Admin" && (
@@ -89,7 +89,7 @@ function ApplicationLayout() {
               to="/users"
               className={navClass}
             >
-              Users
+              Benutzer
             </NavLink>
           )}
         </nav>
@@ -114,7 +114,7 @@ function ApplicationLayout() {
             }}
             className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            Sign out
+            Abmelden
           </button>
         </div>
       </aside>

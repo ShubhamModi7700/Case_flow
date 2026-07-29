@@ -27,7 +27,7 @@ export default function DocumentFilePicker({
     if (nextFile && nextFile.size > MAX_FILE_SIZE) {
       onFileChange(null);
       if (inputRef.current) inputRef.current.value = "";
-      onError?.("The selected file exceeds the 10 MB limit.");
+      onError?.("Die ausgewählte Datei überschreitet das Limit von 10 MB.");
       return;
     }
 
@@ -99,7 +99,7 @@ export default function DocumentFilePicker({
                 disabled={disabled}
                 className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
               >
-                Remove
+                Entfernen
               </button>
             </div>
           </div>
@@ -108,14 +108,14 @@ export default function DocumentFilePicker({
             <p className="text-sm font-medium text-slate-700">
               Drag and drop a document here
             </p>
-            <p className="my-2 text-xs text-slate-400">or</p>
+            <p className="my-2 text-xs text-slate-400">oder</p>
             <label
               htmlFor={inputId}
               className={`inline-flex rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white ${
                 disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
               }`}
             >
-              Select document
+              Dokument auswählen
             </label>
             <p className="mt-3 text-xs text-slate-400">
               PDF, Office, CSV, text, PNG or JPEG · maximum 10 MB

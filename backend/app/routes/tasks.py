@@ -32,7 +32,7 @@ def get_case_or_404(
     if case is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Case not found",
+            detail="Fall nicht gefunden",
         )
 
     return case
@@ -51,7 +51,7 @@ def get_task_or_404(
     if task is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Task not found",
+            detail="Aufgabe nicht gefunden",
         )
 
     return task
@@ -83,7 +83,7 @@ def create_task(
 
         history = models.History(
             case_id=case.id,
-            change="Task created",
+            change="Aufgabe erstellt",
             responsible_person=(
                 task.responsible_person
                 or case.responsible_person
@@ -105,7 +105,7 @@ def create_task(
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="The task could not be created.",
+            detail="Die Aufgabe konnte nicht erstellt werden.",
         ) from exc
 
 
@@ -155,7 +155,7 @@ def complete_task(
 
         history = models.History(
             case_id=task.case_id,
-            change="Task completed",
+            change="Aufgabe abgeschlossen",
             responsible_person=task.responsible_person,
             note=f"Task '{task.title}' was completed.",
         )
@@ -174,5 +174,5 @@ def complete_task(
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="The task could not be completed.",
+            detail="Die Aufgabe konnte nicht abgeschlossen werden.",
         ) from exc

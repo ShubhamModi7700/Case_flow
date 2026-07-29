@@ -30,7 +30,7 @@ export default function TaskForm({
     const normalizedTitle = title.trim();
 
     if (!normalizedTitle) {
-      setError("Task title is required.");
+      setError("Ein Aufgabentitel ist erforderlich.");
       return;
     }
 
@@ -62,7 +62,7 @@ export default function TaskForm({
       setError(
         getApiErrorMessage(
           requestError,
-          "The task could not be created.",
+          "Die Aufgabe konnte nicht erstellt werden.",
         ),
       );
     } finally {
@@ -72,7 +72,7 @@ export default function TaskForm({
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">Add task</h2>
+      <h2 className="text-lg font-semibold text-slate-950">Aufgabe hinzufügen</h2>
 
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -81,7 +81,7 @@ export default function TaskForm({
       )}
 
       <form onSubmit={createTask} className="mt-5 space-y-4">
-        <Field label="Title">
+        <Field label="Titel">
           <input
             required
             value={title}
@@ -90,7 +90,7 @@ export default function TaskForm({
           />
         </Field>
 
-        <Field label="Description">
+        <Field label="Beschreibung">
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
@@ -99,7 +99,7 @@ export default function TaskForm({
           />
         </Field>
 
-        <Field label="Responsible person">
+        <Field label="Verantwortliche Person">
           <input
             value={responsiblePerson}
             onChange={(event) => setResponsiblePerson(event.target.value)}
@@ -107,7 +107,7 @@ export default function TaskForm({
           />
         </Field>
 
-        <Field label="Due date">
+        <Field label="Fälligkeitsdatum">
           <input
             type="date"
             value={dueDate}
@@ -124,9 +124,9 @@ export default function TaskForm({
             }
             className="input"
           >
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
+            <option value="Low">Niedrig</option>
+            <option value="Medium">Mittel</option>
+            <option value="High">Hoch</option>
           </select>
         </Field>
 
@@ -135,7 +135,7 @@ export default function TaskForm({
           disabled={submitting}
           className="w-full rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? "Adding task..." : "Add task"}
+          {submitting ? "Adding task..." : "Aufgabe hinzufügen"}
         </button>
       </form>
     </section>
