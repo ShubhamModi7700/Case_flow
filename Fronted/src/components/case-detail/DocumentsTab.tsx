@@ -1,220 +1,179 @@
-import axios from "axios";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { api } from "../../api";
 import type { DocumentItem } from "../../types";
-import { formatFileSize } from "../../utils/fileHelpers";
-import DocumentFilePicker from "../documents/DocumentFilePicker";
-import Field from "./Field";
-import { formatDateTime } from "./formatters";
-
-type DocumentDownloadResponse = {
-  download_url: string;
-  file_name: string;
-  expires_in: number;
-};
 
 type DocumentsTabProps = {
-  caseId: number;
   documents: DocumentItem[];
   reload: () => Promise<void>;
 };
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (axios.isAxiosError(error)) {
-    const detail = error.response?.data?.detail;
-    if (typeof detail === "string") return detail;
+function formatFileSize(size: number): string {
+  if (size <= 0) {
+    return "Unknown size";
   }
-  return fallback;
+
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
 }
 
 export default function DocumentsTab({
-  caseId,
   documents,
   reload,
 }: DocumentsTabProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [description, setDescription] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [busyDocumentId, setBusyDocumentId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  async function uploadDocument(
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> {
-    event.preventDefault();
+  async function downloadDocument(documentId: number): Promise<void> {
+    try {
+      setError("");
 
-    if (!file) {
-      setError("Please select a file.");
+      const response = await api.get<{ download_url: string }>(
+        `/documents/${documentId}/download`,
+      );
+
+      window.open(
+        response.data.download_url,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } catch (requestError) {
+      console.error("Document download failed:", requestError);
+      setError("The document could not be downloaded.");
+    }
+  }
+
+  async function deleteDocument(documentId: number): Promise<void> {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this document?",
+    );
+
+    if (!confirmed) {
       return;
     }
 
     try {
-      setUploading(true);
+      setDeletingId(documentId);
       setError("");
 
-      const formData = new FormData();
-      formData.append("file", file);
-      if (description.trim()) {
-        formData.append("description", description.trim());
-      }
-
-      await api.post(`/cases/${caseId}/documents`, formData);
-
-      setFile(null);
-      setDescription("");
-
-      await reload();
-    } catch (requestError) {
-      console.error(requestError);
-      setError(
-        getErrorMessage(requestError, "The document could not be uploaded."),
-      );
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function downloadDocument(documentId: number): Promise<void> {
-    try {
-      setBusyDocumentId(documentId);
-      setError("");
-
-      const response = await api.get<DocumentDownloadResponse>(
-        `/documents/${documentId}/download`,
-      );
-
-      window.location.assign(response.data.download_url);
-    } catch (requestError) {
-      console.error(requestError);
-      setError(
-        getErrorMessage(requestError, "The document could not be downloaded."),
-      );
-    } finally {
-      setBusyDocumentId(null);
-    }
-  }
-
-  async function removeDocument(documentId: number): Promise<void> {
-    const confirmed = window.confirm(
-      "Delete this document permanently from Supabase Storage?",
-    );
-    if (!confirmed) return;
-
-    try {
-      setBusyDocumentId(documentId);
-      setError("");
       await api.delete(`/documents/${documentId}`);
       await reload();
     } catch (requestError) {
-      console.error(requestError);
-      setError(
-        getErrorMessage(requestError, "The document could not be deleted."),
-      );
+      console.error("Document deletion failed:", requestError);
+      setError("The document could not be deleted.");
     } finally {
-      setBusyDocumentId(null);
+      setDeletingId(null);
     }
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold">Upload document</h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Files are stored in the private Supabase Storage bucket. Maximum size:
-          10 MB.
-        </p>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Documents
+          </h2>
 
-        {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={uploadDocument} className="mt-5 space-y-4">
-          <Field label="File">
-            <DocumentFilePicker
-              file={file}
-              onFileChange={setFile}
-              disabled={uploading || !file}
-              onError={setError}
-            />
-          </Field>
-
-          <Field label="Description">
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={3}
-              className="input"
-            />
-          </Field>
-
-          <button
-            type="submit"
-            disabled={uploading}
-            className="w-full rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {uploading ? "Uploading..." : "Upload document"}
-          </button>
-        </form>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold">Documents</h2>
-
-        {documents.length === 0 ? (
-          <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-            No documents have been uploaded.
+          <p className="mt-1 text-sm text-slate-500">
+            Documents linked to this case are managed from the main Documents
+            page.
           </p>
-        ) : (
-          <div className="mt-5 divide-y divide-slate-100">
-            {documents.map((item) => {
-              const isBusy = busyDocumentId === item.id;
+        </div>
 
-              return (
-                <div
-                  key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-4 py-4"
+        <Link
+          to="/documents"
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Open Documents
+        </Link>
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {documents.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center">
+          <p className="text-sm text-slate-500">
+            No documents are linked to this case.
+          </p>
+
+          <Link
+            to="/documents"
+            className="mt-4 inline-block text-sm font-semibold text-slate-700 hover:text-slate-950"
+          >
+            Go to Documents
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-6 divide-y divide-slate-200">
+          {documents.map((document) => (
+            <article
+              key={document.id}
+              className="flex flex-wrap items-center justify-between gap-4 py-5 first:pt-0 last:pb-0"
+            >
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate font-semibold text-slate-950">
+                  {document.file_name}
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {document.description || "No description"}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  {formatFileSize(document.file_size)}
+                  {document.uploaded_by
+                    ? ` · Uploaded by ${document.uploaded_by}`
+                    : ""}
+                  {document.uploaded_at
+                    ? ` · ${formatDate(document.uploaded_at)}`
+                    : ""}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void downloadDocument(document.id)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  <div className="min-w-0">
-                    <p className="break-all font-medium text-slate-950">
-                      {item.file_name}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {item.description ?? "No description"}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {formatFileSize(item.file_size)} · Uploaded by{" "}
-                      {item.uploaded_by ?? "Unknown"} on{" "}
-                      {formatDateTime(item.uploaded_at)}
-                    </p>
-                  </div>
+                  Download
+                </button>
 
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={() => void downloadDocument(item.id)}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Download
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={() => void removeDocument(item.id)}
-                      className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </div>
+                <button
+                  type="button"
+                  disabled={deletingId === document.id}
+                  onClick={() => void deleteDocument(document.id)}
+                  className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deletingId === document.id ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

@@ -154,7 +154,7 @@ export default function CaseDetail() {
       <div className="mt-6">
         {activeTab === "overview" && <OverviewTab caseItem={caseItem} />}
         {activeTab === "tasks" && <TasksTab caseId={caseItem.id} tasks={tasks} onTaskCreated={handleTaskCreated} onTaskUpdated={handleTaskUpdated} refreshHistory={loadTimeline} />}
-        {activeTab === "documents" && <DocumentsTab caseId={caseItem.id} documents={documents} reload={loadCaseDetail} />}
+        {activeTab === "documents" && <DocumentsTab documents={documents} reload={loadCaseDetail} />}
         {activeTab === "timeline" && <TimelineTab caseId={caseItem.id} events={timeline} onEventAdded={(event) => setTimeline((current) => [event, ...current])} />}
         {activeTab === "ai" && <AITab />}
       </div>
