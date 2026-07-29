@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import type { DocumentItem } from "../../types";
 import { formatFileSize } from "../../utils/fileHelpers";
+import DocumentFilePicker from "../documents/DocumentFilePicker";
 import Field from "./Field";
 import { formatDateTime } from "./formatters";
 
@@ -63,11 +64,6 @@ export default function DocumentsTab({
       setFile(null);
       setDescription("");
 
-      const fileInput = document.getElementById(
-        "case-document-file",
-      ) as HTMLInputElement | null;
-      if (fileInput) fileInput.value = "";
-
       await reload();
     } catch (requestError) {
       console.error(requestError);
@@ -85,7 +81,7 @@ export default function DocumentsTab({
       setError("");
 
       const response = await api.get<DocumentDownloadResponse>(
-        `/cases/documents/${documentId}/download`,
+        `/documents/${documentId}/download`,
       );
 
       window.location.assign(response.data.download_url);
@@ -108,7 +104,7 @@ export default function DocumentsTab({
     try {
       setBusyDocumentId(documentId);
       setError("");
-      await api.delete(`/cases/documents/${documentId}`);
+      await api.delete(`/documents/${documentId}`);
       await reload();
     } catch (requestError) {
       console.error(requestError);
@@ -137,15 +133,11 @@ export default function DocumentsTab({
 
         <form onSubmit={uploadDocument} className="mt-5 space-y-4">
           <Field label="File">
-            <input
-              id="case-document-file"
-              type="file"
-              required
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg"
-              onChange={(event) =>
-                setFile(event.target.files?.[0] ?? null)
-              }
-              className="input"
+            <DocumentFilePicker
+              file={file}
+              onFileChange={setFile}
+              disabled={uploading || !file}
+              onError={setError}
             />
           </Field>
 

@@ -60,17 +60,24 @@ def list_cases(
         query = query.filter(models.Case.is_archived.is_(False))
 
     if search:
-        search_value = f"%{search}%"
+        normalized_search = search.strip()
+        search_value = f"%{normalized_search}%"
+        case_number_value = normalized_search.upper()
+        if case_number_value.startswith("CF-"):
+            case_number_value = case_number_value[3:]
 
-        query = query.filter(
-            or_(
-                models.Case.title.ilike(search_value),
-                models.Case.company.ilike(search_value),
-                models.Case.department.ilike(search_value),
-                models.Case.external_contact.ilike(search_value),
-                models.Case.responsible_person.ilike(search_value),
-            )
-        )
+        filters = [
+            models.Case.title.ilike(search_value),
+            models.Case.company.ilike(search_value),
+            models.Case.department.ilike(search_value),
+            models.Case.external_contact.ilike(search_value),
+            models.Case.responsible_person.ilike(search_value),
+        ]
+
+        if case_number_value.isdigit():
+            filters.append(models.Case.id == int(case_number_value))
+
+        query = query.filter(or_(*filters))
 
     if status:
         query = query.filter(models.Case.status == status)
@@ -81,7 +88,7 @@ def list_cases(
     if category:
         query = query.filter(models.Case.category == category)
 
-    return query.order_by(models.Case.updated_at.desc()).all()
+    return query.order_by(models.Case.id.asc()).all()
 
 
 @router.get(

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import models  # noqa: F401 - registers SQLAlchemy models
+from app import models 
 from app.routes import auth, cases, dashboard, documents, history, tasks, users
 from app.routes.timeline import router as timeline_router
 

@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
+import DocumentFilePicker from "../components/documents/DocumentFilePicker";
 import type { CaseItem, DocumentItem } from "../types";
+import { formatCaseNumber } from "../types/case";
 import { formatFileSize } from "../utils/fileHelpers";
 
 type DocumentDownloadResponse = {
@@ -131,14 +133,6 @@ export default function DocumentsPage() {
       setFile(null);
       setDescription("");
       setSelectedCaseId("");
-
-      const input = document.getElementById(
-        "document-page-file",
-      ) as HTMLInputElement | null;
-
-      if (input) {
-        input.value = "";
-      }
 
       await loadData();
     } catch (requestError) {
@@ -309,7 +303,7 @@ export default function DocumentsPage() {
 
                 {cases.map((item) => (
                   <option key={item.id} value={item.id}>
-                    #{item.id} — {item.company}
+                    {formatCaseNumber(item.id)} — {item.company}
                     {item.department
                       ? ` / ${item.department}`
                       : ""}
@@ -323,15 +317,11 @@ export default function DocumentsPage() {
                 File
               </label>
 
-              <input
-                id="document-page-file"
-                type="file"
-                required
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg"
-                onChange={(event) =>
-                  setFile(event.target.files?.[0] ?? null)
-                }
-                className="input"
+              <DocumentFilePicker
+                file={file}
+                onFileChange={setFile}
+                disabled={uploading}
+                onError={setError}
               />
             </div>
 
@@ -478,7 +468,7 @@ export default function DocumentsPage() {
                             key={caseItem.id}
                             value={caseItem.id}
                           >
-                            #{caseItem.id} —{" "}
+                            {formatCaseNumber(caseItem.id)} —{" "}
                             {caseItem.company}
                             {caseItem.department
                               ? ` / ${caseItem.department}`

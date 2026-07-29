@@ -34,7 +34,7 @@ export default function CaseList() {
         },
       );
 
-      setCases(response.data);
+      setCases([...response.data].sort((a, b) => a.id - b.id));
     } catch (requestError: unknown) {
       console.error(
         "Loading cases failed:",
@@ -111,7 +111,7 @@ export default function CaseList() {
           onChange={(event) =>
             setSearch(event.target.value)
           }
-          placeholder="Search title, company, contact or responsible person"
+          placeholder="Search case number, title, company, contact or responsible person"
           className="rounded-xl border border-slate-300 px-4 py-3"
         />
 
