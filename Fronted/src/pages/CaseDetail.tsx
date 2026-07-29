@@ -40,7 +40,7 @@ export default function CaseDetail() {
 
   async function loadCaseDetail(): Promise<void> {
     if (!caseId || !/^\d+$/.test(caseId)) {
-      setError("Invalid case ID. Open the case from the Cases page.");
+      setError("Ungültige Fall-ID. Öffnen Sie den Fall über die Fallübersicht.");
       setLoading(false);
       return;
     }
@@ -155,7 +155,7 @@ export default function CaseDetail() {
   if (loading) {
     return (
       <div className="p-8 text-slate-500">
-        Loading case details...
+        Falldetails werden geladen...
       </div>
     );
   }
@@ -171,7 +171,7 @@ export default function CaseDetail() {
           to="/cases"
           className="mt-4 inline-block text-sm font-medium text-slate-600 hover:text-slate-950"
         >
-          ← Back to cases
+          ← Zurück zu den Fällen
         </Link>
       </div>
     );
@@ -186,7 +186,7 @@ export default function CaseDetail() {
           to="/cases"
           className="mt-4 inline-block text-sm font-medium text-slate-600 hover:text-slate-950"
         >
-          ← Back to cases
+          ← Zurück zu den Fällen
         </Link>
       </div>
     );
@@ -198,7 +198,7 @@ export default function CaseDetail() {
         to="/cases"
         className="text-sm font-medium text-slate-500 hover:text-slate-950"
       >
-        ← Back to cases
+        ← Zurück zu den Fällen
       </Link>
 
       <header className="mt-6 flex flex-wrap items-start justify-between gap-4">
@@ -239,25 +239,25 @@ export default function CaseDetail() {
       <div className="mt-8 border-b border-slate-200">
         <nav className="flex flex-wrap gap-2">
           <TabButton
-            label="Overview"
+            label="Übersicht"
             active={activeTab === "overview"}
             onClick={() => setActiveTab("overview")}
           />
 
           <TabButton
-            label={`Tasks (${tasks.length})`}
+            label={`Aufgaben (${tasks.length})`}
             active={activeTab === "tasks"}
             onClick={() => setActiveTab("tasks")}
           />
 
           <TabButton
-            label={`Documents (${documents.length})`}
+            label={`Dokumente (${documents.length})`}
             active={activeTab === "documents"}
             onClick={() => setActiveTab("documents")}
           />
 
           <TabButton
-            label={`Timeline (${timeline.length})`}
+            label={`Verlauf (${timeline.length})`}
             active={activeTab === "timeline"}
             onClick={() => setActiveTab("timeline")}
           />

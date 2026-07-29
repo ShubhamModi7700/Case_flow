@@ -6,6 +6,7 @@ import type {
   CaseStatus,
   RiskLevel,
 } from "../../types";
+import { getRiskConfig } from "../../utils/riskStyles";
 import Field from "./Field";
 import type { CaseUpdatePayload } from "./types";
 
@@ -97,7 +98,7 @@ export default function EditCaseModal({
             disabled={saving}
             className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-950 disabled:opacity-50"
           >
-            Close
+            Schließen
           </button>
         </div>
 
@@ -172,13 +173,13 @@ export default function EditCaseModal({
             </select>
           </Field>
 
-          <Field label="Risk">
+          <Field label="Risiko">
             <select
               value={risk}
               onChange={(event) =>
                 setRisk(event.target.value as RiskLevel)
               }
-              className="input"
+              className={`input font-semibold transition-colors ${getRiskConfig(risk).selectClass}`}
             >
               <option value="Low">Niedrig</option>
               <option value="Medium">Mittel</option>

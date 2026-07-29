@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api";
 import { translateRisk, translateStatus } from "../i18n/de";
+import { getRiskConfig } from "../utils/riskStyles";
 import { type CaseItem, formatCaseNumber } from "../types";
 
 export default function CaseList() {
@@ -115,6 +116,8 @@ function getActiveFilterLabel(params: URLSearchParams): string {
   if (params.get("missing_next_action") === "true") return "Ohne nächste Maßnahme";
   if (params.get("status_group") === "open") return "Offene Fälle";
   if (params.get("risk") === "High") return "Hohes Risiko";
+  if (params.get("risk") === "Medium") return "Mittleres Risiko";
+  if (params.get("risk") === "Low") return "Niedriges Risiko";
   return "";
 }
 
@@ -124,6 +127,17 @@ function isOverdue(deadline: string | null, status: string): boolean {
 }
 
 function Badge({ value, label }: { value: string; label: string }) {
-  const styles: Record<string, string> = { Low: "bg-green-100 text-green-700", Medium: "bg-amber-100 text-amber-700", High: "bg-red-100 text-red-700", New: "bg-slate-100 text-slate-700", "Under Review": "bg-blue-100 text-blue-700", "In Progress": "bg-indigo-100 text-indigo-700", Waiting: "bg-amber-100 text-amber-700", Completed: "bg-green-100 text-green-700", Critical: "bg-red-100 text-red-700" };
-  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles[value] ?? "bg-slate-100 text-slate-700"}`}>{label}</span>;
+  const statusStyles: Record<string, string> = {
+    New: "bg-slate-100 text-slate-700",
+    "Under Review": "bg-blue-100 text-blue-700",
+    "In Progress": "bg-indigo-100 text-indigo-700",
+    Waiting: "bg-amber-100 text-amber-700",
+    Completed: "bg-green-100 text-green-700",
+    Critical: "bg-red-100 text-red-700",
+  };
+  const className = ["Low", "Medium", "High"].includes(value)
+    ? getRiskConfig(value).badgeClass
+    : statusStyles[value] ?? "bg-slate-100 text-slate-700";
+
+  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${className}`}>{label}</span>;
 }

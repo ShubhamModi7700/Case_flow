@@ -1,3 +1,6 @@
+import { translateStatus } from "../../i18n/de";
+import { getRiskConfig } from "../../utils/riskStyles";
+
 export function StatusBadge({ value }: { value: string }) {
   const styles: Record<string, string> = {
     New: "bg-slate-100 text-slate-700",
@@ -8,15 +11,19 @@ export function StatusBadge({ value }: { value: string }) {
     Critical: "bg-red-100 text-red-700",
   };
 
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[value] ?? "bg-slate-100 text-slate-700"}`}>{value}</span>;
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[value] ?? "bg-slate-100 text-slate-700"}`}>
+      {translateStatus(value)}
+    </span>
+  );
 }
 
 export function RiskBadge({ value }: { value: string }) {
-  const styles: Record<string, string> = {
-    Low: "bg-green-100 text-green-700",
-    Medium: "bg-amber-100 text-amber-700",
-    High: "bg-red-100 text-red-700",
-  };
+  const config = getRiskConfig(value);
 
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[value] ?? "bg-slate-100 text-slate-700"}`}>{value} risk</span>;
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${config.badgeClass}`}>
+      Risiko: {config.label}
+    </span>
+  );
 }

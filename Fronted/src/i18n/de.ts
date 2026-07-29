@@ -13,6 +13,15 @@ export const riskLabels: Record<string, string> = {
   High: "Hoch",
 };
 
+export const categoryLabels: Record<string, string> = {
+  Customer: "Kunde",
+  Contract: "Vertrag",
+  Supplier: "Lieferant",
+  Employee: "Mitarbeiter",
+  Project: "Projekt",
+  Other: "Sonstiges",
+};
+
 export function translateStatus(value: string): string {
   return statusLabels[value] ?? value;
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
+import { riskConfig } from "../utils/riskStyles";
 import { type DashboardData, formatCaseNumber } from "../types";
 
 export default function Dashboard() {
@@ -37,12 +38,24 @@ export default function Dashboard() {
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         <DashboardCard to="/cases?status_group=open" title="Offene Fälle" value={data.open_cases} description="Alle aktiven Fälle" />
-        <DashboardCard to="/cases?risk=High" title="Hohes Risiko" value={data.high_risk_cases} description="Sofortige Aufmerksamkeit erforderlich" containerClass="border-red-200 bg-red-50" textClass="text-red-700" />
+        <DashboardCard to="/cases?risk=High" title="Hohes Risiko" value={data.high_risk_cases} description="Sofortige Aufmerksamkeit erforderlich" containerClass={riskConfig.High.cardClass} textClass={riskConfig.High.textClass} />
         <DashboardCard to="/cases?overdue=true" title="Überfällige Fristen" value={data.overdue_deadlines} description="Fälle mit überfälligen Aufgaben oder Fristen" containerClass="border-red-200 bg-red-50" textClass="text-red-700" />
         <DashboardCard to="/cases?upcoming=true" title="Anstehende Fristen" value={data.upcoming_deadlines} description="Innerhalb der nächsten sieben Tage" containerClass="border-amber-200 bg-amber-50" textClass="text-amber-700" />
         <DashboardCard to="/cases?missing_owner=true" title="Ohne Verantwortliche Person" value={data.cases_without_responsible} description="Zuweisung erforderlich" />
         <DashboardCard to="/cases?missing_next_action=true" title="Ohne nächste Maßnahme" value={data.cases_without_next_action} description="Nächsten Schritt festlegen" />
       </div>
+
+      <section className="mt-8">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-950">Risikoverteilung</h2>
+          <p className="mt-1 text-sm text-slate-500">Alle aktiven Fälle nach Risikostufe.</p>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          <DashboardCard to="/cases?risk=High" title="Hohes Risiko" value={data.high_risk_cases} description="Sofortige Aufmerksamkeit erforderlich" containerClass={riskConfig.High.cardClass} textClass={riskConfig.High.textClass} />
+          <DashboardCard to="/cases?risk=Medium" title="Mittleres Risiko" value={data.medium_risk_cases} description="Zeitnahe Prüfung empfohlen" containerClass={riskConfig.Medium.cardClass} textClass={riskConfig.Medium.textClass} />
+          <DashboardCard to="/cases?risk=Low" title="Niedriges Risiko" value={data.low_risk_cases} description="Derzeit kein unmittelbarer Handlungsbedarf" containerClass={riskConfig.Low.cardClass} textClass={riskConfig.Low.textClass} />
+        </div>
+      </section>
 
       <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">

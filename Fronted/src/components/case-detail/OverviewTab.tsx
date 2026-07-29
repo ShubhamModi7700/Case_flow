@@ -1,7 +1,8 @@
 import type { CaseItem } from "../../types";
+import { RiskBadge, StatusBadge } from "./Badges";
 import { formatDateTime } from "./formatters";
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</dt>
@@ -22,12 +23,12 @@ export default function OverviewTab({ caseItem }: { caseItem: CaseItem }) {
           <Detail label="Abteilung" value={caseItem.department ?? "Nicht angegeben"} />
           <Detail label="Externer Kontakt" value={caseItem.external_contact ?? "Nicht angegeben"} />
           <Detail label="Verantwortliche Person" value={caseItem.responsible_person ?? "Nicht zugewiesen"} />
-          <Detail label="Status" value={caseItem.status} />
-          <Detail label="Risk" value={caseItem.risk} />
+          <Detail label="Status" value={<StatusBadge value={caseItem.status} />} />
+          <Detail label="Risiko" value={<RiskBadge value={caseItem.risk} />} />
           <Detail label="Hauptfrist" value={caseItem.primary_deadline ?? "Nicht definiert"} />
           <Detail label="Wiedervorlage" value={caseItem.follow_up_date ?? "Nicht definiert"} />
-          <Detail label="Created" value={formatDateTime(caseItem.created_at)} />
-          <Detail label="Last updated" value={formatDateTime(caseItem.updated_at)} />
+          <Detail label="Erstellt" value={formatDateTime(caseItem.created_at)} />
+          <Detail label="Zuletzt aktualisiert" value={formatDateTime(caseItem.updated_at)} />
         </dl>
       </section>
 

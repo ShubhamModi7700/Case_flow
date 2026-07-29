@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api";
+import { getRiskConfig } from "../utils/riskStyles";
 import type { CaseItem } from "../types";
 
 type CaseForm = {
@@ -120,7 +121,7 @@ export default function CreateCase() {
           );
         } else if (status === 401) {
           setError(
-            "Your login session has expired. Please sign in again.",
+            "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
           );
         } else if (status === 405) {
           setError(
@@ -128,7 +129,7 @@ export default function CreateCase() {
           );
         } else if (status) {
           setError(
-            `The case could not be created. Server returned ${status}.`,
+            `Der Fall konnte nicht angelegt werden. Der Server meldete Status ${status}.`,
           );
         } else {
           setError(
@@ -153,8 +154,8 @@ export default function CreateCase() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Enter the case information, responsibility,
-          risk and next action.
+          Erfassen Sie die Falldaten, Zuständigkeit, das Risiko
+          und die nächste Maßnahme.
         </p>
       </header>
 
@@ -205,18 +206,12 @@ export default function CreateCase() {
             onChange={handleChange}
             className="input"
           >
-            {[
-              "Customer",
-              "Contract",
-              "Supplier",
-              "Employee",
-              "Project",
-              "Other",
-            ].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
+            <option value="Customer">Kunde</option>
+            <option value="Contract">Vertrag</option>
+            <option value="Supplier">Lieferant</option>
+            <option value="Employee">Mitarbeiter</option>
+            <option value="Project">Projekt</option>
+            <option value="Other">Sonstiges</option>
           </select>
         </Field>
 
@@ -245,35 +240,25 @@ export default function CreateCase() {
             onChange={handleChange}
             className="input"
           >
-            {[
-              "New",
-              "Under Review",
-              "In Progress",
-              "Waiting",
-              "Completed",
-              "Critical",
-            ].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
+            <option value="New">Neu</option>
+            <option value="Under Review">In Prüfung</option>
+            <option value="In Progress">In Bearbeitung</option>
+            <option value="Waiting">Wartend</option>
+            <option value="Completed">Abgeschlossen</option>
+            <option value="Critical">Kritisch</option>
           </select>
         </Field>
 
-        <Field label="Risk">
+        <Field label="Risiko">
           <select
             name="risk"
             value={form.risk}
             onChange={handleChange}
-            className="input"
+            className={`input font-semibold transition-colors ${getRiskConfig(form.risk).selectClass}`}
           >
-            {["Low", "Medium", "High"].map(
-              (value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ),
-            )}
+            <option value="Low">Niedrig</option>
+            <option value="Medium">Mittel</option>
+            <option value="High">Hoch</option>
           </select>
         </Field>
 
@@ -326,7 +311,7 @@ export default function CreateCase() {
             className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting
-              ? "Creating..."
+              ? "Wird angelegt..."
               : "Fall anlegen"}
           </button>
         </div>
