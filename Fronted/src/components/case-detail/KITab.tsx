@@ -6,7 +6,7 @@ export default function KITab() {
       </div>
 
       <h2 className="mt-5 text-center text-xl font-semibold text-slate-950">
-        KI-Managementassistent
+        KI-assistent
       </h2>
 
       <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-6 text-slate-500">
@@ -15,20 +15,6 @@ export default function KITab() {
         Risikohinweise, empfohlene nächste Maßnahmen und relevante Dokumente
         angezeigt.
       </p>
-
-      <div className="mt-8 rounded-xl bg-slate-50 p-6">
-        <h3 className="font-semibold text-slate-900">
-          Geplante KI-Funktionen
-        </h3>
-
-        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-600">
-          <li>Management-Zusammenfassung des Falls</li>
-          <li>Empfohlene nächste Maßnahmen</li>
-          <li>Hinweise auf offene Fristen</li>
-          <li>Risikobewertung mit Begründung</li>
-          <li>Übersicht relevanter Dokumente</li>
-        </ul>
-      </div>
     </section>
   );
 }
