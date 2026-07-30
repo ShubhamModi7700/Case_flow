@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../api";
-import AITab from "../components/case-detail/AITab";
 import { RiskBadge, StatusBadge } from "../components/case-detail/Badges";
 import DocumentsTab from "../components/case-detail/DocumentsTab";
 import EditCaseModal from "../components/case-detail/EditCaseModal";
+import KITab from "../components/case-detail/KITab";
 import OverviewTab from "../components/case-detail/OverviewTab";
 import TabButton from "../components/case-detail/TabButton";
 import TasksTab from "../components/case-detail/TasksTab";
@@ -40,7 +40,9 @@ export default function CaseDetail() {
 
   async function loadCaseDetail(): Promise<void> {
     if (!caseId || !/^\d+$/.test(caseId)) {
-      setError("Ungültige Fall-ID. Öffnen Sie den Fall über die Fallübersicht.");
+      setError(
+        "Ungültige Fall-ID. Öffnen Sie den Fall über die Fallübersicht.",
+      );
       setLoading(false);
       return;
     }
@@ -66,7 +68,10 @@ export default function CaseDetail() {
       setDocuments(documentResponse.data);
       setTimeline(timelineResponse.data);
     } catch (requestError) {
-      console.error("Case detail loading failed:", requestError);
+      console.error(
+        "Falldetails konnten nicht geladen werden:",
+        requestError,
+      );
 
       setError(
         "Die Falldetails konnten nicht geladen werden. Prüfen Sie die Backend-Routen und die ausgewählte Fall-ID.",
@@ -88,7 +93,10 @@ export default function CaseDetail() {
 
       setTimeline(response.data);
     } catch (requestError) {
-      console.error("Timeline refresh failed:", requestError);
+      console.error(
+        "Der Verlauf konnte nicht aktualisiert werden:",
+        requestError,
+      );
     }
   }
 
@@ -125,7 +133,10 @@ export default function CaseDetail() {
 
       await loadTimeline();
     } catch (requestError: any) {
-      console.error("Fallaktualisierung fehlgeschlagen:", requestError);
+      console.error(
+        "Fallaktualisierung fehlgeschlagen:",
+        requestError,
+      );
 
       const detail = requestError.response?.data?.detail;
 
@@ -138,10 +149,13 @@ export default function CaseDetail() {
           .join("; ");
 
         setEditError(
-          validationMessage || "Der Fall konnte nicht aktualisiert werden.",
+          validationMessage ||
+            "Der Fall konnte nicht aktualisiert werden.",
         );
       } else {
-        setEditError("Der Fall konnte nicht aktualisiert werden.");
+        setEditError(
+          "Der Fall konnte nicht aktualisiert werden.",
+        );
       }
     } finally {
       setSavingCase(false);
@@ -263,9 +277,9 @@ export default function CaseDetail() {
           />
 
           <TabButton
-            label="AI"
-            active={activeTab === "ai"}
-            onClick={() => setActiveTab("ai")}
+            label="KI-Assistent"
+            active={activeTab === "KI"}
+            onClick={() => setActiveTab("KI")}
           />
         </nav>
       </div>
@@ -297,12 +311,15 @@ export default function CaseDetail() {
             caseId={caseItem.id}
             events={timeline}
             onEventAdded={(event) =>
-              setTimeline((current) => [event, ...current])
+              setTimeline((currentEvents) => [
+                event,
+                ...currentEvents,
+              ])
             }
           />
         )}
 
-        {activeTab === "ai" && <AITab />}
+        {activeTab === "KI" && <KITab />}
       </div>
 
       {editingCase && (

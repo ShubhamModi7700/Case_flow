@@ -1,6 +1,6 @@
 import type { CaseCategory, CaseStatus, RiskLevel } from "../../types";
 
-export type TabName = "overview" | "tasks" | "documents" | "timeline" | "ai";
+export type TabName = "overview" | "tasks" | "documents" | "timeline" | "KI";
 
 export interface CaseUpdatePayload {
   title: string;
