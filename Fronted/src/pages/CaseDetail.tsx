@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api";
 import { RiskBadge, StatusBadge } from "../components/case-detail/Badges";
+import DeleteCaseModal from "../components/case-detail/DeleteCaseModal";
 import DocumentsTab from "../components/case-detail/DocumentsTab";
 import EditCaseModal from "../components/case-detail/EditCaseModal";
 import KITab from "../components/case-detail/KITab";
@@ -24,6 +25,7 @@ import {
 
 export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<TabName>("overview");
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
@@ -37,6 +39,10 @@ export default function CaseDetail() {
   const [editingCase, setEditingCase] = useState(false);
   const [savingCase, setSavingCase] = useState(false);
   const [editError, setEditError] = useState("");
+
+  const [deletingCase, setDeletingCase] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   async function loadCaseDetail(): Promise<void> {
     if (!caseId || !/^\d+$/.test(caseId)) {
@@ -110,6 +116,37 @@ export default function CaseDetail() {
         currentTask.id === task.id ? task : currentTask,
       ),
     );
+  }
+
+  async function deleteCase(): Promise<void> {
+    if (!caseItem || deletingCase) {
+      return;
+    }
+
+    try {
+      setDeletingCase(true);
+      setDeleteError("");
+
+      await api.delete(`/cases/${caseItem.id}`);
+
+      setShowDeleteModal(false);
+      navigate("/cases", { replace: true });
+    } catch (requestError: any) {
+      console.error(
+        "Fall konnte nicht gelöscht werden:",
+        requestError,
+      );
+
+      const detail = requestError.response?.data?.detail;
+
+      setDeleteError(
+        typeof detail === "string"
+          ? detail
+          : "Der Fall konnte nicht gelöscht werden. Bitte versuchen Sie es erneut.",
+      );
+    } finally {
+      setDeletingCase(false);
+    }
   }
 
   async function saveCase(
@@ -238,16 +275,29 @@ export default function CaseDetail() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditError("");
-            setEditingCase(true);
-          }}
-          className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          Fall bearbeiten
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setEditError("");
+              setEditingCase(true);
+            }}
+            className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Fall bearbeiten
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError("");
+              setShowDeleteModal(true);
+            }}
+            className="rounded-xl border border-red-300 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 hover:bg-red-100"
+          >
+            Fall löschen
+          </button>
+        </div>
       </header>
 
       <div className="mt-8 border-b border-slate-200">
@@ -346,6 +396,21 @@ export default function CaseDetail() {
             }
           }}
           onSave={saveCase}
+        />
+      )}
+
+      {showDeleteModal && (
+        <DeleteCaseModal
+          caseTitle={caseItem.title}
+          deleting={deletingCase}
+          error={deleteError}
+          onCancel={() => {
+            if (!deletingCase) {
+              setDeleteError("");
+              setShowDeleteModal(false);
+            }
+          }}
+          onConfirm={deleteCase}
         />
       )}
     </div>
