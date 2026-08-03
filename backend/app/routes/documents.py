@@ -1,13 +1,24 @@
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
-from app.storage import create_signed_url, delete_object, upload_object
+from app.storage import (
+    create_signed_url,
+    delete_object,
+    upload_object,
+)
 
 router = APIRouter(
     tags=["Documents"],
@@ -15,23 +26,37 @@ router = APIRouter(
 )
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+# Version 1 supported formats:
+# PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Email (EML/MSG)
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "text/csv",
-    "text/plain",
-    "image/jpeg",
-    "image/png",
+    "message/rfc822",
+    "application/vnd.ms-outlook",
+    "application/x-msg",
+}
+
+ALLOWED_FILE_EXTENSIONS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".eml",
+    ".msg",
 }
 
 
 def _get_case_or_404(case_id: int, db: Session) -> models.Case:
-    case = db.query(models.Case).filter(models.Case.id == case_id).first()
+    case = (
+        db.query(models.Case)
+        .filter(models.Case.id == case_id)
+        .first()
+    )
     if case is None:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     return case
@@ -64,6 +89,26 @@ def _serialize_document(document: models.Document) -> schemas.DocumentResponse:
     )
 
 
+def _validate_file_type(*, file_name: str, content_type: str) -> None:
+    """Validate using MIME type and extension.
+
+    Some browsers upload Outlook MSG files with a generic MIME type such as
+    application/octet-stream, so the extension is checked as a fallback.
+    """
+    extension = Path(file_name).suffix.lower()
+    mime_is_allowed = content_type in ALLOWED_CONTENT_TYPES
+    extension_is_allowed = extension in ALLOWED_FILE_EXTENSIONS
+
+    if not mime_is_allowed and not extension_is_allowed:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                "Nicht unterstützter Dateityp. "
+                "Erlaubte Formate: PDF, DOC, DOCX, XLS, XLSX, EML und MSG."
+            ),
+        )
+
+
 async def _store_document(
     *,
     file: UploadFile,
@@ -75,20 +120,29 @@ async def _store_document(
     if case_id is not None:
         _get_case_or_404(case_id, db)
 
+    original_name = Path(file.filename or "document").name
     content_type = file.content_type or "application/octet-stream"
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=415, detail="Nicht unterstützter Dateityp")
+
+    _validate_file_type(
+        file_name=original_name,
+        content_type=content_type,
+    )
 
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     await file.close()
 
     if not content:
-        raise HTTPException(status_code=400, detail="Die ausgewählte Datei ist leer")
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Die Datei überschreitet das Limit von 10 MB")
+        raise HTTPException(
+            status_code=400,
+            detail="Die ausgewählte Datei ist leer",
+        )
 
-    original_name = Path(file.filename or "document").name
-    # A neutral document path keeps storage independent from case assignment.
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Die Datei überschreitet das Limit von 10 MB",
+        )
+
     object_path = f"documents/{uuid4().hex}_{original_name}"
     cleaned_description = description.strip() if description else None
     cleaned_description = cleaned_description or None
@@ -159,7 +213,7 @@ async def upload_case_document(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Compatibility endpoint used by the Documents tab inside a case."""
+    """Upload a document and link it directly to a case."""
     return await _store_document(
         file=file,
         description=description,
@@ -169,7 +223,10 @@ async def upload_case_document(
     )
 
 
-@router.get("/documents", response_model=list[schemas.DocumentResponse])
+@router.get(
+    "/documents",
+    response_model=list[schemas.DocumentResponse],
+)
 def list_all_documents(db: Session = Depends(get_db)):
     documents = (
         db.query(models.Document)
@@ -216,8 +273,10 @@ def assign_document_to_case(
 
     db.commit()
     db.refresh(document)
+
     if document.case_id is not None:
         document.case = _get_case_or_404(document.case_id, db)
+
     return _serialize_document(document)
 
 
@@ -225,8 +284,12 @@ def assign_document_to_case(
     "/documents/{document_id}/download",
     response_model=schemas.DocumentDownloadResponse,
 )
-def get_document_download_url(document_id: int, db: Session = Depends(get_db)):
+def get_document_download_url(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
     document = _get_document_or_404(document_id, db)
+
     try:
         signed_url = create_signed_url(document.storage_path, expires_in=60)
     except RuntimeError as exc:
@@ -239,9 +302,13 @@ def get_document_download_url(document_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.delete("/documents/{document_id}", status_code=204)
+@router.delete(
+    "/documents/{document_id}",
+    status_code=204,
+)
 def delete_document(document_id: int, db: Session = Depends(get_db)):
     document = _get_document_or_404(document_id, db)
+
     try:
         delete_object(document.storage_path)
     except RuntimeError as exc:

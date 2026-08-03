@@ -32,23 +32,30 @@ function formatDate(value: string): string {
     return value;
   }
 
-  return date.toLocaleString();
+  return date.toLocaleString("de-DE");
 }
 
 export default function DocumentsTab({
   documents,
   reload,
 }: DocumentsTabProps) {
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] =
+    useState<number | null>(null);
+
   const [error, setError] = useState("");
 
-  async function downloadDocument(documentId: number): Promise<void> {
+  async function downloadDocument(
+    documentId: number,
+  ): Promise<void> {
     try {
       setError("");
 
-      const response = await api.get<{ download_url: string }>(
-        `/documents/${documentId}/download`,
-      );
+      const response =
+        await api.get<{
+          download_url: string;
+        }>(
+          `/documents/${documentId}/download`,
+        );
 
       window.open(
         response.data.download_url,
@@ -56,14 +63,22 @@ export default function DocumentsTab({
         "noopener,noreferrer",
       );
     } catch (requestError) {
-      console.error("Document download failed:", requestError);
-      setError("Das Dokument konnte nicht heruntergeladen werden.");
+      console.error(
+        "Dokument konnte nicht heruntergeladen werden:",
+        requestError,
+      );
+
+      setError(
+        "Das Dokument konnte nicht heruntergeladen werden.",
+      );
     }
   }
 
-  async function deleteDocument(documentId: number): Promise<void> {
+  async function deleteDocument(
+    documentId: number,
+  ): Promise<void> {
     const confirmed = window.confirm(
-      "Möchten Sie dieses Dokument wirklich löschen?",
+      "Möchten Sie dieses Dokument wirklich dauerhaft löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.",
     );
 
     if (!confirmed) {
@@ -74,11 +89,20 @@ export default function DocumentsTab({
       setDeletingId(documentId);
       setError("");
 
-      await api.delete(`/documents/${documentId}`);
+      await api.delete(
+        `/documents/${documentId}`,
+      );
+
       await reload();
     } catch (requestError) {
-      console.error("Document deletion failed:", requestError);
-      setError("Das Dokument konnte nicht gelöscht werden.");
+      console.error(
+        "Dokument konnte nicht gelöscht werden:",
+        requestError,
+      );
+
+      setError(
+        "Das Dokument konnte nicht gelöscht werden.",
+      );
     } finally {
       setDeletingId(null);
     }
@@ -93,8 +117,9 @@ export default function DocumentsTab({
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Documents linked to this case are managed from the main Documents
-            page.
+            Die diesem Fall zugeordneten Dokumente
+            werden auf der zentralen Dokumentenseite
+            verwaltet.
           </p>
         </div>
 
@@ -115,7 +140,8 @@ export default function DocumentsTab({
       {documents.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center">
           <p className="text-sm text-slate-500">
-            No documents are linked to this case.
+            Diesem Fall sind noch keine Dokumente
+            zugeordnet.
           </p>
 
           <Link
@@ -127,51 +153,73 @@ export default function DocumentsTab({
         </div>
       ) : (
         <div className="mt-6 divide-y divide-slate-200">
-          {documents.map((document) => (
-            <article
-              key={document.id}
-              className="flex flex-wrap items-center justify-between gap-4 py-5 first:pt-0 last:pb-0"
-            >
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate font-semibold text-slate-950">
-                  {document.file_name}
-                </h3>
+          {documents.map((document) => {
+            const isDeleting =
+              deletingId === document.id;
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {document.description || "Keine Beschreibung"}
-                </p>
+            return (
+              <article
+                key={document.id}
+                className="flex flex-wrap items-center justify-between gap-4 py-5 first:pt-0 last:pb-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-semibold text-slate-950">
+                    {document.file_name}
+                  </h3>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  {formatFileSize(document.file_size)}
-                  {document.uploaded_by
-                    ? ` · Uploaded by ${document.uploaded_by}`
-                    : ""}
-                  {document.uploaded_at
-                    ? ` · ${formatDate(document.uploaded_at)}`
-                    : ""}
-                </p>
-              </div>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {document.description ||
+                      "Keine Beschreibung"}
+                  </p>
 
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => void downloadDocument(document.id)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Herunterladen
-                </button>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {formatFileSize(
+                      document.file_size,
+                    )}
 
-                <button
-                  type="button"
-                  disabled={deletingId === document.id}
-                  onClick={() => void deleteDocument(document.id)}
-                  className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {deletingId === document.id ? "Deleting..." : "Delete"}
-                </button>
-              </div>
-            </article>
-          ))}
+                    {document.uploaded_by
+                      ? ` · Hochgeladen von ${document.uploaded_by}`
+                      : ""}
+
+                    {document.uploaded_at
+                      ? ` · ${formatDate(
+                          document.uploaded_at,
+                        )}`
+                      : ""}
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void downloadDocument(
+                        document.id,
+                      )
+                    }
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Herunterladen
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() =>
+                      void deleteDocument(
+                        document.id,
+                      )
+                    }
+                    className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isDeleting
+                      ? "Wird gelöscht..."
+                      : "Löschen"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

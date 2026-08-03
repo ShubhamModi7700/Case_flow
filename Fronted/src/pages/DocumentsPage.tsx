@@ -35,11 +35,11 @@ function getErrorMessage(error: unknown, fallback: string): string {
     }
 
     if (status === 401) {
-      return "Authentication required. Please sign in again.";
+      return "Anmeldung erforderlich. Bitte melden Sie sich erneut an.";
     }
 
     if (status === 403) {
-      return "You do not have permission to perform this action.";
+      return "Sie haben keine Berechtigung für diese Aktion.";
     }
 
     if (status === 404) {
@@ -203,7 +203,7 @@ export default function DocumentsPage() {
     documentId: number,
   ): Promise<void> {
     const confirmed = window.confirm(
-      "Dieses Dokument dauerhaft aus dem Supabase-Speicher löschen?",
+      "Möchten Sie dieses Dokument wirklich dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
     );
 
     if (!confirmed) {
@@ -346,8 +346,8 @@ export default function DocumentsPage() {
               className="w-full rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploading
-                ? "Uploading..."
-                : "Upload document"}
+                ? "Wird hochgeladen..."
+                : "Dokument hochladen"}
             </button>
           </form>
         </section>

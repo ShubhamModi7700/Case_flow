@@ -3,8 +3,19 @@ import { useId, useRef, useState } from "react";
 import { formatFileSize } from "../../utils/fileHelpers";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 const ACCEPTED_EXTENSIONS =
-  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg";
+  ".pdf,.doc,.docx,.xls,.xlsx,.eml,.msg";
+
+const ALLOWED_EXTENSIONS = new Set([
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".eml",
+  ".msg",
+]);
 
 type DocumentFilePickerProps = {
   file: File | null;
@@ -23,11 +34,52 @@ export default function DocumentFilePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
+  function getFileExtension(fileName: string): string {
+    const lastDotIndex = fileName.lastIndexOf(".");
+
+    if (lastDotIndex === -1) {
+      return "";
+    }
+
+    return fileName
+      .slice(lastDotIndex)
+      .toLowerCase();
+  }
+
   function selectFile(nextFile: File | null): void {
-    if (nextFile && nextFile.size > MAX_FILE_SIZE) {
+    if (!nextFile) {
+      onError?.("");
       onFileChange(null);
-      if (inputRef.current) inputRef.current.value = "";
-      onError?.("Die ausgewählte Datei überschreitet das Limit von 10 MB.");
+      return;
+    }
+
+    const extension = getFileExtension(nextFile.name);
+
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      onFileChange(null);
+
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+
+      onError?.(
+        "Nicht unterstütztes Dateiformat. Erlaubt sind PDF, DOC, DOCX, XLS, XLSX, EML und MSG.",
+      );
+
+      return;
+    }
+
+    if (nextFile.size > MAX_FILE_SIZE) {
+      onFileChange(null);
+
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+
+      onError?.(
+        "Die ausgewählte Datei überschreitet das Limit von 10 MB.",
+      );
+
       return;
     }
 
@@ -37,7 +89,11 @@ export default function DocumentFilePicker({
 
   function clearFile(): void {
     onFileChange(null);
-    if (inputRef.current) inputRef.current.value = "";
+    onError?.("");
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   }
 
   return (
@@ -49,7 +105,9 @@ export default function DocumentFilePicker({
         accept={ACCEPTED_EXTENSIONS}
         disabled={disabled}
         onChange={(event) =>
-          selectFile(event.target.files?.[0] ?? null)
+          selectFile(
+            event.target.files?.[0] ?? null,
+          )
         }
         className="sr-only"
       />
@@ -57,9 +115,14 @@ export default function DocumentFilePicker({
       <div
         onDragEnter={(event) => {
           event.preventDefault();
-          if (!disabled) setDragging(true);
+
+          if (!disabled) {
+            setDragging(true);
+          }
         }}
-        onDragOver={(event) => event.preventDefault()}
+        onDragOver={(event) => {
+          event.preventDefault();
+        }}
         onDragLeave={(event) => {
           event.preventDefault();
           setDragging(false);
@@ -67,7 +130,13 @@ export default function DocumentFilePicker({
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          if (!disabled) selectFile(event.dataTransfer.files?.[0] ?? null);
+
+          if (!disabled) {
+            selectFile(
+              event.dataTransfer.files?.[0] ??
+                null,
+            );
+          }
         }}
         className={`rounded-xl border-2 border-dashed p-5 text-center transition ${
           dragging
@@ -81,6 +150,7 @@ export default function DocumentFilePicker({
               <p className="break-all text-sm font-semibold text-slate-900">
                 {file.name}
               </p>
+
               <p className="mt-1 text-xs text-slate-500">
                 {formatFileSize(file.size)}
               </p>
@@ -91,8 +161,9 @@ export default function DocumentFilePicker({
                 htmlFor={inputId}
                 className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
               >
-                Change document
+                Dokument ändern
               </label>
+
               <button
                 type="button"
                 onClick={clearFile}
@@ -106,19 +177,31 @@ export default function DocumentFilePicker({
         ) : (
           <div>
             <p className="text-sm font-medium text-slate-700">
-              Drag and drop a document here
+              Dokument hierher ziehen und ablegen
             </p>
-            <p className="my-2 text-xs text-slate-400">oder</p>
+
+            <p className="my-2 text-xs text-slate-400">
+              oder
+            </p>
+
             <label
               htmlFor={inputId}
               className={`inline-flex rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white ${
-                disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                disabled
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer"
               }`}
             >
               Dokument auswählen
             </label>
+
             <p className="mt-3 text-xs text-slate-400">
-              PDF, Office, CSV, text, PNG or JPEG · maximum 10 MB
+              PDF, Word, Excel oder E-Mail · maximal 10 MB
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              Unterstützte Formate: .pdf, .doc, .docx, .xls,
+              .xlsx, .eml, .msg
             </p>
           </div>
         )}
