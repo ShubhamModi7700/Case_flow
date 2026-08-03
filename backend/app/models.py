@@ -89,6 +89,16 @@ class Case(Base):
         default="Low",
     )
 
+    risk_reason = Column(Text, nullable=True)
+    suggested_risk = Column(String(20), nullable=True)
+    suggested_risk_reason = Column(Text, nullable=True)
+    risk_is_manual = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    management_summary = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     next_action = Column(Text, nullable=True)
 

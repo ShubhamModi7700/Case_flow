@@ -362,3 +362,32 @@ def migrate_documents_independent(engine: Engine) -> None:
                 """
             )
         )
+
+def migrate_case_management_fields(engine: Engine) -> None:
+    """Add transparent risk and management-summary fields."""
+    columns = _column_map(engine, "cases")
+
+    if not columns:
+        return
+
+    statements = {
+        "risk_reason": "ALTER TABLE cases ADD COLUMN risk_reason TEXT",
+        "suggested_risk": (
+            "ALTER TABLE cases ADD COLUMN suggested_risk VARCHAR(20)"
+        ),
+        "suggested_risk_reason": (
+            "ALTER TABLE cases ADD COLUMN suggested_risk_reason TEXT"
+        ),
+        "risk_is_manual": (
+            "ALTER TABLE cases ADD COLUMN risk_is_manual BOOLEAN "
+            "NOT NULL DEFAULT FALSE"
+        ),
+        "management_summary": (
+            "ALTER TABLE cases ADD COLUMN management_summary TEXT"
+        ),
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in statements.items():
+            if column_name not in columns:
+                connection.execute(text(statement))

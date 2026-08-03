@@ -26,6 +26,11 @@ export interface CaseItem {
   responsible_person: string | null;
   status: CaseStatus;
   risk: RiskLevel;
+  risk_reason: string | null;
+  suggested_risk: RiskLevel | null;
+  suggested_risk_reason: string | null;
+  risk_is_manual: boolean;
+  management_summary: string | null;
   description: string | null;
   next_action: string | null;
   primary_deadline: string | null;

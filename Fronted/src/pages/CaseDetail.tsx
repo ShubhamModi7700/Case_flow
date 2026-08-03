@@ -286,7 +286,20 @@ export default function CaseDetail() {
 
       <div className="mt-6">
         {activeTab === "overview" && (
-          <OverviewTab caseItem={caseItem} />
+          <OverviewTab
+            caseItem={caseItem}
+            tasks={tasks}
+            documents={documents}
+            timeline={timeline}
+            onEditCase={() => {
+              setEditError("");
+              setEditingCase(true);
+            }}
+            onRiskConfirmed={(updatedCase) => {
+              setCaseItem(updatedCase);
+              void loadTimeline();
+            }}
+          />
         )}
 
         {activeTab === "tasks" && (

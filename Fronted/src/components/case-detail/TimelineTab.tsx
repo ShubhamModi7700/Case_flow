@@ -2,6 +2,11 @@ import { useState, type FormEvent } from "react";
 
 import { api } from "../../api";
 import type { TimelineEvent, TimelineEventCreatePayload } from "../../types";
+import {
+  commonLabels,
+  translateEventTitle,
+  translateTimelineType,
+} from "../../i18n/de";
 import { formatDateTime } from "./formatters";
 
 const EVENT_STYLES: Record<string, string> = {
@@ -22,17 +27,25 @@ interface TimelineTabProps {
   onEventAdded: (event: TimelineEvent) => void;
 }
 
-export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTabProps) {
+export default function TimelineTab({
+  caseId,
+  events,
+  onEventAdded,
+}: TimelineTabProps) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [eventType, setEventType] = useState<TimelineEventCreatePayload["event_type"]>("Note");
+  const [eventType, setEventType] =
+    useState<TimelineEventCreatePayload["event_type"]>("Note");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!title.trim()) return;
+
+    if (!title.trim()) {
+      return;
+    }
 
     try {
       setSaving(true);
@@ -56,7 +69,9 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
       setShowForm(false);
     } catch (requestError) {
       console.error(requestError);
-      setError("Der Zeitleisteneintrag konnte nicht gespeichert werden.");
+      setError(
+        "Der Zeitleisteneintrag konnte nicht gespeichert werden.",
+      );
     } finally {
       setSaving(false);
     }
@@ -66,9 +81,12 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Fallzeitleiste</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            {commonLabels.timelineTitle}
+          </h2>
+
           <p className="mt-1 text-sm text-slate-500">
-            History, documents, tasks, and upcoming deadlines in one view.
+            {commonLabels.timelineDescription}
           </p>
         </div>
 
@@ -77,7 +95,9 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
           onClick={() => setShowForm((value) => !value)}
           className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
-          {showForm ? "Abbrechen" : "+ Eintrag hinzufügen"}
+          {showForm
+            ? commonLabels.cancel
+            : `+ ${commonLabels.addEntry}`}
         </button>
       </div>
 
@@ -91,7 +111,8 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
               value={eventType}
               onChange={(event) =>
                 setEventType(
-                  event.target.value as TimelineEventCreatePayload["event_type"],
+                  event.target
+                    .value as TimelineEventCreatePayload["event_type"],
                 )
               }
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -104,7 +125,7 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Titel des Zeitleisteneintrags"
+              placeholder={commonLabels.timelineEntryTitlePlaceholder}
               required
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
             />
@@ -113,26 +134,32 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Optionale Details"
+            placeholder={commonLabels.optionalDetails}
             rows={3}
             className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           />
 
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="mt-2 text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={saving}
             className="mt-3 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Eintrag speichern"}
+            {saving
+              ? commonLabels.saving
+              : commonLabels.saveEntry}
           </button>
         </form>
       )}
 
       {events.length === 0 ? (
         <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-          No timeline events are available.
+          {commonLabels.noTimelineEvents}
         </p>
       ) : (
         <div className="mt-7">
@@ -161,28 +188,30 @@ export default function TimelineTab({ caseId, events, onEventAdded }: TimelineTa
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      {entry.event_type}
+                      {translateTimelineType(entry.event_type)}
                     </span>
+
                     <h3 className="mt-1 font-semibold text-slate-950">
-                      {entry.title}
+                      {translateEventTitle(entry.title)}
                     </h3>
                   </div>
 
                   {entry.is_future && (
                     <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                      Upcoming
+                      {commonLabels.upcoming}
                     </span>
                   )}
                 </div>
 
                 {entry.description && (
                   <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
-                    {entry.description}
+                    {translateEventTitle(entry.description)}
                   </p>
                 )}
 
                 <p className="mt-3 text-xs text-slate-400">
-                  {formatDateTime(entry.occurred_at)} · {entry.person ?? "System"}
+                  {formatDateTime(entry.occurred_at)} ·{" "}
+                  {entry.person ?? commonLabels.system}
                 </p>
               </div>
             </article>

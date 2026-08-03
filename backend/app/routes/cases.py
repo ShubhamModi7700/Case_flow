@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
+from app.services.risk import refresh_risk_suggestion
 
 
 router = APIRouter(
@@ -41,6 +42,7 @@ def create_case(
 
     db.add(new_case)
     db.flush()
+    refresh_risk_suggestion(new_case)
 
     db.add(
         models.History(
@@ -366,6 +368,14 @@ def update_case(
             )
 
     if changes:
+        if "risk" in update_values:
+            case.risk_is_manual = update_values.get(
+                "risk_is_manual",
+                True,
+            )
+
+        refresh_risk_suggestion(case)
+
         db.add(
             models.History(
                 case_id=case.id,
@@ -380,6 +390,52 @@ def update_case(
     db.commit()
     db.refresh(case)
 
+    return case
+
+
+@router.post(
+    "/{case_id}/confirm-risk",
+    response_model=schemas.CaseResponse,
+)
+def confirm_suggested_risk(
+    case_id: int,
+    db: Session = Depends(get_db),
+):
+    case = (
+        db.query(models.Case)
+        .filter(models.Case.id == case_id)
+        .first()
+    )
+
+    if case is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Fall nicht gefunden",
+        )
+
+    refresh_risk_suggestion(case)
+
+    if not case.suggested_risk:
+        raise HTTPException(
+            status_code=400,
+            detail="Keine Risikoeinschätzung vorhanden",
+        )
+
+    case.risk = case.suggested_risk
+    case.risk_reason = case.suggested_risk_reason
+    case.risk_is_manual = False
+
+    db.add(
+        models.History(
+            case_id=case.id,
+            change="Risikoeinschätzung übernommen",
+            responsible_person=case.responsible_person,
+            note=case.risk_reason,
+        )
+    )
+
+    db.commit()
+    db.refresh(case)
     return case
 
 

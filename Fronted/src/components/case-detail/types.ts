@@ -1,6 +1,11 @@
 import type { CaseCategory, CaseStatus, RiskLevel } from "../../types";
 
-export type TabName = "overview" | "tasks" | "documents" | "timeline" | "KI";
+export type TabName =
+  | "overview"
+  | "tasks"
+  | "documents"
+  | "timeline"
+  | "KI";
 
 export interface CaseUpdatePayload {
   title: string;
@@ -10,7 +15,12 @@ export interface CaseUpdatePayload {
   external_contact: string | null;
   responsible_person: string | null;
   status: CaseStatus;
+
   risk: RiskLevel;
+  risk_reason: string | null;
+  risk_is_manual: boolean;
+
+  management_summary: string | null;
   description: string | null;
   next_action: string | null;
   primary_deadline: string | null;

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
+from app.services.risk import refresh_risk_suggestion
 
 router = APIRouter(
     tags=["Tasks"],
@@ -92,6 +93,7 @@ def create_task(
         )
 
         db.add(history)
+        refresh_risk_suggestion(case)
         db.commit()
         db.refresh(task)
 
@@ -161,6 +163,8 @@ def complete_task(
         )
 
         db.add(history)
+        case = get_case_or_404(task.case_id, db)
+        refresh_risk_suggestion(case)
         db.commit()
         db.refresh(task)
 

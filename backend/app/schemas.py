@@ -107,7 +107,12 @@ class CaseBase(BaseModel):
 
     status: CaseStatus = CaseStatus.NEW
     risk: RiskLevel = RiskLevel.LOW
+    risk_reason: str | None = None
+    suggested_risk: RiskLevel | None = None
+    suggested_risk_reason: str | None = None
+    risk_is_manual: bool = False
 
+    management_summary: str | None = None
     description: str | None = None
     next_action: str | None = None
 
@@ -128,6 +133,9 @@ class CaseBase(BaseModel):
         "department",
         "external_contact",
         "responsible_person",
+        "risk_reason",
+        "suggested_risk_reason",
+        "management_summary",
         "description",
         "next_action",
         mode="before",
@@ -176,7 +184,10 @@ class CaseUpdate(BaseModel):
 
     status: CaseStatus | None = None
     risk: RiskLevel | None = None
+    risk_reason: str | None = None
+    risk_is_manual: bool | None = None
 
+    management_summary: str | None = None
     description: str | None = None
     next_action: str | None = None
 
@@ -208,6 +219,8 @@ class CaseUpdate(BaseModel):
         "department",
         "external_contact",
         "responsible_person",
+        "risk_reason",
+        "management_summary",
         "description",
         "next_action",
         mode="before",

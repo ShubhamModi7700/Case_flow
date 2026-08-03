@@ -37,6 +37,11 @@ export default function EditCaseModal({
   );
   const [status, setStatus] = useState<CaseStatus>(caseItem.status);
   const [risk, setRisk] = useState<RiskLevel>(caseItem.risk);
+  const [riskReason, setRiskReason] = useState(caseItem.risk_reason ?? "");
+  const [managementSummary, setManagementSummary] = useState(
+    caseItem.management_summary ?? "",
+  );
+  const [localError, setLocalError] = useState("");
   const [description, setDescription] = useState(caseItem.description ?? "");
   const [nextAction, setNextAction] = useState(caseItem.next_action ?? "");
   const [primaryDeadline, setPrimaryDeadline] = useState(
@@ -55,6 +60,15 @@ export default function EditCaseModal({
     const normalizedCompany = company.trim();
     if (!normalizedTitle || !normalizedCompany) return;
 
+    if (risk !== "Low" && !riskReason.trim()) {
+      setLocalError(
+        "Bitte geben Sie eine Begründung für ein mittleres oder hohes Risiko ein.",
+      );
+      return;
+    }
+
+    setLocalError("");
+
     await onSave({
       title: normalizedTitle,
       company: normalizedCompany,
@@ -64,6 +78,9 @@ export default function EditCaseModal({
       responsible_person: responsiblePerson.trim() || null,
       status,
       risk,
+      risk_reason: riskReason.trim() || null,
+      risk_is_manual: true,
+      management_summary: managementSummary.trim() || null,
       description: description.trim() || null,
       next_action: nextAction.trim() || null,
       primary_deadline: primaryDeadline || null,
@@ -102,9 +119,9 @@ export default function EditCaseModal({
           </button>
         </div>
 
-        {error && (
+        {(error || localError) && (
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
+            {localError || error}
           </div>
         )}
 
@@ -187,6 +204,16 @@ export default function EditCaseModal({
             </select>
           </Field>
 
+          <Field label="Risikobegründung" className="sm:col-span-2">
+            <textarea
+              value={riskReason}
+              onChange={(event) => setRiskReason(event.target.value)}
+              rows={3}
+              placeholder="Warum wurde diese Risikostufe gewählt?"
+              className="input"
+            />
+          </Field>
+
           <Field label="Verantwortliche Person">
             <input
               value={responsiblePerson}
@@ -217,6 +244,16 @@ export default function EditCaseModal({
               type="date"
               value={followUpDate}
               onChange={(event) => setFollowUpDate(event.target.value)}
+              className="input"
+            />
+          </Field>
+
+          <Field label="Management-Zusammenfassung" className="sm:col-span-2">
+            <textarea
+              value={managementSummary}
+              onChange={(event) => setManagementSummary(event.target.value)}
+              rows={4}
+              placeholder="Kurze Zusammenfassung für das Management"
               className="input"
             />
           </Field>
