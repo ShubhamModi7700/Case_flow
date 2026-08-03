@@ -113,6 +113,7 @@ class CaseBase(BaseModel):
     risk_is_manual: bool = False
 
     management_summary: str | None = None
+    financial_amount: float | None = Field(default=None, ge=0)
     description: str | None = None
     next_action: str | None = None
 
@@ -188,6 +189,7 @@ class CaseUpdate(BaseModel):
     risk_is_manual: bool | None = None
 
     management_summary: str | None = None
+    financial_amount: float | None = Field(default=None, ge=0)
     description: str | None = None
     next_action: str | None = None
 

@@ -385,6 +385,9 @@ def migrate_case_management_fields(engine: Engine) -> None:
         "management_summary": (
             "ALTER TABLE cases ADD COLUMN management_summary TEXT"
         ),
+        "financial_amount": (
+            "ALTER TABLE cases ADD COLUMN financial_amount NUMERIC(14, 2)"
+        ),
     }
 
     with engine.begin() as connection:

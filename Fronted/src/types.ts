@@ -43,6 +43,7 @@ export type CaseItem = {
   suggested_risk_reason: string | null;
   risk_is_manual: boolean;
   management_summary: string | null;
+  financial_amount: number | null;
   description: string | null;
   next_action: string | null;
   primary_deadline: string | null;

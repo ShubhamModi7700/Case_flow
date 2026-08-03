@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
 )
@@ -99,6 +100,7 @@ class Case(Base):
     )
 
     management_summary = Column(Text, nullable=True)
+    financial_amount = Column(Numeric(14, 2), nullable=True)
     description = Column(Text, nullable=True)
     next_action = Column(Text, nullable=True)
 

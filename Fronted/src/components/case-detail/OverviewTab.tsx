@@ -4,6 +4,7 @@ import { api } from "../../api";
 import type {
   CaseItem,
   DocumentItem,
+  RiskLevel,
   TaskItem,
   TimelineEvent,
 } from "../../types";
@@ -17,6 +18,22 @@ interface OverviewTabProps {
   timeline: TimelineEvent[];
   onEditCase: () => void;
   onRiskConfirmed: (updatedCase: CaseItem) => void;
+}
+
+const riskLabels: Record<RiskLevel, string> = {
+  Low: "niedrig",
+  Medium: "mittel",
+  High: "hoch",
+};
+
+function getRiskLabel(
+  risk: RiskLevel | null | undefined,
+): string {
+  if (!risk) {
+    return "nicht verfügbar";
+  }
+
+  return riskLabels[risk];
 }
 
 function ManagementCard({
@@ -101,6 +118,10 @@ export default function OverviewTab({
         new Date(a.uploaded_at).getTime(),
     )
     .slice(0, 3);
+
+  const riskMismatch =
+    Boolean(caseItem.suggested_risk) &&
+    caseItem.suggested_risk !== caseItem.risk;
 
   async function confirmSuggestedRisk(): Promise<void> {
     try {
@@ -218,6 +239,27 @@ export default function OverviewTab({
               <p className="mt-2 text-xs text-blue-700">
                 Der Vorschlag verändert das bestätigte Risiko nicht automatisch.
               </p>
+
+              {riskMismatch && caseItem.suggested_risk && (
+                <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                  <p className="font-semibold text-amber-950">
+                    Abweichende Risikobewertung
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-900">
+                    Das bestätigte Risiko ist{" "}
+                    <strong>{getRiskLabel(caseItem.risk)}</strong>,
+                    während das System{" "}
+                    <strong>
+                      {getRiskLabel(caseItem.suggested_risk)}
+                    </strong>{" "}
+                    empfiehlt.
+                  </p>
+                  <p className="mt-2 text-xs text-amber-800">
+                    Bitte prüfen Sie die manuelle Risikobegründung
+                    und den Systemvorschlag.
+                  </p>
+                </div>
+              )}
             </div>
             {caseItem.suggested_risk !== caseItem.risk && (
               <button
@@ -299,6 +341,7 @@ export default function OverviewTab({
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Abteilung</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.department ?? "Nicht angegeben"}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Externer Kontakt</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.external_contact ?? "Nicht angegeben"}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Wiedervorlage</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.follow_up_date ?? "Nicht definiert"}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Finanzieller Betrag</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.financial_amount != null ? `${caseItem.financial_amount.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR` : "Nicht angegeben"}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Zuletzt aktualisiert</dt><dd className="mt-2 text-sm text-slate-800">{formatDateTime(caseItem.updated_at)}</dd></div>
         </dl>
         <div className="mt-6 border-t border-slate-100 pt-6">

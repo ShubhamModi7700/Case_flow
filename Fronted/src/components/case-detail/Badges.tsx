@@ -1,29 +1,43 @@
-import { translateStatus } from "../../i18n/de";
-import { getRiskConfig } from "../../utils/riskStyles";
+import type {
+  CaseStatus,
+  RiskLevel,
+} from "../../types";
 
-export function StatusBadge({ value }: { value: string }) {
-  const styles: Record<string, string> = {
-    New: "bg-slate-100 text-slate-700",
-    "Under Review": "bg-blue-100 text-blue-700",
-    "In Progress": "bg-indigo-100 text-indigo-700",
-    Waiting: "bg-amber-100 text-amber-700",
-    Completed: "bg-green-100 text-green-700",
-    Critical: "bg-red-100 text-red-700",
-  };
+const statusLabels: Record<CaseStatus, string> = {
+  New: "Neu",
+  "Under Review": "In Prüfung",
+  "In Progress": "In Bearbeitung",
+  Waiting: "Wartend",
+  Completed: "Abgeschlossen",
+  Critical: "Kritisch",
+};
 
+const riskLabels: Record<RiskLevel, string> = {
+  Low: "Niedrig",
+  Medium: "Mittel",
+  High: "Hoch",
+};
+
+export function StatusBadge({
+  value,
+}: {
+  value: CaseStatus;
+}) {
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[value] ?? "bg-slate-100 text-slate-700"}`}>
-      {translateStatus(value)}
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+      {statusLabels[value]}
     </span>
   );
 }
 
-export function RiskBadge({ value }: { value: string }) {
-  const config = getRiskConfig(value);
-
+export function RiskBadge({
+  value,
+}: {
+  value: RiskLevel;
+}) {
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${config.badgeClass}`}>
-      Risiko: {config.label}
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+      {riskLabels[value]}
     </span>
   );
 }

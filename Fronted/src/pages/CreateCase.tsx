@@ -15,6 +15,7 @@ type CaseForm = {
   responsible_person: string;
   status: string;
   risk: string;
+  financial_amount: string;
   description: string;
   next_action: string;
   primary_deadline: string;
@@ -30,6 +31,7 @@ const initialForm: CaseForm = {
   responsible_person: "",
   status: "New",
   risk: "Low",
+  financial_amount: "",
   description: "",
   next_action: "",
   primary_deadline: "",
@@ -86,6 +88,9 @@ export default function CreateCase() {
           form.responsible_person.trim() || null,
         status: form.status,
         risk: form.risk,
+        financial_amount: form.financial_amount
+          ? Number(form.financial_amount)
+          : null,
         description: form.description.trim() || null,
         next_action: form.next_action.trim() || null,
         primary_deadline:
@@ -260,6 +265,19 @@ export default function CreateCase() {
             <option value="Medium">Mittel</option>
             <option value="High">Hoch</option>
           </select>
+        </Field>
+
+        <Field label="Finanzieller Betrag (EUR)">
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            name="financial_amount"
+            value={form.financial_amount}
+            onChange={handleChange}
+            placeholder="z. B. 50000"
+            className="input"
+          />
         </Field>
 
         <Field label="Hauptfrist">

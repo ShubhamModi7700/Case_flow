@@ -41,6 +41,9 @@ export default function EditCaseModal({
   const [managementSummary, setManagementSummary] = useState(
     caseItem.management_summary ?? "",
   );
+  const [financialAmount, setFinancialAmount] = useState(
+    caseItem.financial_amount?.toString() ?? "",
+  );
   const [localError, setLocalError] = useState("");
   const [description, setDescription] = useState(caseItem.description ?? "");
   const [nextAction, setNextAction] = useState(caseItem.next_action ?? "");
@@ -81,6 +84,9 @@ export default function EditCaseModal({
       risk_reason: riskReason.trim() || null,
       risk_is_manual: true,
       management_summary: managementSummary.trim() || null,
+      financial_amount: financialAmount
+        ? Number(financialAmount)
+        : null,
       description: description.trim() || null,
       next_action: nextAction.trim() || null,
       primary_deadline: primaryDeadline || null,
@@ -247,6 +253,20 @@ export default function EditCaseModal({
               className="input"
             />
           </Field>
+
+          <Field label="Finanzieller Betrag (EUR)">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={financialAmount}
+              onChange={(event) => setFinancialAmount(event.target.value)}
+              placeholder="z. B. 50000"
+              className="input"
+            />
+          </Field>
+
+          <div />
 
           <Field label="Management-Zusammenfassung" className="sm:col-span-2">
             <textarea
