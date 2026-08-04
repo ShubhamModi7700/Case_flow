@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useAuth } from "../../AuthContext";
 import type {
   CaseCategory,
   CaseItem,
@@ -18,6 +19,9 @@ interface EditCaseModalProps {
   onSave: (values: CaseUpdatePayload) => Promise<void>;
 }
 
+const readOnlyClass =
+  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100";
+
 export default function EditCaseModal({
   caseItem,
   saving,
@@ -25,6 +29,11 @@ export default function EditCaseModal({
   onCancel,
   onSave,
 }: EditCaseModalProps) {
+  const { user } = useAuth();
+
+  const isManager = user?.role === "Manager";
+  const isViewer = user?.role === "Viewer";
+
   const [title, setTitle] = useState(caseItem.title);
   const [company, setCompany] = useState(caseItem.company);
   const [category, setCategory] = useState<CaseCategory>(caseItem.category);
@@ -44,7 +53,6 @@ export default function EditCaseModal({
   const [financialAmount, setFinancialAmount] = useState(
     caseItem.financial_amount?.toString() ?? "",
   );
-  const [localError, setLocalError] = useState("");
   const [description, setDescription] = useState(caseItem.description ?? "");
   const [nextAction, setNextAction] = useState(caseItem.next_action ?? "");
   const [primaryDeadline, setPrimaryDeadline] = useState(
@@ -53,17 +61,27 @@ export default function EditCaseModal({
   const [followUpDate, setFollowUpDate] = useState(
     caseItem.follow_up_date ?? "",
   );
+  const [localError, setLocalError] = useState("");
 
   async function submitForm(
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
 
+    if (isViewer) {
+      setLocalError("Viewer verfügen nur über Leserechte.");
+      return;
+    }
+
     const normalizedTitle = title.trim();
     const normalizedCompany = company.trim();
-    if (!normalizedTitle || !normalizedCompany) return;
 
-    if (risk !== "Low" && !riskReason.trim()) {
+    if (!normalizedTitle || !normalizedCompany) {
+      setLocalError("Titel und Unternehmen sind Pflichtfelder.");
+      return;
+    }
+
+    if (isManager && risk !== "Low" && !riskReason.trim()) {
       setLocalError(
         "Bitte geben Sie eine Begründung für ein mittleres oder hohes Risiko ein.",
       );
@@ -72,26 +90,40 @@ export default function EditCaseModal({
 
     setLocalError("");
 
-    await onSave({
+    // Normal Users may update the general case information only.
+    // Manager-only fields are deliberately omitted from the PATCH payload,
+    // preventing the backend from rejecting an otherwise valid User update.
+    const values: CaseUpdatePayload = {
       title: normalizedTitle,
       company: normalizedCompany,
       department: department.trim() || null,
       category,
       external_contact: externalContact.trim() || null,
-      responsible_person: responsiblePerson.trim() || null,
-      status,
-      risk,
-      risk_reason: riskReason.trim() || null,
-      risk_is_manual: true,
       management_summary: managementSummary.trim() || null,
-      financial_amount: financialAmount
-        ? Number(financialAmount)
-        : null,
+      financial_amount: financialAmount ? Number(financialAmount) : null,
       description: description.trim() || null,
-      next_action: nextAction.trim() || null,
-      primary_deadline: primaryDeadline || null,
-      follow_up_date: followUpDate || null,
-    });
+    };
+
+    if (isManager) {
+      Object.assign(values, {
+        responsible_person: responsiblePerson.trim() || null,
+        status,
+        risk,
+        risk_reason: riskReason.trim() || null,
+        risk_is_manual: true,
+        next_action: nextAction.trim() || null,
+        primary_deadline: primaryDeadline || null,
+        follow_up_date: followUpDate || null,
+      });
+    }
+
+    await onSave(values);
+  }
+
+  // The parent page should normally hide the edit button for Viewers.
+  // This guard prevents the modal from being used if it is opened indirectly.
+  if (isViewer) {
+    return null;
   }
 
   return (
@@ -108,12 +140,19 @@ export default function EditCaseModal({
     >
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between gap-4">
-          <h2
-            id="edit-case-title"
-            className="text-xl font-semibold text-slate-950"
-          >
-            Fall bearbeiten
-          </h2>
+          <div>
+            <h2
+              id="edit-case-title"
+              className="text-xl font-semibold text-slate-950"
+            >
+              Fall bearbeiten
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isManager
+                ? "Als Manager können Sie sämtliche Fall- und Managementdaten bearbeiten."
+                : "Als Benutzer können Sie die allgemeinen Falldaten bearbeiten. Managementfelder sind schreibgeschützt."}
+            </p>
+          </div>
 
           <button
             type="button"
@@ -128,6 +167,13 @@ export default function EditCaseModal({
         {(error || localError) && (
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {localError || error}
+          </div>
+        )}
+
+        {!isManager && (
+          <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+            Status, Risiko, verantwortliche Person, Fristen und nächste Maßnahme
+            können nur von einem Manager geändert werden.
           </div>
         )}
 
@@ -181,11 +227,12 @@ export default function EditCaseModal({
 
           <Field label="Status">
             <select
+              disabled={!isManager}
               value={status}
               onChange={(event) =>
                 setStatus(event.target.value as CaseStatus)
               }
-              className="input"
+              className={`input ${readOnlyClass}`}
             >
               <option value="New">Neu</option>
               <option value="Under Review">In Prüfung</option>
@@ -198,11 +245,12 @@ export default function EditCaseModal({
 
           <Field label="Risiko">
             <select
+              disabled={!isManager}
               value={risk}
               onChange={(event) =>
                 setRisk(event.target.value as RiskLevel)
               }
-              className={`input font-semibold transition-colors ${getRiskConfig(risk).selectClass}`}
+              className={`input font-semibold transition-colors ${getRiskConfig(risk).selectClass} ${readOnlyClass}`}
             >
               <option value="Low">Niedrig</option>
               <option value="Medium">Mittel</option>
@@ -212,19 +260,21 @@ export default function EditCaseModal({
 
           <Field label="Risikobegründung" className="sm:col-span-2">
             <textarea
+              disabled={!isManager}
               value={riskReason}
               onChange={(event) => setRiskReason(event.target.value)}
               rows={3}
               placeholder="Warum wurde diese Risikostufe gewählt?"
-              className="input"
+              className={`input ${readOnlyClass}`}
             />
           </Field>
 
           <Field label="Verantwortliche Person">
             <input
+              disabled={!isManager}
               value={responsiblePerson}
               onChange={(event) => setResponsiblePerson(event.target.value)}
-              className="input"
+              className={`input ${readOnlyClass}`}
             />
           </Field>
 
@@ -239,18 +289,20 @@ export default function EditCaseModal({
           <Field label="Hauptfrist">
             <input
               type="date"
+              disabled={!isManager}
               value={primaryDeadline}
               onChange={(event) => setPrimaryDeadline(event.target.value)}
-              className="input"
+              className={`input ${readOnlyClass}`}
             />
           </Field>
 
-          <Field label="Wiedervorlage">
+          <Field label="Nächste Prüfung am">
             <input
               type="date"
+              disabled={!isManager}
               value={followUpDate}
               onChange={(event) => setFollowUpDate(event.target.value)}
-              className="input"
+              className={`input ${readOnlyClass}`}
             />
           </Field>
 
@@ -280,10 +332,11 @@ export default function EditCaseModal({
 
           <Field label="Nächste Maßnahme" className="sm:col-span-2">
             <textarea
+              disabled={!isManager}
               value={nextAction}
               onChange={(event) => setNextAction(event.target.value)}
               rows={3}
-              className="input"
+              className={`input ${readOnlyClass}`}
             />
           </Field>
 
