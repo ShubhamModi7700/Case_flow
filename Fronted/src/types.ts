@@ -111,7 +111,7 @@ export type DashboardData = {
   next_due_actions: DashboardAction[];
 };
 
-export type UserRole = "Admin" | "User";
+export type UserRole = "Manager" | "User" | "Viewer";
 
 export type UserItem = {
   id: number;

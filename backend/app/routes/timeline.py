@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.auth import get_current_user
+from app.auth import get_current_user, require_editor
 from app.database import get_db
 
 router = APIRouter(prefix="/cases", tags=["Timeline"])
@@ -120,7 +120,7 @@ def add_timeline_event(
     case_id: int,
     event_data: schemas.TimelineEventCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_editor),
 ):
     get_case_or_404(case_id, db)
 

@@ -394,3 +394,12 @@ def migrate_case_management_fields(engine: Engine) -> None:
         for column_name, statement in statements.items():
             if column_name not in columns:
                 connection.execute(text(statement))
+
+
+def migrate_legacy_admin_roles(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE users SET role = 'Manager' WHERE role = 'Admin'")
+        )

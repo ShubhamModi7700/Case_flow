@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.auth import get_current_user
+from app.auth import get_current_user, require_editor
 from app.database import get_db
 from app.services.risk import refresh_risk_suggestion
 
@@ -67,6 +67,7 @@ def create_task(
     case_id: int,
     task_data: schemas.TaskCreate,
     db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
 ):
     case = get_case_or_404(
         case_id=case_id,
@@ -143,6 +144,7 @@ def list_tasks(
 def complete_task(
     task_id: int,
     db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
 ):
     task = get_task_or_404(
         task_id=task_id,

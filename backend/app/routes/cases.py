@@ -6,7 +6,7 @@ from sqlalchemy import and_, case as sql_case, exists, or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.auth import get_current_user
+from app.auth import get_current_user, require_editor, require_manager
 from app.database import get_db
 from app.services.risk import refresh_risk_suggestion
 
@@ -35,6 +35,7 @@ SortOption = Literal[
 def create_case(
     case_data: schemas.CaseCreate,
     db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
 ):
     new_case = models.Case(
         **case_data.model_dump(),
@@ -337,6 +338,7 @@ def update_case(
     case_id: int,
     case_data: schemas.CaseUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
 ):
     case = (
         db.query(models.Case)
@@ -353,6 +355,30 @@ def update_case(
     update_values = case_data.model_dump(
         exclude_unset=True,
     )
+
+    manager_only_fields = {
+        "responsible_person",
+        "status",
+        "risk",
+        "risk_reason",
+        "risk_is_manual",
+        "primary_deadline",
+        "follow_up_date",
+        "next_action",
+    }
+    current_role = (current_user.role or "").strip().title()
+    if current_role == "Admin":
+        current_role = "Manager"
+
+    forbidden_fields = manager_only_fields.intersection(update_values)
+    if current_role != "Manager" and forbidden_fields:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Nur Manager dürfen Status, Risiko, Fristen, "
+                "verantwortliche Person oder nächste Maßnahme ändern"
+            ),
+        )
 
     changes: list[str] = []
 
@@ -400,6 +426,7 @@ def update_case(
 def confirm_suggested_risk(
     case_id: int,
     db: Session = Depends(get_db),
+    _: models.User = Depends(require_manager),
 ):
     case = (
         db.query(models.Case)
@@ -443,6 +470,7 @@ def confirm_suggested_risk(
 def archive_case(
     case_id: int,
     db: Session = Depends(get_db),
+    _: models.User = Depends(require_manager),
 ):
     case = (
         db.query(models.Case)

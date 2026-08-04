@@ -7,6 +7,7 @@ import type { DocumentItem } from "../../types";
 type DocumentsTabProps = {
   documents: DocumentItem[];
   reload: () => Promise<void>;
+  isManager: boolean;
 };
 
 function formatFileSize(size: number): string {
@@ -38,6 +39,7 @@ function formatDate(value: string): string {
 export default function DocumentsTab({
   documents,
   reload,
+  isManager,
 }: DocumentsTabProps) {
   const [deletingId, setDeletingId] =
     useState<number | null>(null);
@@ -202,20 +204,22 @@ export default function DocumentsTab({
                     Herunterladen
                   </button>
 
-                  <button
-                    type="button"
-                    disabled={isDeleting}
-                    onClick={() =>
-                      void deleteDocument(
-                        document.id,
-                      )
-                    }
-                    className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isDeleting
-                      ? "Wird gelöscht..."
-                      : "Löschen"}
-                  </button>
+                  {isManager && (
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() =>
+                        void deleteDocument(
+                          document.id,
+                        )
+                      }
+                      className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isDeleting
+                        ? "Wird gelöscht..."
+                        : "Löschen"}
+                    </button>
+                  )}
                 </div>
               </article>
             );

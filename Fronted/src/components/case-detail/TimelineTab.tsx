@@ -25,12 +25,14 @@ interface TimelineTabProps {
   caseId: number;
   events: TimelineEvent[];
   onEventAdded: (event: TimelineEvent) => void;
+  canEdit: boolean;
 }
 
 export default function TimelineTab({
   caseId,
   events,
   onEventAdded,
+  canEdit,
 }: TimelineTabProps) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -90,6 +92,7 @@ export default function TimelineTab({
           </p>
         </div>
 
+        {canEdit && (
         <button
           type="button"
           onClick={() => setShowForm((value) => !value)}
@@ -99,6 +102,7 @@ export default function TimelineTab({
             ? commonLabels.cancel
             : `+ ${commonLabels.addEntry}`}
         </button>
+        )}
       </div>
 
       {showForm && (

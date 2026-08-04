@@ -89,3 +89,27 @@ def get_current_user(
         )
 
     return user
+
+def require_roles(*allowed_roles: str):
+    normalized_allowed = {role.strip().title() for role in allowed_roles}
+
+    def dependency(
+        current_user: models.User = Depends(get_current_user),
+    ) -> models.User:
+        current_role = (current_user.role or "").strip().title()
+        if current_role == "Admin":
+            current_role = "Manager"
+
+        if current_role not in normalized_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Sie haben keine Berechtigung für diese Aktion",
+            )
+
+        return current_user
+
+    return dependency
+
+
+require_manager = require_roles("Manager")
+require_editor = require_roles("Manager", "User")

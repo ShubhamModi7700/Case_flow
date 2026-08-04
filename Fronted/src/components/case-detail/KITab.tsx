@@ -6,7 +6,7 @@ export default function KITab() {
       </div>
 
       <h2 className="mt-5 text-center text-xl font-semibold text-slate-950">
-        KI-assistent
+        KI-Assistent
       </h2>
 
       <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-6 text-slate-500">

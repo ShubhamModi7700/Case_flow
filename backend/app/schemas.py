@@ -487,8 +487,11 @@ class UserCreate(BaseModel):
 
         normalized_role = value.strip().title()
 
-        if normalized_role not in {"Admin", "User"}:
-            raise ValueError("Role must be Admin or User")
+        if normalized_role == "Admin":
+            normalized_role = "Manager"
+
+        if normalized_role not in {"Manager", "User", "Viewer"}:
+            raise ValueError("Role must be Manager, User or Viewer")
 
         return normalized_role
 
@@ -536,7 +539,10 @@ class UserUpdate(BaseModel):
 
         normalized_role = value.strip().title()
 
-        if normalized_role not in {"Admin", "User"}:
-            raise ValueError("Role must be Admin or User")
+        if normalized_role == "Admin":
+            normalized_role = "Manager"
+
+        if normalized_role not in {"Manager", "User", "Viewer"}:
+            raise ValueError("Role must be Manager, User or Viewer")
 
         return normalized_role

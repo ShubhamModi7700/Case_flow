@@ -28,8 +28,11 @@ def get_users() -> list[dict[str, str]]:
                 f"{prefix} is incomplete. Name, email, and password are required."
             )
 
-        if role not in {"Admin", "User"}:
-            raise RuntimeError(f"{prefix}_ROLE must be Admin or User.")
+        if role == "Admin":
+            role = "Manager"
+
+        if role not in {"Manager", "User", "Viewer"}:
+            raise RuntimeError(f"{prefix}_ROLE must be Manager, User or Viewer.")
 
         users.append(
             {

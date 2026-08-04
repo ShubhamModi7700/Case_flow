@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api";
+import { useAuth } from "../AuthContext";
 import { RiskBadge, StatusBadge } from "../components/case-detail/Badges";
 import DeleteCaseModal from "../components/case-detail/DeleteCaseModal";
 import DocumentsTab from "../components/case-detail/DocumentsTab";
@@ -26,6 +27,9 @@ import {
 export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canEdit = user?.role === "Manager" || user?.role === "User";
+  const isManager = user?.role === "Manager";
 
   const [activeTab, setActiveTab] = useState<TabName>("overview");
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
@@ -276,6 +280,7 @@ export default function CaseDetail() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          {canEdit && (
           <button
             type="button"
             onClick={() => {
@@ -286,7 +291,9 @@ export default function CaseDetail() {
           >
             Fall bearbeiten
           </button>
+          )}
 
+          {isManager && (
           <button
             type="button"
             onClick={() => {
@@ -297,6 +304,7 @@ export default function CaseDetail() {
           >
             Fall löschen
           </button>
+          )}
         </div>
       </header>
 
@@ -341,6 +349,8 @@ export default function CaseDetail() {
             tasks={tasks}
             documents={documents}
             timeline={timeline}
+            canEdit={canEdit}
+            isManager={isManager}
             onEditCase={() => {
               setEditError("");
               setEditingCase(true);
@@ -359,6 +369,7 @@ export default function CaseDetail() {
             onTaskCreated={handleTaskCreated}
             onTaskUpdated={handleTaskUpdated}
             refreshHistory={loadTimeline}
+            canEdit={canEdit}
           />
         )}
 
@@ -366,6 +377,7 @@ export default function CaseDetail() {
           <DocumentsTab
             documents={documents}
             reload={loadCaseDetail}
+            isManager={isManager}
           />
         )}
 
@@ -373,6 +385,7 @@ export default function CaseDetail() {
           <TimelineTab
             caseId={caseItem.id}
             events={timeline}
+            canEdit={canEdit}
             onEventAdded={(event) =>
               setTimeline((currentEvents) => [
                 event,

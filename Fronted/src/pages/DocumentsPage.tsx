@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
+import { useAuth } from "../AuthContext";
 import DocumentFilePicker from "../components/documents/DocumentFilePicker";
 import type { CaseItem, DocumentItem } from "../types";
 import { formatCaseNumber } from "../types/case";
@@ -61,6 +62,9 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default function DocumentsPage() {
+  const { user } = useAuth();
+  const canEdit = user?.role === "Manager" || user?.role === "User";
+  const isManager = user?.role === "Manager";
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
@@ -263,7 +267,7 @@ export default function DocumentsPage() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Upload and manage documents.
+          Dokumente hochladen und verwalten.
         </p>
       </header>
 
@@ -280,7 +284,7 @@ export default function DocumentsPage() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Maximum file size: 10 MB.
+            Maximum file size: 4.5 MB.
           </p>
 
           <form
@@ -415,7 +419,7 @@ export default function DocumentsPage() {
                             to={`/cases/${item.case_id}`}
                             className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50"
                           >
-                            Open case
+                            Fall öffnen
                           </Link>
                         )}
 
@@ -430,16 +434,18 @@ export default function DocumentsPage() {
                           Herunterladen
                         </button>
 
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() =>
-                            void deleteDocument(item.id)
-                          }
-                          className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          Löschen
-                        </button>
+                        {isManager && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              void deleteDocument(item.id)
+                            }
+                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Löschen
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -450,7 +456,7 @@ export default function DocumentsPage() {
 
                       <select
                         value={item.case_id ?? ""}
-                        disabled={isBusy}
+                        disabled={isBusy || !canEdit}
                         onChange={(event) =>
                           void assignCase(
                             item.id,

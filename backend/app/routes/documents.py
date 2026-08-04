@@ -12,7 +12,7 @@ from fastapi import (
 from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
-from app.auth import get_current_user
+from app.auth import get_current_user, require_editor, require_manager
 from app.database import get_db
 from app.storage import (
     create_signed_url,
@@ -189,7 +189,7 @@ async def upload_independent_document(
     description: str | None = Form(default=None),
     case_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_editor),
 ):
     """Upload a document independently, optionally linking it to a case."""
     return await _store_document(
@@ -211,7 +211,7 @@ async def upload_case_document(
     file: UploadFile = File(...),
     description: str | None = Form(default=None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_editor),
 ):
     """Upload a document and link it directly to a case."""
     return await _store_document(
@@ -261,6 +261,7 @@ def assign_document_to_case(
     document_id: int,
     payload: schemas.DocumentCaseUpdate,
     db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
 ):
     document = _get_document_or_404(document_id, db)
 
@@ -306,7 +307,11 @@ def get_document_download_url(
     "/documents/{document_id}",
     status_code=204,
 )
-def delete_document(document_id: int, db: Session = Depends(get_db)):
+def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_manager),
+):
     document = _get_document_or_404(document_id, db)
 
     try:

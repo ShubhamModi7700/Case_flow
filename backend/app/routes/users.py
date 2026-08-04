@@ -3,27 +3,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.auth import get_current_user, hash_password
+from app.auth import get_current_user, hash_password, require_manager
 from app.database import get_db
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-def require_admin(
-    current_user: models.User = Depends(get_current_user),
-) -> models.User:
-    if current_user.role != "Admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administratorzugriff erforderlich",
-        )
-    return current_user
-
 
 @router.get("/", response_model=list[schemas.UserResponse])
 def list_users(
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_admin),
+    _: models.User = Depends(require_manager),
 ):
     return db.query(models.User).order_by(models.User.full_name.asc()).all()
 
@@ -36,7 +26,7 @@ def list_users(
 def create_user(
     user_data: schemas.UserCreate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_admin),
+    _: models.User = Depends(require_manager),
 ):
     email = str(user_data.email).strip().lower()
 
@@ -73,7 +63,7 @@ def update_user(
     user_id: int,
     user_data: schemas.UserUpdate,
     db: Session = Depends(get_db),
-    current_admin: models.User = Depends(require_admin),
+    current_manager: models.User = Depends(require_manager),
 ):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
@@ -96,15 +86,15 @@ def update_user(
         user.full_name = changes["full_name"].strip()
 
     if "role" in changes:
-        if user.id == current_admin.id and changes["role"] != "Admin":
+        if user.id == current_manager.id and changes["role"] != "Manager":
             raise HTTPException(
                 status_code=400,
-                detail="Sie können Ihre eigene Administratorrolle nicht entfernen",
+                detail="Sie können Ihre eigene Managerrolle nicht entfernen",
             )
         user.role = changes["role"]
 
     if "is_active" in changes:
-        if user.id == current_admin.id and changes["is_active"] is False:
+        if user.id == current_manager.id and changes["is_active"] is False:
             raise HTTPException(
                 status_code=400,
                 detail="Sie können Ihr eigenes Konto nicht deaktivieren",

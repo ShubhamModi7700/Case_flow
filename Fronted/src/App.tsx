@@ -70,12 +70,14 @@ function ApplicationLayout() {
             Fälle
           </NavLink>
 
+          {user?.role !== "Viewer" && (
           <NavLink
             to="/cases/new"
             className={navClass}
           >
             Fall anlegen
           </NavLink>
+          )}
 
           <NavLink
             to="/documents"
@@ -84,7 +86,7 @@ function ApplicationLayout() {
             Dokumente
           </NavLink>
 
-          {user?.role === "Admin" && (
+          {user?.role === "Manager" && (
             <NavLink
               to="/users"
               className={navClass}
@@ -146,7 +148,7 @@ function ApplicationLayout() {
             element={<DocumentsPage />}
           />
 
-          {user?.role === "Admin" && (
+          {user?.role === "Manager" && (
             <Route
               path="/users"
               element={<Users />}

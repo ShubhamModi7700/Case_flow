@@ -16,6 +16,8 @@ interface OverviewTabProps {
   tasks: TaskItem[];
   documents: DocumentItem[];
   timeline: TimelineEvent[];
+  canEdit: boolean;
+  isManager: boolean;
   onEditCase: () => void;
   onRiskConfirmed: (updatedCase: CaseItem) => void;
 }
@@ -83,6 +85,8 @@ export default function OverviewTab({
   tasks,
   documents,
   timeline,
+  canEdit,
+  isManager,
   onEditCase,
   onRiskConfirmed,
 }: OverviewTabProps) {
@@ -99,8 +103,10 @@ export default function OverviewTab({
     deadline !== null &&
     deadline < today &&
     caseItem.status !== "Completed";
-  const missingNextAction = !caseItem.next_action?.trim();
-  const missingOwner = !caseItem.responsible_person?.trim();
+  const warningStatuses = new Set(["New", "Under Review", "In Progress", "Critical"]);
+  const needsActiveAttention = warningStatuses.has(caseItem.status);
+  const missingNextAction = needsActiveAttention && !caseItem.next_action?.trim();
+  const missingOwner = needsActiveAttention && !caseItem.responsible_person?.trim();
   const overdueTasks = tasks.filter((task) => {
     if (task.status === "Completed" || !task.due_date) return false;
     return new Date(`${task.due_date}T00:00:00`) < today;
@@ -151,6 +157,7 @@ export default function OverviewTab({
               Aktuelle Situation
             </h2>
           </div>
+          {canEdit && (
           <button
             type="button"
             onClick={onEditCase}
@@ -158,6 +165,7 @@ export default function OverviewTab({
           >
             Informationen bearbeiten
           </button>
+          )}
         </div>
         <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
           {caseItem.management_summary ??
@@ -261,7 +269,7 @@ export default function OverviewTab({
                 </div>
               )}
             </div>
-            {caseItem.suggested_risk !== caseItem.risk && (
+            {isManager && caseItem.suggested_risk !== caseItem.risk && (
               <button
                 type="button"
                 onClick={confirmSuggestedRisk}
@@ -340,7 +348,7 @@ export default function OverviewTab({
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Unternehmen</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.company}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Abteilung</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.department ?? "Nicht angegeben"}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Externer Kontakt</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.external_contact ?? "Nicht angegeben"}</dd></div>
-          <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Wiedervorlage</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.follow_up_date ?? "Nicht definiert"}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Prüfung am</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.follow_up_date ?? "Nicht definiert"}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Finanzieller Betrag</dt><dd className="mt-2 text-sm text-slate-800">{caseItem.financial_amount != null ? `${caseItem.financial_amount.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR` : "Nicht angegeben"}</dd></div>
           <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Zuletzt aktualisiert</dt><dd className="mt-2 text-sm text-slate-800">{formatDateTime(caseItem.updated_at)}</dd></div>
         </dl>

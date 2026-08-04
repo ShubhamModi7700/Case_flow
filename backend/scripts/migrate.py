@@ -5,6 +5,7 @@ from app.migrations import (
     migrate_case_management_fields,
     migrate_document_storage_fields,
     migrate_documents_independent,
+    migrate_legacy_admin_roles,
 )
 
 
@@ -18,6 +19,7 @@ def main() -> None:
     migrate_case_management_fields(engine)
     migrate_document_storage_fields(engine)
     migrate_documents_independent(engine)
+    migrate_legacy_admin_roles(engine)
 
     print("Database migration completed successfully.")
 

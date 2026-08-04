@@ -78,7 +78,7 @@ export default function Users() {
 
   async function resetPassword(target: UserItem): Promise<void> {
     const password = window.prompt(
-      `Enter a new password for ${target.full_name} (minimum 8 characters):`,
+      `Neues Passwort eingeben für ${target.full_name} (minimum 8 characters):`,
     );
 
     if (!password) return;
@@ -91,11 +91,11 @@ export default function Users() {
     await updateUser(target, { password });
   }
 
-  if (currentUser?.role !== "Admin") {
+  if (currentUser?.role !== "Manager") {
     return (
       <div className="p-8">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
-          Administrator access is required.
+          Managerzugriff ist erforderlich.
         </div>
       </div>
     );
@@ -107,7 +107,7 @@ export default function Users() {
         <div>
           <h1 className="text-3xl font-bold text-slate-950">Benutzer</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Create individual logins and manage access. Only administrators can use this page.
+            Create individual logins and manage access. Nur Manager können diese Seite verwenden.
           </p>
         </div>
 
@@ -175,7 +175,8 @@ export default function Users() {
               }
             >
               <option value="User">Benutzer</option>
-              <option value="Admin">Administrator</option>
+              <option value="Manager">Manager</option>
+              <option value="Viewer">Betrachter</option>
             </select>
           </label>
 
@@ -224,7 +225,8 @@ export default function Users() {
                           }
                         >
                           <option value="User">Benutzer</option>
-                          <option value="Admin">Administrator</option>
+                          <option value="Manager">Manager</option>
+              <option value="Viewer">Betrachter</option>
                         </select>
                       </td>
                       <td className="px-5 py-4">
