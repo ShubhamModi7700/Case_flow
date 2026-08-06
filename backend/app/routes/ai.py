@@ -19,6 +19,22 @@ from app.services.retrieval import match_cases, retrieve_chunks
 router = APIRouter(tags=["AI"], dependencies=[Depends(get_current_user)])
 
 
+TECHNICAL_HISTORY_CHANGES = {
+    "KI-Management-Zusammenfassung bestätigt",
+    "KI-Vorschläge bestätigt",
+    "KI-Zusammenfassung erstellt",
+    "KI-Analyse erstellt",
+}
+
+
+def _is_meaningful_history(item: models.History) -> bool:
+    change = (item.change or "").strip()
+    if change in TECHNICAL_HISTORY_CHANGES:
+        return False
+    lowered = change.casefold()
+    return not lowered.startswith("ki-")
+
+
 def _document(document_id: int, db: Session) -> models.Document:
     value = db.query(models.Document).filter(models.Document.id == document_id).first()
     if value is None:
@@ -78,6 +94,7 @@ def _build_management_context(
     case: models.Case,
     tasks: list[models.Task],
     history: list[models.History],
+    documents: list[models.Document],
     chunks: list[dict],
 ) -> str:
     sections = [
@@ -114,18 +131,37 @@ def _build_management_context(
 
     if history:
         sections.append(
-            "LETZTE ENTWICKLUNGEN\n"
+            "FACHLICHE VERLAUFSEREIGNISSE\n"
             + "\n".join(
-                f"- {item.created_at.isoformat()}: {item.change}; {item.note or ''}"
+                f"- {item.created_at.date().isoformat()}: {item.change}; "
+                f"{item.note or ''}"
                 for item in history
             )
         )
 
+    if documents:
+        sections.append(
+            "DOKUMENTE DES FALLS\n"
+            + "\n".join(
+                f"- Dokument-ID {document.id}; Dateiname: {document.file_name}; "
+                f"Hochgeladen am: {document.uploaded_at.isoformat()}; "
+                f"Beschreibung: {document.description or 'Nicht angegeben'}; "
+                f"Verarbeitungsstatus: {document.processing_status}"
+                for document in documents
+            )
+        )
+
     for index, chunk in enumerate(chunks, start=1):
+        document = next(
+            (item for item in documents if item.id == chunk["document_id"]),
+            None,
+        )
+        file_name = document.file_name if document else "Unbekannt"
         sections.append(
             f"QUELLE {index}\n"
             f"Chunk-ID: {chunk['chunk_id']}\n"
             f"Dokument-ID: {chunk['document_id']}\n"
+            f"Dateiname: {file_name}\n"
             f"Seite: {chunk.get('page_number')}\n"
             f"Inhalt:\n{chunk['content']}"
         )
@@ -390,11 +426,21 @@ def create_management_summary(
         .order_by(models.Task.due_date.asc().nullslast(), models.Task.id.desc())
         .all()
     )
-    history = (
+    history_candidates = (
         db.query(models.History)
         .filter(models.History.case_id == case.id)
         .order_by(models.History.created_at.desc())
-        .limit(12)
+        .limit(40)
+        .all()
+    )
+    history = [
+        item for item in history_candidates if _is_meaningful_history(item)
+    ][:12]
+
+    documents = (
+        db.query(models.Document)
+        .filter(models.Document.case_id == case.id)
+        .order_by(models.Document.uploaded_at.desc(), models.Document.id.desc())
         .all()
     )
 
@@ -417,9 +463,33 @@ def create_management_summary(
         case=case,
         tasks=tasks,
         history=history,
+        documents=documents,
         chunks=chunks,
     )
     result = generate_management_summary(context)
+
+    valid_document_ids = {document.id for document in documents}
+    relevant_document_ids = [
+        item.document_id
+        for item in result.relevant_documents
+        if item.document_id in valid_document_ids
+    ]
+    if not relevant_document_ids:
+        relevant_document_ids = list(
+            dict.fromkeys(
+                int(chunk["document_id"])
+                for chunk in chunks
+                if int(chunk["document_id"]) in valid_document_ids
+            )
+        )[:5]
+
+    if not result.latest_development and documents:
+        newest_document = documents[0]
+        result.latest_development = (
+            f"Das Dokument „{newest_document.file_name}“ wurde am "
+            f"{newest_document.uploaded_at.date().strftime('%d.%m.%Y')} "
+            "dem Fall zugeordnet und ist für die weitere Bearbeitung relevant."
+        )
 
     # Keep older approved summaries for audit, but only one pending proposal.
     db.query(models.CaseAISummary).filter(
@@ -436,13 +506,11 @@ def create_management_summary(
         deadline_comment=result.deadline_comment,
         suggested_risk=case.suggested_risk or case.risk,
         risk_comment=result.risk_comment,
-        relevant_document_ids=[
-            item.document_id for item in result.relevant_documents
-        ],
+        relevant_document_ids=relevant_document_ids,
         relevant_chunk_ids=result.supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-summary-v1",
+        prompt_version="management-summary-v2",
         generated_by=current_user.id,
     )
     db.add(summary)
@@ -533,7 +601,7 @@ def approve_management_summary(
         db.add(
             models.History(
                 case_id=case.id,
-                change="KI-Management-Zusammenfassung bestätigt",
+                change="KI-Management Zusammenfassung bestätigt",
                 note="Die KI-Zusammenfassung wurde geprüft und übernommen.",
                 responsible_person=current_user.full_name,
             )
@@ -565,7 +633,7 @@ def reject_management_summary(
         .first()
     )
     if summary is None:
-        raise HTTPException(404, "KI-Management-Zusammenfassung nicht gefunden")
+        raise HTTPException(404, "KI-Management Zusammenfassung nicht gefunden")
 
     summary.status = "Rejected"
     summary.reviewed_by = current_user.id

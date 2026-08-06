@@ -69,6 +69,10 @@ export default function KITab({
     () => suggestions.find((item) => item.status === "Pending"),
     [suggestions],
   );
+  const documentsById = useMemo(
+    () => new Map(documents.map((document) => [document.id, document])),
+    [documents],
+  );
 
   const [summaryForm, setSummaryForm] = useState({
     short_case_summary: "",
@@ -414,10 +418,24 @@ export default function KITab({
               />
             </label>
             <div className="lg:col-span-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-              <strong>Status:</strong> {visibleSummary.status} · <strong>Relevante Dokumente:</strong>{" "}
-              {visibleSummary.relevant_document_ids.length
-                ? visibleSummary.relevant_document_ids.join(", ")
-                : "Keine sicher ermittelt"}
+              <p><strong>Status:</strong> {visibleSummary.status}</p>
+              <div className="mt-2">
+                <strong>Relevante Dokumente:</strong>
+                {visibleSummary.relevant_document_ids.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {visibleSummary.relevant_document_ids.map((documentId) => {
+                      const document = documentsById.get(documentId);
+                      return (
+                        <li key={documentId}>
+                          {document?.file_name || `Dokument ${documentId}`}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <span className="ml-1">Keine sicher ermittelt</span>
+                )}
+              </div>
             </div>
           </div>
         )}
