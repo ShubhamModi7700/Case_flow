@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
+import { analyzeDocument, processDocument } from "../services/ai";
 import { useAuth } from "../AuthContext";
 import DocumentFilePicker from "../components/documents/DocumentFilePicker";
 import type { CaseItem, DocumentItem } from "../types";
@@ -75,6 +76,7 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [busyDocumentId, setBusyDocumentId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function loadData(): Promise<void> {
     try {
@@ -233,6 +235,39 @@ export default function DocumentsPage() {
     }
   }
 
+  async function analyzeWithAI(document: DocumentItem): Promise<void> {
+    if (!document.case_id) {
+      setError("Bitte ordnen Sie das Dokument zuerst einem Fall zu.");
+      return;
+    }
+
+    try {
+      setBusyDocumentId(document.id);
+      setError("");
+      setNotice("");
+
+      if (document.embedding_status !== "Ready") {
+        await processDocument(document.id);
+      }
+
+      await analyzeDocument(document.id);
+      setNotice(
+        `Die KI-Analyse für „${document.file_name}“ wurde erstellt. ` +
+          "Öffnen Sie den zugeordneten Fall und prüfen Sie den KI-Assistenten.",
+      );
+      await loadData();
+    } catch (requestError) {
+      setError(
+        getErrorMessage(
+          requestError,
+          "Das Dokument konnte nicht mit KI analysiert werden.",
+        ),
+      );
+    } finally {
+      setBusyDocumentId(null);
+    }
+  }
+
   const filteredDocuments = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -277,6 +312,12 @@ export default function DocumentsPage() {
         </div>
       )}
 
+      {notice && (
+        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+          {notice}
+        </div>
+      )}
+
       <div className="mt-8 grid gap-6 xl:grid-cols-[380px_1fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">
@@ -284,7 +325,7 @@ export default function DocumentsPage() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Maximum file size: 4.5 MB.
+            Maximale Dateigröße: 4,5 MB.
           </p>
 
           <form
@@ -293,7 +334,7 @@ export default function DocumentsPage() {
           >
             <div>
               <label className="mb-2 block text-sm font-medium">
-                Link to case (optional)
+                Mit Fall verknüpfen (optional)
               </label>
 
               <select
@@ -364,7 +405,7 @@ export default function DocumentsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                {documents.length} document(s)
+                {documents.length} Dokument(e)
               </p>
             </div>
 
@@ -381,11 +422,11 @@ export default function DocumentsPage() {
 
           {loading ? (
             <p className="mt-6 text-sm text-slate-500">
-              Loading documents...
+              Dokumente werden geladen...
             </p>
           ) : filteredDocuments.length === 0 ? (
             <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-              No documents found.
+              Keine Dokumente gefunden.
             </p>
           ) : (
             <div className="mt-6 divide-y divide-slate-100">
@@ -407,13 +448,36 @@ export default function DocumentsPage() {
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
-                          {formatFileSize(item.file_size)} ·
-                          Uploaded by{" "}
+                          {formatFileSize(item.file_size)} · Hochgeladen von{" "}
                           {item.uploaded_by ?? "Unbekannt"}
                         </p>
+
+                        <p className="mt-2 text-xs font-medium text-slate-500">
+                          Verarbeitung: {item.processing_status} · Embedding: {item.embedding_status}
+                          {item.chunk_count > 0
+                            ? ` · ${item.chunk_count} Textabschnitte`
+                            : ""}
+                        </p>
+
+                        {item.processing_error && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {item.processing_error}
+                          </p>
+                        )}
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => void analyzeWithAI(item)}
+                            className="rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isBusy ? "Bitte warten..." : "Mit KI analysieren"}
+                          </button>
+                        )}
+
                         {item.case_id && (
                           <Link
                             to={`/cases/${item.case_id}`}
@@ -451,7 +515,7 @@ export default function DocumentsPage() {
 
                     <div className="mt-3 max-w-md">
                       <label className="mb-1 block text-xs font-medium text-slate-500">
-                        Linked case
+                        Verknüpfter Fall
                       </label>
 
                       <select
@@ -466,7 +530,7 @@ export default function DocumentsPage() {
                         className="input"
                       >
                         <option value="">
-                          No linked case
+                          Kein verknüpfter Fall
                         </option>
 
                         {cases.map((caseItem) => (

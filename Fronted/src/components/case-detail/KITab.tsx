@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../../api";
+import {
+  analyzeDocument as requestDocumentAnalysis,
+  approveAISuggestion,
+  approveManagementSummary,
+  generateManagementSummary,
+  getCaseAISuggestions,
+  getManagementSummaries,
+  processDocument,
+  rejectAISuggestion,
+  rejectManagementSummary,
+} from "../../services/ai";
 import type {
   AISuggestion,
   CaseAISummary,
@@ -82,16 +92,12 @@ export default function KITab({
     try {
       setLoading(true);
       setError("");
-      const [summaryResponse, suggestionResponse] = await Promise.all([
-        api.get<CaseAISummary[]>(
-          `/cases/${caseItem.id}/management-summaries`,
-        ),
-        api.get<AISuggestion[]>(
-          `/cases/${caseItem.id}/ai-suggestions`,
-        ),
+      const [summaryData, suggestionData] = await Promise.all([
+        getManagementSummaries(caseItem.id),
+        getCaseAISuggestions(caseItem.id),
       ]);
-      setSummaries(summaryResponse.data);
-      setSuggestions(suggestionResponse.data);
+      setSummaries(summaryData);
+      setSuggestions(suggestionData);
     } catch (requestError) {
       setError(
         messageFromError(
@@ -138,11 +144,7 @@ export default function KITab({
       setWorking("summary");
       setError("");
       setNotice("");
-      await api.post(
-        `/cases/${caseItem.id}/management-summary`,
-        undefined,
-        { timeout: 120000 },
-      );
+      await generateManagementSummary(caseItem.id);
       setNotice("Eine neue Management-Zusammenfassung wurde erstellt.");
       await loadAIData();
     } catch (requestError) {
@@ -162,15 +164,15 @@ export default function KITab({
     try {
       setWorking("approve-summary");
       setError("");
-      await api.post(
-        `/case-ai-summaries/${pendingSummary.id}/approve`,
-        {
-          ...summaryForm,
-          open_deadline: summaryForm.open_deadline || null,
-          relevant_document_ids: pendingSummary.relevant_document_ids,
-        },
-        { timeout: 120000 },
-      );
+      await approveManagementSummary(pendingSummary.id, {
+        short_case_summary: summaryForm.short_case_summary || null,
+        latest_development: summaryForm.latest_development || null,
+        next_required_action: summaryForm.next_required_action || null,
+        open_deadline: summaryForm.open_deadline || null,
+        deadline_comment: summaryForm.deadline_comment || null,
+        risk_comment: summaryForm.risk_comment || null,
+        relevant_document_ids: pendingSummary.relevant_document_ids,
+      });
       setNotice("Die Management-Zusammenfassung wurde bestätigt.");
       await Promise.all([loadAIData(), onCaseChanged()]);
     } catch (requestError) {
@@ -189,7 +191,7 @@ export default function KITab({
     if (!pendingSummary) return;
     try {
       setWorking("reject-summary");
-      await api.post(`/case-ai-summaries/${pendingSummary.id}/reject`);
+      await rejectManagementSummary(pendingSummary.id);
       setNotice("Die Management-Zusammenfassung wurde abgelehnt.");
       await loadAIData();
     } catch (requestError) {
@@ -210,17 +212,9 @@ export default function KITab({
       setError("");
       setNotice("");
       if (document.embedding_status !== "Ready") {
-        await api.post(
-          `/documents/${document.id}/process`,
-          undefined,
-          { timeout: 120000 },
-        );
+        await processDocument(document.id);
       }
-      await api.post(
-        `/documents/${document.id}/analyze`,
-        undefined,
-        { timeout: 120000 },
-      );
+      await requestDocumentAnalysis(document.id);
       setNotice(`KI-Analyse für „${document.file_name}“ wurde erstellt.`);
       await Promise.all([loadAIData(), onCaseChanged()]);
     } catch (requestError) {
@@ -240,26 +234,21 @@ export default function KITab({
     try {
       setWorking("approve-suggestion");
       setError("");
-      await api.post(
-        `/ai-suggestions/${pendingSuggestion.id}/approve`,
-        {
-          selected_case_id: caseItem.id,
-          summary: suggestionForm.summary || null,
-          latest_development:
-            suggestionForm.latest_development || null,
-          deadline: suggestionForm.deadline || null,
-          next_action: suggestionForm.next_action || null,
-          risk:
-            isManager && suggestionForm.risk
-              ? suggestionForm.risk
-              : null,
-          risk_reason:
-            isManager && suggestionForm.risk
-              ? suggestionForm.risk_reason || null
-              : null,
-        },
-        { timeout: 120000 },
-      );
+      await approveAISuggestion(pendingSuggestion.id, {
+        selected_case_id: caseItem.id,
+        summary: suggestionForm.summary || null,
+        latest_development: suggestionForm.latest_development || null,
+        deadline: suggestionForm.deadline || null,
+        next_action: suggestionForm.next_action || null,
+        risk:
+          isManager && suggestionForm.risk
+            ? suggestionForm.risk
+            : null,
+        risk_reason:
+          isManager && suggestionForm.risk
+            ? suggestionForm.risk_reason || null
+            : null,
+      });
       setNotice("Die Dokumentvorschläge wurden bestätigt.");
       await Promise.all([loadAIData(), onCaseChanged()]);
     } catch (requestError) {
@@ -278,7 +267,7 @@ export default function KITab({
     if (!pendingSuggestion) return;
     try {
       setWorking("reject-suggestion");
-      await api.post(`/ai-suggestions/${pendingSuggestion.id}/reject`);
+      await rejectAISuggestion(pendingSuggestion.id);
       setNotice("Die Dokumentvorschläge wurden abgelehnt.");
       await loadAIData();
     } catch (requestError) {

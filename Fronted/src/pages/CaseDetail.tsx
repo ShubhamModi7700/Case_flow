@@ -280,6 +280,14 @@ export default function CaseDetail() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("KI")}
+            className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-600"
+          >
+            KI-Assistent öffnen
+          </button>
+
           {canEdit && (
           <button
             type="button"
@@ -377,7 +385,9 @@ export default function CaseDetail() {
           <DocumentsTab
             documents={documents}
             reload={loadCaseDetail}
+            canEdit={canEdit}
             isManager={isManager}
+            onOpenAI={() => setActiveTab("KI")}
           />
         )}
 

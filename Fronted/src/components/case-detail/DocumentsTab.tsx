@@ -2,12 +2,15 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../../api";
+import { analyzeDocument, processDocument } from "../../services/ai";
 import type { DocumentItem } from "../../types";
 
 type DocumentsTabProps = {
   documents: DocumentItem[];
   reload: () => Promise<void>;
+  canEdit: boolean;
   isManager: boolean;
+  onOpenAI: () => void;
 };
 
 function formatFileSize(size: number): string {
@@ -39,12 +42,43 @@ function formatDate(value: string): string {
 export default function DocumentsTab({
   documents,
   reload,
+  canEdit,
   isManager,
+  onOpenAI,
 }: DocumentsTabProps) {
-  const [deletingId, setDeletingId] =
-    useState<number | null>(null);
-
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function runAIAnalysis(document: DocumentItem): Promise<void> {
+    try {
+      setAnalyzingId(document.id);
+      setError("");
+      setNotice("");
+
+      if (document.embedding_status !== "Ready") {
+        await processDocument(document.id);
+      }
+
+      await analyzeDocument(document.id);
+      await reload();
+      setNotice(
+        `Die KI-Analyse für „${document.file_name}“ ist bereit. ` +
+          "Prüfen Sie die Vorschläge im KI-Assistenten.",
+      );
+      onOpenAI();
+    } catch (requestError: any) {
+      const detail = requestError?.response?.data?.detail;
+      setError(
+        typeof detail === "string"
+          ? detail
+          : "Das Dokument konnte nicht mit KI analysiert werden.",
+      );
+    } finally {
+      setAnalyzingId(null);
+    }
+  }
 
   async function downloadDocument(
     documentId: number,
@@ -139,6 +173,12 @@ export default function DocumentsTab({
         </div>
       )}
 
+      {notice && (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          {notice}
+        </div>
+      )}
+
       {documents.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center">
           <p className="text-sm text-slate-500">
@@ -189,9 +229,35 @@ export default function DocumentsTab({
                         )}`
                       : ""}
                   </p>
+
+                  <p className="mt-2 text-xs font-medium text-slate-500">
+                    Verarbeitung: {document.processing_status} · Embedding: {document.embedding_status}
+                    {document.chunk_count > 0
+                      ? ` · ${document.chunk_count} Textabschnitte`
+                      : ""}
+                  </p>
+
+                  {document.processing_error && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {document.processing_error}
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      disabled={analyzingId === document.id}
+                      onClick={() => void runAIAnalysis(document)}
+                      className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {analyzingId === document.id
+                        ? "KI analysiert..."
+                        : "Mit KI analysieren"}
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() =>
