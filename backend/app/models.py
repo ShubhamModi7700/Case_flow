@@ -11,6 +11,8 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -217,6 +219,12 @@ class Document(Base):
         default=utc_now,
     )
 
+    processing_status = Column(String(40), nullable=False, default="Uploaded")
+    processing_error = Column(Text, nullable=True)
+    embedding_status = Column(String(40), nullable=False, default="Pending")
+    chunk_count = Column(Integer, nullable=False, default=0)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+
     case = relationship(
         "Case",
         back_populates="documents",
@@ -248,3 +256,83 @@ class History(Base):
         "Case",
         back_populates="history_entries",
     )
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True)
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    source_type = Column(String(30), nullable=False)
+    page_number = Column(Integer, nullable=True)
+    sheet_name = Column(String(255), nullable=True)
+    email_section = Column(String(100), nullable=True)
+    metadata_json = Column("metadata", JSONB, nullable=False, default=dict)
+    token_count = Column(Integer, nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
+    embedding_model = Column(String(100), nullable=False)
+    embedding_version = Column(String(30), nullable=False, default="v1")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class CaseEmbedding(Base):
+    __tablename__ = "case_embeddings"
+
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True)
+    searchable_text = Column(Text, nullable=False)
+    embedding = Column(Vector(1536), nullable=True)
+    embedding_model = Column(String(100), nullable=False)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class AIDocumentSuggestion(Base):
+    __tablename__ = "ai_document_suggestions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    current_case_id = Column(Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True)
+    suggested_case_id = Column(Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True)
+    case_match_confidence = Column(Numeric(5, 4), nullable=True)
+    suggested_summary = Column(Text, nullable=True)
+    suggested_latest_development = Column(Text, nullable=True)
+    suggested_deadline = Column(Date, nullable=True)
+    deadline_source = Column(Text, nullable=True)
+    suggested_next_action = Column(Text, nullable=True)
+    suggested_risk = Column(String(20), nullable=True)
+    suggested_risk_reason = Column(Text, nullable=True)
+    relevant_chunk_ids = Column(JSONB, nullable=False, default=list)
+    relevant_document_ids = Column(JSONB, nullable=False, default=list)
+    status = Column(String(40), nullable=False, default="Pending")
+    model_name = Column(String(100), nullable=True)
+    prompt_version = Column(String(50), nullable=True)
+    raw_response = Column(JSONB, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class CaseAISummary(Base):
+    __tablename__ = "case_ai_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    short_case_summary = Column(Text, nullable=True)
+    latest_development = Column(Text, nullable=True)
+    next_required_action = Column(Text, nullable=True)
+    open_deadline = Column(Date, nullable=True)
+    deadline_comment = Column(Text, nullable=True)
+    suggested_risk = Column(String(20), nullable=True)
+    risk_comment = Column(Text, nullable=True)
+    relevant_document_ids = Column(JSONB, nullable=False, default=list)
+    relevant_chunk_ids = Column(JSONB, nullable=False, default=list)
+    status = Column(String(30), nullable=False, default="Pending")
+    model_name = Column(String(100), nullable=True)
+    prompt_version = Column(String(50), nullable=True)
+    generated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)

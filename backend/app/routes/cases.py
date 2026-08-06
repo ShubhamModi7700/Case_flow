@@ -498,7 +498,6 @@ def archive_case(
     )
 
     db.commit()
-
     return {
         "message": "Fall erfolgreich archiviert",
     }

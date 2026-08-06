@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import models 
-from app.routes import auth, cases, dashboard, documents, history, tasks, users
+from app.routes import ai, auth, cases, dashboard, documents, history, tasks, users
 from app.routes.timeline import router as timeline_router
 
 load_dotenv()
@@ -82,6 +82,7 @@ app.include_router(history.router)
 app.include_router(timeline_router)
 app.include_router(documents.router)
 app.include_router(users.router)
+app.include_router(ai.router)
 
 
 @app.get("/")

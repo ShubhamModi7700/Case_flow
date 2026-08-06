@@ -19,6 +19,7 @@ from app.storage import (
     delete_object,
     upload_object,
 )
+from app.services.document_indexing import index_document
 
 router = APIRouter(
     tags=["Documents"],
@@ -84,6 +85,11 @@ def _serialize_document(document: models.Document) -> schemas.DocumentResponse:
         description=document.description,
         uploaded_by=document.uploaded_by,
         uploaded_at=document.uploaded_at,
+        processing_status=document.processing_status,
+        processing_error=document.processing_error,
+        embedding_status=document.embedding_status,
+        chunk_count=document.chunk_count,
+        processed_at=document.processed_at,
         company=document.case.company if document.case else None,
         department=document.case.department if document.case else None,
     )
@@ -279,6 +285,46 @@ def assign_document_to_case(
         document.case = _get_case_or_404(document.case_id, db)
 
     return _serialize_document(document)
+
+
+@router.post(
+    "/documents/{document_id}/process",
+    response_model=schemas.DocumentProcessingResponse,
+)
+def process_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
+):
+    document = _get_document_or_404(document_id, db)
+    if document.processing_status in {"Extracting", "Chunking", "Embedding"}:
+        raise HTTPException(status_code=409, detail="Das Dokument wird bereits verarbeitet.")
+    try:
+        index_document(document=document, db=db)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return schemas.DocumentProcessingResponse(
+        document_id=document.id,
+        processing_status=document.processing_status,
+        embedding_status=document.embedding_status,
+        chunk_count=document.chunk_count,
+        processing_error=document.processing_error,
+    )
+
+
+@router.get(
+    "/documents/{document_id}/processing-status",
+    response_model=schemas.DocumentProcessingResponse,
+)
+def get_processing_status(document_id: int, db: Session = Depends(get_db)):
+    document = _get_document_or_404(document_id, db)
+    return schemas.DocumentProcessingResponse(
+        document_id=document.id,
+        processing_status=document.processing_status,
+        embedding_status=document.embedding_status,
+        chunk_count=document.chunk_count,
+        processing_error=document.processing_error,
+    )
 
 
 @router.get(

@@ -361,6 +361,11 @@ class DocumentResponse(BaseModel):
     description: str | None = None
     uploaded_by: str | None = None
     uploaded_at: datetime
+    processing_status: str = "Uploaded"
+    processing_error: str | None = None
+    embedding_status: str = "Pending"
+    chunk_count: int = 0
+    processed_at: datetime | None = None
     company: str | None = None
     department: str | None = None
 
@@ -546,3 +551,107 @@ class UserUpdate(BaseModel):
             raise ValueError("Role must be Manager, User or Viewer")
 
         return normalized_role
+class DocumentProcessingResponse(BaseModel):
+    document_id: int
+    processing_status: str
+    embedding_status: str
+    chunk_count: int
+    processing_error: str | None = None
+
+
+class SuggestedCaseMatch(BaseModel):
+    case_id: int | None = None
+    confidence: float = Field(default=0, ge=0, le=1)
+    reason: str | None = None
+
+
+class RelevantDocumentResult(BaseModel):
+    document_id: int
+    reason: str
+
+
+class DocumentAIAnalysis(BaseModel):
+    suggested_summary: str
+    latest_development: str | None = None
+    recognized_deadline: date | None = None
+    deadline_source: str | None = None
+    proposed_next_action: str | None = None
+    document_is_lawyer_letter: bool = False
+    document_is_labour_law: bool = False
+    detected_financial_amount: float | None = None
+    proposed_case: SuggestedCaseMatch
+    relevant_documents: list[RelevantDocumentResult] = Field(default_factory=list)
+    supporting_chunk_ids: list[int] = Field(default_factory=list)
+    uncertainty_notes: list[str] = Field(default_factory=list)
+
+
+
+
+class ManagementSummaryAnalysis(BaseModel):
+    short_case_summary: str
+    latest_development: str | None = None
+    next_required_action: str | None = None
+    open_deadline: date | None = None
+    deadline_comment: str | None = None
+    risk_comment: str | None = None
+    relevant_documents: list[RelevantDocumentResult] = Field(default_factory=list)
+    supporting_chunk_ids: list[int] = Field(default_factory=list)
+    uncertainty_notes: list[str] = Field(default_factory=list)
+
+
+class CaseAISummaryApproval(BaseModel):
+    short_case_summary: str | None = None
+    latest_development: str | None = None
+    next_required_action: str | None = None
+    open_deadline: date | None = None
+    deadline_comment: str | None = None
+    risk_comment: str | None = None
+    relevant_document_ids: list[int] = Field(default_factory=list)
+
+class AISuggestionResponse(BaseModel):
+    id: int
+    document_id: int
+    current_case_id: int | None = None
+    suggested_case_id: int | None = None
+    case_match_confidence: float | None = None
+    suggested_summary: str | None = None
+    suggested_latest_development: str | None = None
+    suggested_deadline: date | None = None
+    deadline_source: str | None = None
+    suggested_next_action: str | None = None
+    suggested_risk: str | None = None
+    suggested_risk_reason: str | None = None
+    relevant_chunk_ids: list[int] = Field(default_factory=list)
+    relevant_document_ids: list[int] = Field(default_factory=list)
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AISuggestionApproval(BaseModel):
+    selected_case_id: int
+    summary: str | None = None
+    latest_development: str | None = None
+    deadline: date | None = None
+    next_action: str | None = None
+    risk: RiskLevel | None = None
+    risk_reason: str | None = None
+
+
+class CaseAISummaryResponse(BaseModel):
+    id: int
+    case_id: int
+    short_case_summary: str | None = None
+    latest_development: str | None = None
+    next_required_action: str | None = None
+    open_deadline: date | None = None
+    deadline_comment: str | None = None
+    suggested_risk: str | None = None
+    risk_comment: str | None = None
+    relevant_document_ids: list[int] = Field(default_factory=list)
+    relevant_chunk_ids: list[int] = Field(default_factory=list)
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

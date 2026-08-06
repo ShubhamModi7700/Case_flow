@@ -395,7 +395,15 @@ export default function CaseDetail() {
           />
         )}
 
-        {activeTab === "KI" && <KITab />}
+        {activeTab === "KI" && (
+          <KITab
+            caseItem={caseItem}
+            documents={documents}
+            canEdit={canEdit}
+            isManager={isManager}
+            onCaseChanged={loadCaseDetail}
+          />
+        )}
       </div>
 
       {editingCase && (

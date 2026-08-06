@@ -9,3 +9,10 @@ email-validator
 pwdlib[argon2]
 itsdangerous
 httpx
+openai
+pgvector
+pypdf
+python-docx
+openpyxl
+extract-msg
+tiktoken

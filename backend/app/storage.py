@@ -109,3 +109,14 @@ def delete_object(path: str) -> None:
             f"Supabase Storage delete failed ({response.status_code}): "
             f"{response.text}"
         )
+
+
+def download_object(path: str) -> bytes:
+    """Download a private object for backend processing."""
+    with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+        response = client.get(_object_url(path), headers=_headers())
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Supabase Storage download failed ({response.status_code}): {response.text}"
+        )
+    return response.content

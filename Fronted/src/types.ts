@@ -87,6 +87,11 @@ export type DocumentItem = {
   description: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
+  processing_status: string;
+  processing_error: string | null;
+  embedding_status: string;
+  chunk_count: number;
+  processed_at: string | null;
   company?: string | null;
   department?: string | null;
 };
@@ -161,3 +166,38 @@ export type TimelineEventCreatePayload = {
 export function formatCaseNumber(id: number): string {
   return `CF-${String(id).padStart(4, "0")}`;
 }
+
+export type AISuggestion = {
+  id: number;
+  document_id: number;
+  current_case_id: number | null;
+  suggested_case_id: number | null;
+  case_match_confidence: number | null;
+  suggested_summary: string | null;
+  suggested_latest_development: string | null;
+  suggested_deadline: string | null;
+  deadline_source: string | null;
+  suggested_next_action: string | null;
+  suggested_risk: RiskLevel | null;
+  suggested_risk_reason: string | null;
+  relevant_chunk_ids: number[];
+  relevant_document_ids: number[];
+  status: string;
+  created_at: string;
+};
+
+export type CaseAISummary = {
+  id: number;
+  case_id: number;
+  short_case_summary: string | null;
+  latest_development: string | null;
+  next_required_action: string | null;
+  open_deadline: string | null;
+  deadline_comment: string | null;
+  suggested_risk: string | null;
+  risk_comment: string | null;
+  relevant_document_ids: number[];
+  relevant_chunk_ids: number[];
+  status: string;
+  created_at: string;
+};
