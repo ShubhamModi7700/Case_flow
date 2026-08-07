@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import base64
-import os
+import logging
+import time
 
+from openai import (
+    APIConnectionError,
+    APIError,
+    RateLimitError,
+)
 from pydantic import BaseModel, Field
 
-from app.services.openai_client import analysis_model, get_openai_client
+from app.services.openai_client import (
+    analysis_model,
+    get_openai_client,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class VisionPdfPage(BaseModel):
@@ -17,38 +28,42 @@ class VisionPdfExtraction(BaseModel):
     pages: list[VisionPdfPage]
 
 
-_SYSTEM_PROMPT = """
-Du extrahierst Text aus gescannten PDF-Dokumenten für Case Flow.
+SYSTEM_PROMPT = """
+Du extrahierst Text aus PDF-Dokumenten für Case Flow.
+
+Die Dokumente können enthalten:
+
+- Geschäftsunterlagen
+- Verträge
+- Rechnungen
+- Briefe
+- E-Mails
+- Personalunterlagen
+- Rechtliche Dokumente
+- Technische Dokumente
+- Sonstige Unternehmensdokumente
 
 Regeln:
-- Gib den lesbaren Inhalt seitenweise zurück.
-- Behalte die tatsächliche PDF-Seitennummer bei (erste PDF-Seite = 1).
-- Überspringe vollständig leere Seiten.
-- Bewahre Namen, Datumsangaben, Geldbeträge, Aktenzeichen, E-Mail-Adressen,
-  Fristen und juristische Fundstellen so exakt wie möglich.
-- Bewahre bei E-Mail-Ausdrucken Absender, Empfänger, Betreff, Datum und den
-  Nachrichtentext.
-- Erfinde keinen Text und ergänze keine fehlenden Informationen.
-- Keine Zusammenfassung und keine Interpretation: nur Texttranskription.
+
+- Extrahiere ausschließlich den lesbaren Text.
+- Keine Zusammenfassung.
+- Keine Interpretation.
+- Keine Übersetzung.
+- Keine Korrektur.
+- Bewahre Seitenreihenfolge.
+- Bewahre Zeilenumbrüche soweit sinnvoll.
+- Bewahre Überschriften.
+- Bewahre Tabellen möglichst zeilenweise.
+- Bewahre Datumsangaben exakt.
+- Bewahre Geldbeträge exakt.
+- Bewahre Namen exakt.
+- Bewahre E-Mail-Adressen exakt.
+- Bewahre Telefonnummern exakt.
+- Bewahre Referenznummern exakt.
+- Bewahre Aufzählungen.
+- Überspringe leere Seiten.
+- Erfinde niemals Text.
 """.strip()
-
-
-def pdf_vision_model() -> str:
-    """Model used for scanned-PDF extraction.
-
-    Defaults to the normal analysis model so deployments only need one model
-    setting. A separate model can be configured with OPENAI_PDF_VISION_MODEL.
-    """
-    return os.getenv("OPENAI_PDF_VISION_MODEL", "").strip() or analysis_model()
-
-
-def pdf_vision_detail() -> str:
-    value = os.getenv("OPENAI_PDF_VISION_DETAIL", "high").strip().lower()
-    if value not in {"auto", "low", "high"}:
-        raise RuntimeError(
-            "OPENAI_PDF_VISION_DETAIL muss 'auto', 'low' oder 'high' sein."
-        )
-    return value
 
 
 def extract_scanned_pdf_with_openai(
@@ -56,71 +71,135 @@ def extract_scanned_pdf_with_openai(
     *,
     file_name: str = "document.pdf",
 ) -> VisionPdfExtraction:
+
     if not pdf_bytes:
         raise ValueError("Die PDF-Datei ist leer.")
 
-    # OpenAI file inputs require each file to be under 50 MB. Keep a small
-    # safety margin so the request fails with a useful Case Flow message.
-    max_bytes = 49 * 1024 * 1024
-    if len(pdf_bytes) > max_bytes:
+    if len(pdf_bytes) > 49 * 1024 * 1024:
         raise ValueError(
-            "Das gescannte PDF ist für die KI-Texterkennung zu groß "
-            "(maximal ca. 49 MB)."
+            "Das PDF überschreitet die maximale Größe von 49 MB."
         )
 
-    encoded = base64.b64encode(pdf_bytes).decode("utf-8")
-    file_data = f"data:application/pdf;base64,{encoded}"
+    encoded = base64.b64encode(pdf_bytes).decode()
 
-    try:
-        response = get_openai_client().responses.parse(
-            model=pdf_vision_model(),
-            input=[
-                {
-                    "role": "system",
-                    "content": _SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_file",
-                            "filename": file_name or "document.pdf",
-                            "file_data": file_data,
-                            "detail": pdf_vision_detail(),
-                        },
-                        {
-                            "type": "input_text",
-                            "text": (
-                                "Extrahiere jetzt den lesbaren Text aus allen "
-                                "nicht-leeren Seiten dieses PDFs."
-                            ),
-                        },
-                    ],
-                },
-            ],
-            text_format=VisionPdfExtraction,
-        )
-    except Exception as exc:
+    response = None
+
+    for attempt in range(3):
+
+        try:
+
+            response = get_openai_client().responses.parse(
+
+                model=analysis_model(),
+
+                input=[
+                    {
+                        "role": "system",
+                        "content": SYSTEM_PROMPT,
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_file",
+                                "filename": file_name,
+                                "file_data": f"data:application/pdf;base64,{encoded}",
+                                "detail": "high",
+                            },
+                            {
+                                "type": "input_text",
+                                "text": """
+Extrahiere den vollständigen lesbaren Text.
+
+Für jede Seite:
+
+- Seitennummer beibehalten
+- Reihenfolge beibehalten
+- Tabellen möglichst strukturiert übernehmen
+- Nur lesbaren Text
+- Keine Interpretation
+- Keine Zusammenfassung
+""",
+                            },
+                        ],
+                    },
+                ],
+
+                text_format=VisionPdfExtraction,
+            )
+
+            break
+
+        except RateLimitError:
+
+            if attempt == 2:
+                raise RuntimeError(
+                    "OpenAI-Ratenlimit erreicht."
+                )
+
+            time.sleep(2 ** attempt)
+
+        except APIConnectionError as exc:
+
+            raise RuntimeError(
+                "Keine Verbindung zum OpenAI-Dienst."
+            ) from exc
+
+        except APIError as exc:
+
+            raise RuntimeError(
+                f"OpenAI API Fehler: {exc}"
+            ) from exc
+
+    if response is None:
+
         raise RuntimeError(
-            "Die KI-Texterkennung für das gescannte PDF ist fehlgeschlagen: "
-            f"{exc}"
-        ) from exc
+            "Keine Antwort von OpenAI erhalten."
+        )
 
     if response.output_parsed is None:
+
         raise RuntimeError(
-            "Die KI-Texterkennung lieferte keine strukturierte Antwort."
+            "OpenAI konnte keinen PDF-Text extrahieren."
         )
 
     result = response.output_parsed
-    result.pages = [
-        page
-        for page in result.pages
-        if page.text and page.text.strip()
-    ]
 
-    if not result.pages:
+    pages = {}
+
+    for page in result.pages:
+
+        if not page.text.strip():
+            continue
+
+        existing = pages.get(page.page_number)
+
+        if existing is None or len(page.text) > len(existing.text):
+            pages[page.page_number] = page
+
+    result.pages = sorted(
+        pages.values(),
+        key=lambda page: page.page_number,
+    )
+
+    total_text = "\n".join(
+        page.text
+        for page in result.pages
+    )
+
+    if len(total_text.strip()) < 50:
         raise ValueError(
-            "Die KI-Texterkennung konnte keinen lesbaren Text im PDF erkennen."
+            "Kein lesbarer Text erkannt."
         )
+
+    logger.info(
+        "PDF Vision completed",
+        extra={
+            "file": file_name,
+            "pages": len(result.pages),
+            "characters": len(total_text),
+            "model": analysis_model(),
+        },
+    )
 
     return result
