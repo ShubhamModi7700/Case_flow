@@ -10,6 +10,8 @@ from docx import Document as WordDocument
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
+from app.services.pdf_vision import extract_scanned_pdf_with_openai
+
 
 @dataclass
 class ExtractedSection:
@@ -27,18 +29,65 @@ class ExtractedDocument:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-def extract_pdf(content: bytes) -> ExtractedDocument:
+def extract_pdf(
+    content: bytes,
+    *,
+    file_name: str = "document.pdf",
+) -> ExtractedDocument:
     reader = PdfReader(BytesIO(content))
-    sections = []
+    sections: list[ExtractedSection] = []
+
     for page_number, page in enumerate(reader.pages, start=1):
         text = (page.extract_text() or "").strip()
         if text:
-            sections.append(ExtractedSection(text=text, page_number=page_number))
-    if not sections:
-        raise ValueError(
-            "Kein extrahierbarer PDF-Text gefunden. Für Scans ist später OCR erforderlich."
+            sections.append(
+                ExtractedSection(
+                    text=text,
+                    page_number=page_number,
+                    metadata={"vision_extraction": False},
+                )
+            )
+
+    # A scan can occasionally contain only a tiny text layer (for example a
+    # scanner watermark or page number). Treat that as insufficient and use
+    # the PDF vision fallback as well.
+    extracted_character_count = sum(len(section.text) for section in sections)
+    if extracted_character_count >= 50:
+        return ExtractedDocument(
+            "pdf",
+            sections,
+            {
+                "page_count": len(reader.pages),
+                "vision_extraction": False,
+            },
         )
-    return ExtractedDocument("pdf", sections, {"page_count": len(reader.pages)})
+
+    vision_result = extract_scanned_pdf_with_openai(
+        content,
+        file_name=file_name,
+    )
+    vision_sections = [
+        ExtractedSection(
+            text=page.text.strip(),
+            page_number=page.page_number,
+            metadata={
+                "vision_extraction": True,
+                "extraction_provider": "openai",
+            },
+        )
+        for page in vision_result.pages
+        if page.text.strip()
+    ]
+
+    return ExtractedDocument(
+        "pdf_vision",
+        vision_sections,
+        {
+            "page_count": len(reader.pages),
+            "vision_extraction": True,
+            "extraction_provider": "openai",
+        },
+    )
 
 
 def extract_docx(content: bytes) -> ExtractedDocument:
@@ -136,7 +185,7 @@ def extract_msg_document(content: bytes) -> ExtractedDocument:
 def extract_document(*, file_name: str, content: bytes) -> ExtractedDocument:
     extension = Path(file_name).suffix.lower()
     if extension == ".pdf":
-        return extract_pdf(content)
+        return extract_pdf(content, file_name=file_name)
     if extension == ".docx":
         return extract_docx(content)
     if extension == ".xlsx":
