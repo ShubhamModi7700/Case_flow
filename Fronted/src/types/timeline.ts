@@ -4,7 +4,7 @@ export interface TimelineEvent {
   event_type: string;
   title: string;
   description: string | null;
-  actor: string | null;
+  person: string | null;
   occurred_at: string;
   is_future: boolean;
 }

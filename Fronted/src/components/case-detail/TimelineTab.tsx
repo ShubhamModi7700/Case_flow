@@ -19,6 +19,20 @@ const EVENT_STYLES: Record<string, string> = {
   Task: "bg-indigo-500",
   Archived: "bg-slate-500",
   Update: "bg-blue-500",
+  AI: "bg-fuchsia-500",
+};
+
+const EVENT_ICONS: Record<string, string> = {
+  Created: "✓",
+  Completed: "✓",
+  Document: "▣",
+  Note: "✎",
+  Milestone: "◆",
+  "Task deadline": "◷",
+  Task: "☑",
+  Archived: "□",
+  Update: "↻",
+  AI: "✦",
 };
 
 interface TimelineTabProps {
@@ -173,14 +187,17 @@ export default function TimelineTab({
               className="relative grid grid-cols-[24px_1fr] gap-4 pb-7 last:pb-0"
             >
               {index < events.length - 1 && (
-                <div className="absolute left-[11px] top-5 h-full w-px bg-slate-200" />
+                <div className="absolute left-[13px] top-6 h-full w-px bg-slate-200" />
               )}
 
               <div
-                className={`relative z-10 mt-1 h-6 w-6 rounded-full border-4 border-white shadow-sm ${
+                className={`relative z-10 mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border-4 border-white text-[10px] font-bold text-white shadow-sm ${
                   EVENT_STYLES[entry.event_type] ?? "bg-slate-500"
                 }`}
-              />
+                aria-hidden="true"
+              >
+                {EVENT_ICONS[entry.event_type] ?? "•"}
+              </div>
 
               <div
                 className={`rounded-xl border p-4 ${
@@ -213,10 +230,11 @@ export default function TimelineTab({
                   </p>
                 )}
 
-                <p className="mt-3 text-xs text-slate-400">
-                  {formatDateTime(entry.occurred_at)} ·{" "}
-                  {entry.person ?? commonLabels.system}
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                  <span>{formatDateTime(entry.occurred_at)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Von {entry.person ?? commonLabels.system}</span>
+                </div>
               </div>
             </article>
           ))}

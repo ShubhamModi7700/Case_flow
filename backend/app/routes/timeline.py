@@ -18,16 +18,18 @@ def get_case_or_404(case_id: int, db: Session) -> models.Case:
 
 
 def event_type_for_change(change: str) -> str:
-    value = change.lower()
-    if "created" in value:
+    value = (change or "").casefold()
+    if value.startswith("ki-") or "ki-" in value:
+        return "AI"
+    if "created" in value or "erstellt" in value:
         return "Created"
-    if "completed" in value:
+    if "completed" in value or "abgeschlossen" in value:
         return "Completed"
-    if "archived" in value:
+    if "archived" in value or "archiviert" in value:
         return "Archived"
-    if "task" in value:
+    if "task" in value or "aufgabe" in value:
         return "Task"
-    if "note" in value:
+    if "note" in value or "notiz" in value:
         return "Note"
     return "Update"
 
@@ -69,7 +71,7 @@ def get_case_timeline(
             id=f"document-{document.id}",
             case_id=case_id,
             event_type="Document",
-            title=f"Document uploaded: {document.file_name}",
+            title=f"Dokument hochgeladen: {document.file_name}",
             description=document.description,
             person=document.uploaded_by,
             occurred_at=document.uploaded_at,
@@ -83,7 +85,7 @@ def get_case_timeline(
                 id=f"task-due-{task.id}",
                 case_id=case_id,
                 event_type="Task deadline",
-                title=f"Task due: {task.title}",
+                title=f"Aufgabe fällig: {task.title}",
                 description=task.description,
                 person=task.responsible_person,
                 occurred_at=occurred_at,
@@ -91,8 +93,8 @@ def get_case_timeline(
             ))
 
     milestones = [
-        ("primary-deadline", case.primary_deadline, "Primary deadline", case.next_action),
-        ("follow-up", case.follow_up_date, "Follow-up date", case.next_action),
+        ("primary-deadline", case.primary_deadline, "Hauptfrist", case.next_action),
+        ("follow-up", case.follow_up_date, "Wiedervorlagetermin", case.next_action),
     ]
     for key, milestone_date, title, description in milestones:
         if milestone_date:

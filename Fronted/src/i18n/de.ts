@@ -50,6 +50,9 @@ export const timelineLabels: Record<string, string> = {
   Update: "Aktualisierung",
   UPDATE: "Aktualisierung",
 
+  AI: "KI-Analyse",
+  ai: "KI-Analyse",
+
   Comment: "Kommentar",
   COMMENT: "Kommentar",
 };
@@ -71,6 +74,12 @@ export const eventTitleLabels: Record<string, string> = {
   "Document uploaded": "Dokument hochgeladen",
   "Case updated": "Fall aktualisiert",
   "Case archived": "Fall archiviert",
+  "KI-Vorschläge bestätigt": "KI-Vorschläge bestätigt",
+  "KI-Vorschläge übernommen": "KI-Vorschläge übernommen",
+  "KI-Management Zusammenfassung bestätigt":
+    "KI-Management-Zusammenfassung bestätigt",
+  "KI-Management-Zusammenfassung bestätigt":
+    "KI-Management-Zusammenfassung bestätigt",
 };
 
 export const commonLabels = {

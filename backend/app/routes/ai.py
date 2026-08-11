@@ -353,14 +353,36 @@ def approve_suggestion(
             models.CaseAISummary.status.in_(["Pending", "Approved"]),
         ).update({"status": "Outdated"}, synchronize_session=False)
 
+        approved_changes = [
+            f"Quelle: {document.file_name}",
+            "Management-Zusammenfassung aktualisiert",
+        ]
+        if payload.deadline:
+            approved_changes.append(
+                f"Frist übernommen: {payload.deadline.strftime('%d.%m.%Y')}"
+            )
+        if payload.next_action:
+            approved_changes.append(
+                f"Nächste Maßnahme: {payload.next_action}"
+            )
+        if payload.risk is not None:
+            approved_changes.append(
+                f"Risiko übernommen: {payload.risk.value}"
+            )
+            if payload.risk_reason:
+                approved_changes.append(
+                    f"Risikobegründung: {payload.risk_reason}"
+                )
+        if suggestion.current_case_id != case.id:
+            approved_changes.append(
+                f"Dokument dem Fall CF-{case.id:04d} zugeordnet"
+            )
+
         db.add(
             models.History(
                 case_id=case.id,
-                change="KI-Vorschläge bestätigt",
-                note=(
-                    f"Vorschläge aus dem Dokument '{document.file_name}' "
-                    "wurden geprüft und gespeichert."
-                ),
+                change="KI-Vorschläge übernommen",
+                note="\n".join(f"• {item}" for item in approved_changes),
                 responsible_person=current_user.full_name,
             )
         )
@@ -598,11 +620,31 @@ def approve_management_summary(
         summary.reviewed_by = current_user.id
         summary.reviewed_at = utc_now()
 
+        summary_changes = [
+            "Management-Zusammenfassung geprüft und veröffentlicht",
+        ]
+        if summary.latest_development:
+            summary_changes.append(
+                f"Letzte Entwicklung: {summary.latest_development}"
+            )
+        if normalized_role == "Manager" and summary.next_required_action:
+            summary_changes.append(
+                f"Nächste Maßnahme übernommen: {summary.next_required_action}"
+            )
+        if normalized_role == "Manager" and summary.open_deadline:
+            summary_changes.append(
+                f"Offene Frist übernommen: {summary.open_deadline.strftime('%d.%m.%Y')}"
+            )
+        if summary.risk_comment:
+            summary_changes.append(
+                f"Risikohinweis: {summary.risk_comment}"
+            )
+
         db.add(
             models.History(
                 case_id=case.id,
-                change="KI-Management Zusammenfassung bestätigt",
-                note="Die KI-Zusammenfassung wurde geprüft und übernommen.",
+                change="KI-Management-Zusammenfassung bestätigt",
+                note="\n".join(f"• {item}" for item in summary_changes),
                 responsible_person=current_user.full_name,
             )
         )
