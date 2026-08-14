@@ -160,6 +160,23 @@ def _clean_deadline_comment(value: str | None) -> str | None:
     return _clean_text(value)
 
 
+_STOPWORDS = {
+    "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer",
+    "eines", "einem", "einen", "und", "oder", "zu", "zur", "zum", "von",
+    "vom", "mit", "für", "auf", "im", "in", "am", "an", "als", "auch",
+    "ist", "sind", "war", "wurde", "werden", "wird", "hat", "haben", "bei",
+    "nach", "vor", "über", "durch", "sowie", "dass", "dies", "diese", "dieser",
+    "noch", "nicht", "bzw", "bzw.", "bisher", "aktuell",
+}
+
+
+def _significant_tokens(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    words = re.findall(r"[a-zA-ZäöüÄÖÜß0-9]+", value.casefold())
+    return {word for word in words if len(word) >= 4 and word not in _STOPWORDS}
+
+
 def _semantic_overlap(first: str | None, second: str | None) -> float:
     if not first or not second:
         return 0.0
@@ -168,7 +185,16 @@ def _semantic_overlap(first: str | None, second: str | None) -> float:
     right = normalize(second)
     if not left or not right:
         return 0.0
-    return SequenceMatcher(None, left, right).ratio()
+
+    sequence_score = SequenceMatcher(None, left, right).ratio()
+    left_tokens = _significant_tokens(first)
+    right_tokens = _significant_tokens(second)
+    if not left_tokens or not right_tokens:
+        return sequence_score
+
+    common = len(left_tokens & right_tokens)
+    containment_score = common / min(len(left_tokens), len(right_tokens))
+    return max(sequence_score, containment_score)
 
 
 def _parse_management_summary(context: str, *, correction: str | None = None) -> schemas.ManagementSummaryAnalysis:
@@ -219,7 +245,7 @@ def generate_management_summary(
         result.latest_development,
         result.next_required_action,
     )
-    if overlap >= 0.62:
+    if overlap >= 0.55:
         correction = (
             "Die Felder 'latest_development' und 'next_required_action' sind in "
             "der ersten Fassung zu ähnlich. Erstelle die gesamte strukturierte "
@@ -230,5 +256,19 @@ def generate_management_summary(
             "und kürze die Felder nicht künstlich."
         )
         result = _clean_result(_parse_management_summary(context, correction=correction))
+        overlap = _semantic_overlap(
+            result.latest_development,
+            result.next_required_action,
+        )
+
+    # If a second model pass still cannot separate past evidence from future
+    # action, do not persist a misleading duplicate. Keep the confirmed past
+    # development and leave the action empty for human review/regeneration.
+    if overlap >= 0.65:
+        result.uncertainty_notes.append(
+            "Letzte Entwicklung und nächste Maßnahme konnten nicht ausreichend "
+            "getrennt werden; die nächste Maßnahme wurde deshalb nicht übernommen."
+        )
+        result.next_required_action = None
 
     return result

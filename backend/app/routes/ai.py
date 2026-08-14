@@ -310,7 +310,7 @@ def analyze_document(
         ],
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="document-analysis-v1",
+        prompt_version="document-analysis-v2-temporal-separation",
         raw_response=analysis.model_dump(mode="json"),
         created_by=current_user.id,
     )
@@ -652,7 +652,7 @@ def _create_management_summary_record(
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-summary-v5-grounded-detailed",
+        prompt_version="management-summary-v6-temporal-separation",
         generated_by=generated_by,
     )
     db.add(summary)
