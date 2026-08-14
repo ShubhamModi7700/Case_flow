@@ -139,6 +139,46 @@ export default function Dashboard() {
         />
       </div>
 
+      <section className="mt-8 rounded-2xl border border-violet-200 bg-violet-50/60 p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">
+              KI-Arbeitskorb
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-slate-950">
+              KI-Ergebnisse, die Aufmerksamkeit benötigen
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Offene KI-Vorschläge bleiben unverändert, bis ein Benutzer sie fachlich prüft und bestätigt.
+            </p>
+          </div>
+          <Link
+            to="/cases"
+            className="rounded-xl border border-violet-200 bg-white px-4 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-100"
+          >
+            Fälle öffnen
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border border-violet-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Dokumentvorschläge</p>
+            <p className="mt-2 text-3xl font-bold text-slate-950">{data.pending_ai_suggestions}</p>
+            <p className="mt-1 text-sm text-slate-500">Warten auf Prüfung oder Übernahme.</p>
+          </div>
+          <div className="rounded-xl border border-violet-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Management-Zusammenfassungen</p>
+            <p className="mt-2 text-3xl font-bold text-slate-950">{data.pending_management_summaries}</p>
+            <p className="mt-1 text-sm text-slate-500">KI-Zusammenfassungen zur Bestätigung.</p>
+          </div>
+          <div className="rounded-xl border border-violet-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Bereit für KI</p>
+            <p className="mt-2 text-3xl font-bold text-slate-950">{data.documents_ready_for_ai}</p>
+            <p className="mt-1 text-sm text-slate-500">Indexierte Dokumente mit Fallzuordnung.</p>
+          </div>
+        </div>
+      </section>
+
       <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>

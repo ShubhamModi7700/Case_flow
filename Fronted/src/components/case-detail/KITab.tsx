@@ -40,6 +40,24 @@ function formatDate(value: string | null): string {
     : date.toLocaleDateString("de-DE");
 }
 
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    Pending: "Prüfung ausstehend",
+    Approved: "Bestätigt",
+    EditedAndApproved: "Bearbeitet und bestätigt",
+    Rejected: "Abgelehnt",
+    Outdated: "Nicht mehr aktuell",
+  };
+  return labels[status] ?? status;
+}
+
+function confidenceLabel(value: number | null): string {
+  if (value === null) return "Keine Bewertung";
+  if (value >= 0.9) return "Hohe Übereinstimmung";
+  if (value >= 0.7) return "Mittlere Übereinstimmung";
+  return "Niedrige Übereinstimmung";
+}
+
 export default function KITab({
   caseItem,
   documents,
@@ -67,6 +85,13 @@ export default function KITab({
   );
   const pendingSuggestion = useMemo(
     () => suggestions.find((item) => item.status === "Pending"),
+    [suggestions],
+  );
+  const approvedSuggestion = useMemo(
+    () =>
+      suggestions.find((item) =>
+        ["Approved", "EditedAndApproved"].includes(item.status),
+      ),
     [suggestions],
   );
   const documentsById = useMemo(
@@ -418,7 +443,7 @@ export default function KITab({
               />
             </label>
             <div className="lg:col-span-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-              <p><strong>Status:</strong> {visibleSummary.status}</p>
+              <p><strong>Status:</strong> {statusLabel(visibleSummary.status)}</p>
               <div className="mt-2">
                 <strong>Relevante Dokumente:</strong>
                 {visibleSummary.relevant_document_ids.length ? (
@@ -499,13 +524,41 @@ export default function KITab({
 
       {pendingSuggestion && (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-amber-950">Dokumentvorschläge prüfen</h2>
-          <p className="mt-1 text-sm text-amber-800">
-            Vorgeschlagener Fall: CF-{String(pendingSuggestion.suggested_case_id || caseItem.id).padStart(4, "0")}
-            {pendingSuggestion.case_match_confidence !== null
-              ? ` · Übereinstimmung ${(pendingSuggestion.case_match_confidence * 100).toFixed(0)} %`
-              : ""}
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">✦ KI-Vorschlag</p>
+              <h2 className="mt-2 text-lg font-semibold text-amber-950">Dokumentvorschläge prüfen</h2>
+              <p className="mt-1 text-sm text-amber-800">
+                Vorgeschlagener Fall: CF-{String(pendingSuggestion.suggested_case_id || caseItem.id).padStart(4, "0")}
+              </p>
+            </div>
+            {pendingSuggestion.case_match_confidence !== null && (
+              <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-right">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">{confidenceLabel(pendingSuggestion.case_match_confidence)}</p>
+                <p className="mt-1 text-2xl font-bold text-amber-950">{(pendingSuggestion.case_match_confidence * 100).toFixed(0)} %</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-amber-200 bg-white p-4 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">Quelle</p>
+              <p className="mt-1">{documentsById.get(pendingSuggestion.document_id)?.file_name || `Dokument ${pendingSuggestion.document_id}`}</p>
+              {pendingSuggestion.deadline_source && (
+                <p className="mt-2 text-xs leading-5 text-slate-500">Fristquelle: {pendingSuggestion.deadline_source}</p>
+              )}
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-white p-4 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">RAG-Quellen</p>
+              <p className="mt-1">{pendingSuggestion.relevant_document_ids.length} relevante Dokument(e) · {pendingSuggestion.relevant_chunk_ids.length} Textabschnitt(e)</p>
+              {pendingSuggestion.relevant_document_ids.length > 0 && (
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {pendingSuggestion.relevant_document_ids.map((id) => documentsById.get(id)?.file_name || `Dokument ${id}`).join(" · ")}
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <label className="lg:col-span-2 text-sm font-semibold text-slate-700">
               Dokumentzusammenfassung
@@ -540,13 +593,54 @@ export default function KITab({
           {canEdit && (
             <div className="mt-5 flex flex-wrap gap-3">
               <button type="button" disabled={working !== null} onClick={() => void approveSuggestion()} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                {working === "approve-suggestion" ? "Wird gespeichert..." : "Bestätigen und speichern"}
+                {working === "approve-suggestion" ? "Wird gespeichert..." : "KI-Vorschläge übernehmen"}
               </button>
               <button type="button" disabled={working !== null} onClick={() => void rejectSuggestion()} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
                 Ablehnen
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {!pendingSuggestion && approvedSuggestion && (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">✓ Letzte bestätigte Dokumentanalyse</p>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950">Übernommene KI-Ergebnisse</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Quelle: {documentsById.get(approvedSuggestion.document_id)?.file_name || `Dokument ${approvedSuggestion.document_id}`}
+              </p>
+            </div>
+            <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
+              {statusLabel(approvedSuggestion.status)}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <div className="lg:col-span-2 rounded-xl border border-emerald-100 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dokumentzusammenfassung</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{approvedSuggestion.suggested_summary || "Keine Zusammenfassung gespeichert."}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Letzte Entwicklung</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{approvedSuggestion.suggested_latest_development || "Nicht angegeben"}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{approvedSuggestion.suggested_next_action || "Nicht angegeben"}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Erkannte Frist</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{formatDate(approvedSuggestion.suggested_deadline)}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Risikohinweis</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{approvedSuggestion.suggested_risk || "Nicht angegeben"}</p>
+              {approvedSuggestion.suggested_risk_reason && <p className="mt-1 text-sm leading-6 text-slate-600">{approvedSuggestion.suggested_risk_reason}</p>}
+            </div>
+          </div>
         </section>
       )}
     </div>

@@ -127,3 +127,63 @@ export async function rejectManagementSummary(
   );
   return data;
 }
+
+export type DocumentCaseDraft = {
+  title: string;
+  company: string | null;
+  department: string | null;
+  category: "Customer" | "Contract" | "Supplier" | "Employee" | "Project" | "Other";
+  external_contact: string | null;
+  description: string | null;
+  management_summary: string | null;
+  next_action: string | null;
+  primary_deadline: string | null;
+  financial_amount: number | null;
+};
+
+export type DocumentCaseCandidate = {
+  case_id: number;
+  title: string;
+  company: string | null;
+  category: string | null;
+  similarity: number | null;
+};
+
+export type DocumentCaseRouteSuggestion = {
+  document_id: number;
+  decision: "existing_case" | "new_case" | "uncertain";
+  suggested_case_id: number | null;
+  confidence: number;
+  reason: string;
+  new_case: DocumentCaseDraft | null;
+  candidates: DocumentCaseCandidate[];
+};
+
+export type DocumentCaseRouteConfirmation = {
+  action: "assign_existing" | "create_new";
+  case_id?: number | null;
+  new_case?: DocumentCaseDraft | null;
+};
+
+export async function suggestDocumentCase(
+  documentId: number,
+): Promise<DocumentCaseRouteSuggestion> {
+  const { data } = await api.post<DocumentCaseRouteSuggestion>(
+    `/documents/${documentId}/suggest-case`,
+    undefined,
+    { timeout: AI_TIMEOUT_MS },
+  );
+  return data;
+}
+
+export async function confirmDocumentCaseRoute(
+  documentId: number,
+  payload: DocumentCaseRouteConfirmation,
+): Promise<{ document_id: number; case_id: number; action: string; message: string }> {
+  const { data } = await api.post(
+    `/documents/${documentId}/confirm-case-route`,
+    payload,
+    { timeout: AI_TIMEOUT_MS },
+  );
+  return data;
+}

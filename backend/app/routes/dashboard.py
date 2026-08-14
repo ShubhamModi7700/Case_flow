@@ -126,6 +126,27 @@ def dashboard_summary(
         .count()
     )
 
+    pending_ai_suggestions = (
+        db.query(models.AIDocumentSuggestion)
+        .filter(models.AIDocumentSuggestion.status == "Pending")
+        .count()
+    )
+
+    pending_management_summaries = (
+        db.query(models.CaseAISummary)
+        .filter(models.CaseAISummary.status == "Pending")
+        .count()
+    )
+
+    documents_ready_for_ai = (
+        db.query(models.Document)
+        .filter(
+            models.Document.embedding_status == "Ready",
+            models.Document.case_id.isnot(None),
+        )
+        .count()
+    )
+
     next_actions = (
         db.query(models.Case)
         .filter(
@@ -151,6 +172,9 @@ def dashboard_summary(
         "upcoming_deadlines": upcoming_deadlines,
         "cases_without_responsible": cases_without_responsible,
         "cases_without_next_action": cases_without_next_action,
+        "pending_ai_suggestions": pending_ai_suggestions,
+        "pending_management_summaries": pending_management_summaries,
+        "documents_ready_for_ai": documents_ready_for_ai,
         "next_due_actions": [
             {
                 "case_id": item.id,

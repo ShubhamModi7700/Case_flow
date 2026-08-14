@@ -357,6 +357,10 @@ def approve_suggestion(
             f"Quelle: {document.file_name}",
             "Management-Zusammenfassung aktualisiert",
         ]
+        if payload.latest_development:
+            approved_changes.append(
+                f"Letzte Entwicklung: {payload.latest_development}"
+            )
         if payload.deadline:
             approved_changes.append(
                 f"Frist übernommen: {payload.deadline.strftime('%d.%m.%Y')}"

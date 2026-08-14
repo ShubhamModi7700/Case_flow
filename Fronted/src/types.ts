@@ -113,6 +113,9 @@ export type DashboardData = {
   upcoming_deadlines: number;
   cases_without_responsible: number;
   cases_without_next_action: number;
+  pending_ai_suggestions: number;
+  pending_management_summaries: number;
+  documents_ready_for_ai: number;
   next_due_actions: DashboardAction[];
 };
 

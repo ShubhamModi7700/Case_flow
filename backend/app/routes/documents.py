@@ -20,6 +20,14 @@ from app.storage import (
     upload_object,
 )
 from app.services.document_indexing import index_document
+from app.services.case_embeddings import refresh_case_embedding
+from app.services.document_case_routing import (
+    CaseCandidate,
+    suggest_document_case_route,
+)
+from app.services.embeddings import create_query_embedding
+from app.services.retrieval import match_cases
+from app.services.risk import refresh_risk_suggestion
 
 router = APIRouter(
     tags=["Documents"],
@@ -311,6 +319,196 @@ def process_document(
         processing_error=document.processing_error,
     )
 
+
+@router.post(
+    "/documents/{document_id}/suggest-case",
+    response_model=schemas.DocumentCaseRouteSuggestionResponse,
+)
+def suggest_case_for_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
+):
+    """Suggest an existing case or a new case without changing case assignment.
+
+    Vector search is used only to retrieve plausible candidates. OpenAI compares
+    the document with those candidates. The result is a suggestion; the user
+    must confirm the final assignment or new-case creation separately.
+    """
+    document = _get_document_or_404(document_id, db)
+
+    if document.embedding_status != "Ready":
+        try:
+            index_document(document=document, db=db)
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    chunks = (
+        db.query(models.DocumentChunk)
+        .filter(models.DocumentChunk.document_id == document.id)
+        .order_by(models.DocumentChunk.chunk_index)
+        .all()
+    )
+    if not chunks:
+        raise HTTPException(
+            status_code=409,
+            detail="Für dieses Dokument wurden keine Textabschnitte erstellt.",
+        )
+
+    document_text = "\n\n".join(chunk.content for chunk in chunks)
+    query_vector = create_query_embedding(document_text[:24000])
+    vector_candidates = match_cases(db=db, query_embedding=query_vector, limit=5)
+
+    candidates: list[CaseCandidate] = []
+    for item in vector_candidates:
+        case = _get_case_or_404(int(item["case_id"]), db)
+        candidates.append(
+            CaseCandidate(
+                case_id=case.id,
+                title=case.title,
+                company=case.company,
+                category=case.category,
+                description=case.description,
+                management_summary=case.management_summary,
+                similarity=float(item["similarity"]),
+            )
+        )
+
+    try:
+        suggestion = suggest_document_case_route(
+            document_context=document_text[:50000],
+            candidates=candidates,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return schemas.DocumentCaseRouteSuggestionResponse(
+        document_id=document.id,
+        decision=suggestion.decision,
+        suggested_case_id=suggestion.suggested_case_id,
+        confidence=suggestion.confidence,
+        reason=suggestion.reason,
+        new_case=(
+            schemas.DocumentCaseDraftResponse(**suggestion.new_case.model_dump())
+            if suggestion.new_case
+            else None
+        ),
+        candidates=[
+            schemas.DocumentCaseCandidateResponse(
+                case_id=item.case_id,
+                title=item.title,
+                company=item.company,
+                category=item.category,
+                similarity=item.similarity,
+            )
+            for item in candidates
+        ],
+    )
+
+
+@router.post(
+    "/documents/{document_id}/confirm-case-route",
+    response_model=schemas.DocumentCaseRouteConfirmationResponse,
+)
+def confirm_document_case_route(
+    document_id: int,
+    payload: schemas.DocumentCaseRouteConfirmation,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    """Apply a case routing decision only after explicit user confirmation."""
+    document = _get_document_or_404(document_id, db)
+
+    if payload.action == "assign_existing":
+        if payload.case_id is None:
+            raise HTTPException(status_code=400, detail="Eine Fall-ID ist erforderlich.")
+
+        case = _get_case_or_404(payload.case_id, db)
+        document.case_id = case.id
+        db.query(models.DocumentChunk).filter(
+            models.DocumentChunk.document_id == document.id
+        ).update({"case_id": case.id}, synchronize_session=False)
+        db.add(
+            models.History(
+                case_id=case.id,
+                change="Dokument einem Fall zugeordnet",
+                note=(
+                    f"Das Dokument „{document.file_name}“ wurde nach "
+                    "Benutzerbestätigung diesem Fall zugeordnet."
+                ),
+                responsible_person=current_user.full_name,
+            )
+        )
+        db.commit()
+        return schemas.DocumentCaseRouteConfirmationResponse(
+            document_id=document.id,
+            case_id=case.id,
+            action="assigned_existing",
+            message="Das Dokument wurde dem bestätigten Fall zugeordnet.",
+        )
+
+    if payload.action != "create_new":
+        raise HTTPException(status_code=400, detail="Ungültige Routing-Aktion.")
+    if payload.new_case is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Für einen neuen Fall ist der bestätigte Fallentwurf erforderlich.",
+        )
+
+    draft = payload.new_case
+    new_case = models.Case(
+        title=draft.title.strip(),
+        company=(draft.company or "Zu prüfen").strip() or "Zu prüfen",
+        department=(draft.department or "").strip() or None,
+        category=draft.category.value,
+        external_contact=(draft.external_contact or "").strip() or None,
+        responsible_person=current_user.full_name,
+        status="New",
+        risk="Low",
+        management_summary=(draft.management_summary or "").strip() or None,
+        financial_amount=draft.financial_amount,
+        description=(draft.description or "").strip() or None,
+        next_action=(draft.next_action or "").strip() or None,
+        primary_deadline=draft.primary_deadline,
+    )
+
+    try:
+        db.add(new_case)
+        db.flush()
+        refresh_risk_suggestion(new_case)
+        document.case_id = new_case.id
+        db.query(models.DocumentChunk).filter(
+            models.DocumentChunk.document_id == document.id
+        ).update({"case_id": new_case.id}, synchronize_session=False)
+        db.add(
+            models.History(
+                case_id=new_case.id,
+                change="Fall aus Dokument angelegt",
+                note=(
+                    f"Quelle: {document.file_name}\n"
+                    "• KI-Fallentwurf vom Benutzer bestätigt\n"
+                    "• Dokument dem neu angelegten Fall zugeordnet"
+                ),
+                responsible_person=current_user.full_name,
+            )
+        )
+        db.commit()
+        db.refresh(new_case)
+    except Exception:
+        db.rollback()
+        raise
+
+    try:
+        refresh_case_embedding(case=new_case, db=db)
+    except Exception:
+        db.rollback()
+
+    return schemas.DocumentCaseRouteConfirmationResponse(
+        document_id=document.id,
+        case_id=new_case.id,
+        action="created_new",
+        message="Der bestätigte Fall wurde angelegt und das Dokument zugeordnet.",
+    )
 
 @router.get(
     "/documents/{document_id}/processing-status",

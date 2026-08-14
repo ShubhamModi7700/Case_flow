@@ -655,3 +655,47 @@ class CaseAISummaryResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentCaseDraftResponse(BaseModel):
+    title: str
+    company: str | None = None
+    department: str | None = None
+    category: CaseCategory
+    external_contact: str | None = None
+    description: str | None = None
+    management_summary: str | None = None
+    next_action: str | None = None
+    primary_deadline: date | None = None
+    financial_amount: float | None = None
+
+
+class DocumentCaseCandidateResponse(BaseModel):
+    case_id: int
+    title: str
+    company: str | None = None
+    category: str | None = None
+    similarity: float | None = None
+
+
+class DocumentCaseRouteSuggestionResponse(BaseModel):
+    document_id: int
+    decision: str
+    suggested_case_id: int | None = None
+    confidence: float
+    reason: str
+    new_case: DocumentCaseDraftResponse | None = None
+    candidates: list[DocumentCaseCandidateResponse] = Field(default_factory=list)
+
+
+class DocumentCaseRouteConfirmation(BaseModel):
+    action: str
+    case_id: int | None = None
+    new_case: DocumentCaseDraftResponse | None = None
+
+
+class DocumentCaseRouteConfirmationResponse(BaseModel):
+    document_id: int
+    case_id: int
+    action: str
+    message: str
