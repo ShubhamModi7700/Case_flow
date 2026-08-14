@@ -58,6 +58,19 @@ function confidenceLabel(value: number | null): string {
   return "Niedrige Übereinstimmung";
 }
 
+function riskLabel(value: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    Low: "Niedrig",
+    Medium: "Mittel",
+    High: "Hoch",
+  };
+  return value ? labels[value] ?? value : "Nicht bewertet";
+}
+
+function displayValue(value: string | null | undefined, fallback = "Nicht angegeben"): string {
+  return value?.trim() || fallback;
+}
+
 export default function KITab({
   caseItem,
   documents,
@@ -105,6 +118,7 @@ export default function KITab({
     next_required_action: "",
     open_deadline: "",
     deadline_comment: "",
+    risk: "" as "" | RiskLevel,
     risk_comment: "",
   });
 
@@ -151,6 +165,7 @@ export default function KITab({
       next_required_action: visibleSummary.next_required_action || "",
       open_deadline: visibleSummary.open_deadline || "",
       deadline_comment: visibleSummary.deadline_comment || "",
+      risk: (visibleSummary.suggested_risk || "") as "" | RiskLevel,
       risk_comment: visibleSummary.risk_comment || "",
     });
   }, [visibleSummary?.id]);
@@ -199,6 +214,7 @@ export default function KITab({
         next_required_action: summaryForm.next_required_action || null,
         open_deadline: summaryForm.open_deadline || null,
         deadline_comment: summaryForm.deadline_comment || null,
+        risk: isManager && summaryForm.risk ? summaryForm.risk : null,
         risk_comment: summaryForm.risk_comment || null,
         relevant_document_ids: pendingSummary.relevant_document_ids,
       });
@@ -263,7 +279,7 @@ export default function KITab({
     try {
       setWorking("approve-suggestion");
       setError("");
-      await approveAISuggestion(pendingSuggestion.id, {
+      const result = await approveAISuggestion(pendingSuggestion.id, {
         selected_case_id: caseItem.id,
         summary: suggestionForm.summary || null,
         latest_development: suggestionForm.latest_development || null,
@@ -278,7 +294,11 @@ export default function KITab({
             ? suggestionForm.risk_reason || null
             : null,
       });
-      setNotice("Die Dokumentvorschläge wurden bestätigt.");
+      setNotice(
+        result.management_summary_created
+          ? "Die Dokumentanalyse wurde bestätigt. Eine neue Management-Empfehlung steht zur Prüfung bereit."
+          : "Die Dokumentanalyse wurde bestätigt. Die Management-Empfehlung konnte nicht automatisch aktualisiert werden; bitte aktualisieren Sie sie manuell.",
+      );
       await Promise.all([loadAIData(), onCaseChanged()]);
     } catch (requestError) {
       setError(
@@ -335,7 +355,7 @@ export default function KITab({
               KI-Managementübersicht
             </p>
             <h2 className="mt-2 text-xl font-semibold text-slate-950">
-              Fall schnell verstehen und handeln
+              Fall im Detail verstehen und handeln
             </h2>
             <p className="mt-2 text-sm text-slate-500">
               KI-generierter Vorschlag – bitte vor dem Speichern fachlich prüfen.
@@ -363,11 +383,49 @@ export default function KITab({
             verarbeitetes Dokument ist für eine fundierte RAG-Auswertung empfohlen.
           </div>
         ) : (
+          <>
+            {pendingSummary && (
+              <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">Neue KI-Managementempfehlung</p>
+                    <h3 className="mt-1 text-lg font-semibold text-slate-950">Aktuellen Fall mit dem KI-Vorschlag vergleichen</h3>
+                    <p className="mt-1 text-sm text-slate-600">Bestätigte Dokumentanalysen dienen als Evidenz. Erst Ihre Bestätigung ändert die offiziellen Falldaten.</p>
+                  </div>
+                  <span className="rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-semibold text-violet-700">Prüfung ausstehend</span>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-violet-100 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Risiko</p>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+                      <div><p className="text-xs text-slate-500">Aktuell</p><p className="mt-1 font-semibold">{riskLabel(caseItem.risk)}</p></div>
+                      <div><p className="text-xs text-violet-600">KI-Vorschlag</p><p className="mt-1 font-semibold text-violet-900">{riskLabel(pendingSummary.suggested_risk)}</p></div>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Frist</p>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+                      <div><p className="text-xs text-slate-500">Aktuell</p><p className="mt-1 font-semibold">{formatDate(caseItem.primary_deadline)}</p></div>
+                      <div><p className="text-xs text-violet-600">KI-Vorschlag</p><p className="mt-1 font-semibold text-violet-900">{formatDate(pendingSummary.open_deadline)}</p></div>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-white p-4 md:col-span-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
+                    <div className="mt-2 grid gap-3 md:grid-cols-2 text-sm">
+                      <div><p className="text-xs text-slate-500">Aktuell</p><p className="mt-1 whitespace-pre-wrap">{displayValue(caseItem.next_action)}</p></div>
+                      <div><p className="text-xs text-violet-600">KI-Vorschlag</p><p className="mt-1 whitespace-pre-wrap text-violet-950">{displayValue(pendingSummary.next_required_action)}</p></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           <div className="mt-6 grid gap-5 lg:grid-cols-2">
             <label className="lg:col-span-2">
               <span className="text-sm font-semibold text-slate-700">Kurze Fallzusammenfassung</span>
               <textarea
-                rows={4}
+                rows={8}
                 disabled={!pendingSummary || !canEdit}
                 value={summaryForm.short_case_summary}
                 onChange={(event) =>
@@ -382,7 +440,7 @@ export default function KITab({
             <label>
               <span className="text-sm font-semibold text-slate-700">Letzte Entwicklung</span>
               <textarea
-                rows={3}
+                rows={6}
                 disabled={!pendingSummary || !canEdit}
                 value={summaryForm.latest_development}
                 onChange={(event) =>
@@ -397,7 +455,7 @@ export default function KITab({
             <label>
               <span className="text-sm font-semibold text-slate-700">Nächste erforderliche Maßnahme</span>
               <textarea
-                rows={3}
+                rows={6}
                 disabled={!pendingSummary || !canEdit}
                 value={summaryForm.next_required_action}
                 onChange={(event) =>
@@ -426,6 +484,25 @@ export default function KITab({
               <p className="mt-1 text-xs text-slate-400">
                 {formatDate(visibleSummary.open_deadline)}
               </p>
+            </label>
+            <label>
+              <span className="text-sm font-semibold text-slate-700">Vorgeschlagenes Risiko</span>
+              <select
+                disabled={!pendingSummary || !isManager}
+                value={summaryForm.risk}
+                onChange={(event) =>
+                  setSummaryForm((current) => ({
+                    ...current,
+                    risk: event.target.value as "" | RiskLevel,
+                  }))
+                }
+                className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50"
+              >
+                <option value="">Nicht ändern</option>
+                <option value="Low">Niedrig</option>
+                <option value="Medium">Mittel</option>
+                <option value="High">Hoch</option>
+              </select>
             </label>
             <label>
               <span className="text-sm font-semibold text-slate-700">Risikohinweis</span>
@@ -463,6 +540,7 @@ export default function KITab({
               </div>
             </div>
           </div>
+          </>
         )}
 
         {pendingSummary && canEdit && (
@@ -593,7 +671,7 @@ export default function KITab({
           {canEdit && (
             <div className="mt-5 flex flex-wrap gap-3">
               <button type="button" disabled={working !== null} onClick={() => void approveSuggestion()} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                {working === "approve-suggestion" ? "Wird gespeichert..." : "KI-Vorschläge übernehmen"}
+                {working === "approve-suggestion" ? "Wird gespeichert..." : "Dokumentanalyse bestätigen"}
               </button>
               <button type="button" disabled={working !== null} onClick={() => void rejectSuggestion()} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
                 Ablehnen
@@ -608,7 +686,7 @@ export default function KITab({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">✓ Letzte bestätigte Dokumentanalyse</p>
-              <h2 className="mt-2 text-lg font-semibold text-slate-950">Übernommene KI-Ergebnisse</h2>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950">Bestätigte Dokument-Evidenz</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Quelle: {documentsById.get(approvedSuggestion.document_id)?.file_name || `Dokument ${approvedSuggestion.document_id}`}
               </p>

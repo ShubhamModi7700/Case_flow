@@ -17,14 +17,29 @@ export type AISuggestionApprovalPayload = {
   risk_reason: string | null;
 };
 
+export type ApproveAISuggestionResponse = {
+  status: string;
+  case_id: number;
+  management_summary_created?: boolean;
+};
+
 export type ManagementSummaryApprovalPayload = {
   short_case_summary: string | null;
   latest_development: string | null;
   next_required_action: string | null;
   open_deadline: string | null;
   deadline_comment: string | null;
+
+  // Needed by KITab.tsx
+  risk: RiskLevel | null;
   risk_comment: string | null;
+
   relevant_document_ids: number[];
+};
+
+export type ManagementSummaryApprovalResponse = {
+  status: string;
+  case_id: number;
 };
 
 export type DocumentProcessingResult = {
@@ -43,6 +58,7 @@ export async function processDocument(
     undefined,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }
 
@@ -54,6 +70,7 @@ export async function analyzeDocument(
     undefined,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }
 
@@ -63,18 +80,20 @@ export async function getCaseAISuggestions(
   const { data } = await api.get<AISuggestion[]>(
     `/cases/${caseId}/ai-suggestions`,
   );
+
   return data;
 }
 
 export async function approveAISuggestion(
   suggestionId: number,
   payload: AISuggestionApprovalPayload,
-): Promise<{ status: string; case_id: number }> {
-  const { data } = await api.post<{ status: string; case_id: number }>(
+): Promise<ApproveAISuggestionResponse> {
+  const { data } = await api.post<ApproveAISuggestionResponse>(
     `/ai-suggestions/${suggestionId}/approve`,
     payload,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }
 
@@ -84,6 +103,7 @@ export async function rejectAISuggestion(
   const { data } = await api.post<{ status: string }>(
     `/ai-suggestions/${suggestionId}/reject`,
   );
+
   return data;
 }
 
@@ -95,6 +115,7 @@ export async function generateManagementSummary(
     undefined,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }
 
@@ -104,18 +125,20 @@ export async function getManagementSummaries(
   const { data } = await api.get<CaseAISummary[]>(
     `/cases/${caseId}/management-summaries`,
   );
+
   return data;
 }
 
 export async function approveManagementSummary(
   summaryId: number,
   payload: ManagementSummaryApprovalPayload,
-): Promise<{ status: string; case_id: number }> {
-  const { data } = await api.post<{ status: string; case_id: number }>(
+): Promise<ManagementSummaryApprovalResponse> {
+  const { data } = await api.post<ManagementSummaryApprovalResponse>(
     `/case-ai-summaries/${summaryId}/approve`,
     payload,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }
 
@@ -125,6 +148,7 @@ export async function rejectManagementSummary(
   const { data } = await api.post<{ status: string }>(
     `/case-ai-summaries/${summaryId}/reject`,
   );
+
   return data;
 }
 
@@ -132,7 +156,13 @@ export type DocumentCaseDraft = {
   title: string;
   company: string | null;
   department: string | null;
-  category: "Customer" | "Contract" | "Supplier" | "Employee" | "Project" | "Other";
+  category:
+    | "Customer"
+    | "Contract"
+    | "Supplier"
+    | "Employee"
+    | "Project"
+    | "Other";
   external_contact: string | null;
   description: string | null;
   management_summary: string | null;
@@ -165,6 +195,13 @@ export type DocumentCaseRouteConfirmation = {
   new_case?: DocumentCaseDraft | null;
 };
 
+export type DocumentCaseRouteConfirmationResponse = {
+  document_id: number;
+  case_id: number;
+  action: string;
+  message: string;
+};
+
 export async function suggestDocumentCase(
   documentId: number,
 ): Promise<DocumentCaseRouteSuggestion> {
@@ -173,17 +210,19 @@ export async function suggestDocumentCase(
     undefined,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }
 
 export async function confirmDocumentCaseRoute(
   documentId: number,
   payload: DocumentCaseRouteConfirmation,
-): Promise<{ document_id: number; case_id: number; action: string; message: string }> {
-  const { data } = await api.post(
+): Promise<DocumentCaseRouteConfirmationResponse> {
+  const { data } = await api.post<DocumentCaseRouteConfirmationResponse>(
     `/documents/${documentId}/confirm-case-route`,
     payload,
     { timeout: AI_TIMEOUT_MS },
   );
+
   return data;
 }

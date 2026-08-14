@@ -1,49 +1,101 @@
+from __future__ import annotations
+
 import re
+from difflib import SequenceMatcher
 
 from app import schemas
 from app.services.openai_client import analysis_model, get_openai_client
 
 SYSTEM_PROMPT = """
-Du bist der KI-Assistent der Anwendung Case Flow.
-Erstelle eine kurze, managementorientierte Zusammenfassung des gesamten Falls.
-Nutze ausschließlich die bereitgestellten Falldaten, Aufgaben, fachlichen
-Verlaufsereignisse und Dokumentquellen.
+Du bist der Management-Assistent der Anwendung Case Flow.
 
-Die Ausgabe muss enthalten:
-- kurze Fallzusammenfassung,
-- letzte wesentliche fachliche Entwicklung,
-- nächste erforderliche Maßnahme,
-- wichtigste offene Frist,
-- kurzen Risikohinweis,
-- relevante Dokumente und unterstützende Chunk-IDs.
+Erstelle eine ausführliche, faktenbasierte und managementorientierte
+Fallübersicht. Nutze ausschließlich die bereitgestellten bestätigten Falldaten,
+bestätigten Dokumentanalysen, fachlichen Verlaufsereignisse, Aufgaben und
+Dokumentquellen.
 
-Regeln für die kurze Fallzusammenfassung:
-- Beschreibe den Sachverhalt in zwei bis vier klaren Sätzen.
-- Konzentriere dich auf Gegenstand, Parteien, finanzielle oder rechtliche
-  Bedeutung und den aktuellen Handlungsbedarf.
-- Hänge keine technische Stammdatenliste wie „Status: … Verantwortlich: …
-  Risiko: …“ an.
-- Status, Verantwortliche und Risiko nur erwähnen, wenn dies zum Verständnis
-  des Sachverhalts wirklich erforderlich ist.
+Ziel ist NICHT eine extrem kurze Zusammenfassung. Die Ausgabe soll genügend
+Kontext enthalten, damit Management einen Fall auch nach Wochen oder Monaten
+verstehen kann, ohne alle Dokumente erneut lesen zu müssen. Trotzdem sollen
+Wiederholungen, unnötige Füllsätze und unbelegte Schlussfolgerungen vermieden
+werden.
 
-Regeln für „Letzte Entwicklung“:
-- Nenne die zuletzt eingetretene fachliche oder geschäftliche Entwicklung.
-- Bevorzuge neue Schreiben, E-Mails, Dokumente, Antworten, Entscheidungen,
-  Fristen oder wesentliche Sachverhaltsänderungen.
-- Ignoriere technische Systemereignisse, reine Formularänderungen,
-  KI-Erstellungen, KI-Bestätigungen und Audit-Einträge.
-- Schreibe niemals, dass eine KI-Zusammenfassung erstellt oder bestätigt wurde.
-- Wenn keine fachliche Entwicklung sicher ermittelbar ist, verwende null.
+WICHTIG: Die Felder haben unterschiedliche Funktionen und dürfen sich nicht
+inhaltlich wiederholen.
 
-Weitere Regeln:
+1. short_case_summary / Fallzusammenfassung
+- Erkläre den Fall in verständlicher Tiefe.
+- Typischer Umfang: etwa 1 bis 3 kompakte Absätze bzw. ca. 120 bis 250 Wörter,
+  wenn genügend bestätigte Informationen vorhanden sind.
+- Beschreibe Ausgangslage, betroffene Parteien/Unternehmen, wesentliche
+  Hintergründe, aktuelles Ziel und den bestätigten Stand.
+- Bei komplexen Fällen dürfen mehrere zusammenhängende Aspekte genannt werden.
+- Keine reine Stammdaten-Aufzählung wie „Status: ... Verantwortlich: ...“.
+- Keine detaillierte To-do-Liste in diesem Feld.
+- Keine bloße Wiederholung von „Letzte Entwicklung“ oder „Nächste Maßnahme“.
+
+2. latest_development / Letzte Entwicklung
+- Beschreibe ausschließlich, WAS BEREITS GESCHEHEN IST.
+- Fokus auf das jüngste fachlich relevante Ereignis oder, wenn nötig, auf eine
+  kurze Folge unmittelbar zusammenhängender bereits eingetretener Ereignisse.
+- Typischer Umfang: 1 bis 2 Absätze bzw. ca. 60 bis 160 Wörter, wenn die Quellen
+  genügend Inhalt liefern.
+- Verwende Vergangenheits-/Ist-Formulierungen wie „Die Kanzlei hat bestätigt...",
+  „Am ... ging ein Schreiben ein...“, „Die Gegenseite teilte mit...“.
+- KEINE zukünftigen Handlungsschritte, Empfehlungen, To-dos oder Formulierungen
+  wie „soll“, „muss als Nächstes“, „prüfen“, „abstimmen“, „vorbereiten“, sofern
+  diese nicht selbst ein bereits eingetretenes Ereignis beschreiben.
+- Technische Ereignisse, Uploads, Indexierung, KI-Erstellung, KI-Bestätigung,
+  Formularänderungen und Audit-Einträge sind keine fachliche Entwicklung.
+- Wenn keine fachliche Entwicklung sicher belegt ist: null.
+
+3. next_required_action / Nächste erforderliche Maßnahme
+- Beschreibe ausschließlich, WAS ALS NÄCHSTES GETAN WERDEN SOLL.
+- Dies ist ein Handlungsvorschlag und keine bestätigte Tatsache.
+- Erkläre bei komplexen Fällen den Hauptschritt und die dafür notwendigen
+  Unterpunkte in sinnvoller Reihenfolge.
+- Typischer Umfang: 1 bis 2 Absätze bzw. ca. 60 bis 180 Wörter, wenn mehrere
+  eng zusammenhängende Schritte für eine brauchbare Managemententscheidung
+  erforderlich sind.
+- Formuliere zukunftsorientiert und handlungsbezogen, z. B. „Rückmeldung prüfen",
+  „Mandatsumfang abstimmen“, „Unterlagen anfordern“, „Entscheidung vorbereiten“.
+- Wiederhole nicht die Beschreibung dessen, was bereits passiert ist.
+- Wenn keine belastbare Maßnahme ableitbar ist: null.
+
+4. open_deadline / Offene Frist
+- Nur eine ausdrücklich belegte, für den Fall noch relevante Frist übernehmen.
+- Keine Frist schätzen oder aus allgemeinen Formulierungen ableiten.
+- Wenn keine verlässliche Frist belegt ist: null.
+- deadline_comment darf ausführlicher erklären, von wem die Frist stammt, was
+  bis dahin erwartet wird und warum sie für den Fall relevant ist.
+
+5. risk_comment / Risikohinweis
+- Erläutere die belegten Risikofaktoren nachvollziehbar und differenziert.
+- Typischer Umfang: ca. 50 bis 140 Wörter bei komplexeren Fällen.
+- Unterscheide zwischen bereits eingetretenen Problemen und möglichen Folgen.
+- Keine neue Risikoklassifikation erfinden; die Risikostufe wird außerhalb
+  dieses Textes berechnet bzw. bestätigt.
+
+6. Quellen
+- Verwende nur Dokument-IDs und Chunk-IDs, die im Kontext tatsächlich
+  bereitgestellt wurden.
+- supporting_chunk_ids nur für Quellen verwenden, die konkrete Aussagen der
+  Ausgabe wirklich stützen.
+- relevant_documents nur für tatsächlich verwendete Dokumente zurückgeben.
+
+Qualitätsregeln:
 - Antworte auf Deutsch.
-- Erfinde keine Informationen.
-- Verwende null, wenn keine verlässliche Frist vorhanden ist.
-- Verwende nur bereitgestellte Dokumente, Dokument-IDs und Chunk-IDs.
-- Wenn Aussagen auf Dokumentquellen beruhen, führe die entsprechenden
-  Dokument-IDs unter relevante Dokumente auf.
-- Kennzeichne Unsicherheiten ausdrücklich.
-- Die Ausgabe ist ein Vorschlag und muss vom Benutzer bestätigt werden.
+- Erfinde keine Informationen, Namen, Daten, Beträge oder Ereignisse.
+- Keine Vermutungen als Tatsachen formulieren.
+- Fakten und Empfehlungen strikt trennen.
+- „Letzte Entwicklung“ und „Nächste Maßnahme“ müssen semantisch klar verschieden
+  sein. Sie dürfen nicht denselben Text oder dieselbe Aufzählung enthalten.
+- Bei Widersprüchen zwischen älteren und neueren bestätigten Informationen
+  bevorzuge die neuere bestätigte Information und erwähne die Unsicherheit.
+- Wenn Informationen nicht sicher belegt sind, verwende null oder nenne die
+  Unsicherheit in uncertainty_notes.
+- Priorisiere Verständlichkeit und Substanz vor künstlicher Kürze.
+- Die Ausgabe bleibt ein KI-Vorschlag und muss vom Benutzer bestätigt werden.
 """.strip()
 
 _TECHNICAL_SUMMARY_SUFFIX = re.compile(
@@ -58,48 +110,125 @@ _TECHNICAL_DEVELOPMENT_TERMS = (
     "ki-vorschläge bestätigt",
     "ki-zusammenfassung",
     "ki-analyse",
+    "dokument verarbeitet",
+    "dokument indexiert",
+    "embedding",
+    "hochgeladen",
+    "upload",
 )
 
 
+def _clean_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    # Preserve paragraph meaning while removing accidental whitespace noise.
+    paragraphs = [" ".join(part.split()).strip() for part in re.split(r"\n\s*\n", value)]
+    cleaned = "\n\n".join(part for part in paragraphs if part)
+    return cleaned or None
+
+
 def _clean_short_summary(value: str) -> str:
-    cleaned = value.strip()
+    cleaned = _clean_text(value) or ""
     previous = None
     while cleaned and cleaned != previous:
         previous = cleaned
         cleaned = _TECHNICAL_SUMMARY_SUFFIX.sub("", cleaned).strip()
+    if not cleaned:
+        raise RuntimeError("Die KI hat keine belastbare Fallzusammenfassung geliefert.")
     return cleaned
 
 
 def _clean_latest_development(value: str | None) -> str | None:
-    if not value:
+    cleaned = _clean_text(value)
+    if not cleaned:
         return None
-    cleaned = value.strip()
     lowered = cleaned.casefold()
     if any(term in lowered for term in _TECHNICAL_DEVELOPMENT_TERMS):
         return None
-    return cleaned or None
+    return cleaned
+
+
+def _clean_action(value: str | None) -> str | None:
+    return _clean_text(value)
+
+
+def _clean_risk_comment(value: str | None) -> str | None:
+    return _clean_text(value)
+
+
+def _clean_deadline_comment(value: str | None) -> str | None:
+    return _clean_text(value)
+
+
+def _semantic_overlap(first: str | None, second: str | None) -> float:
+    if not first or not second:
+        return 0.0
+    normalize = lambda value: re.sub(r"[^a-z0-9äöüß]+", " ", value.casefold()).strip()
+    left = normalize(first)
+    right = normalize(second)
+    if not left or not right:
+        return 0.0
+    return SequenceMatcher(None, left, right).ratio()
+
+
+def _parse_management_summary(context: str, *, correction: str | None = None) -> schemas.ManagementSummaryAnalysis:
+    user_content = context
+    if correction:
+        user_content += (
+            "\n\nQUALITÄTSKORREKTUR\n"
+            "==================\n"
+            + correction
+        )
+
+    response = get_openai_client().responses.parse(
+        model=analysis_model(),
+        input=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
+        text_format=schemas.ManagementSummaryAnalysis,
+    )
+    if response.output_parsed is None:
+        raise RuntimeError(
+            "Die strukturierte Management-Zusammenfassung konnte nicht gelesen werden."
+        )
+    return response.output_parsed
+
+
+def _clean_result(result: schemas.ManagementSummaryAnalysis) -> schemas.ManagementSummaryAnalysis:
+    result.short_case_summary = _clean_short_summary(result.short_case_summary)
+    result.latest_development = _clean_latest_development(result.latest_development)
+    result.next_required_action = _clean_action(result.next_required_action)
+    result.risk_comment = _clean_risk_comment(result.risk_comment)
+    result.deadline_comment = _clean_deadline_comment(result.deadline_comment)
+    return result
 
 
 def generate_management_summary(
     context: str,
 ) -> schemas.ManagementSummaryAnalysis:
-    response = get_openai_client().responses.parse(
-        model=analysis_model(),
-        input=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": context},
-        ],
-        text_format=schemas.ManagementSummaryAnalysis,
-    )
+    if not context.strip():
+        raise ValueError("Für die Management-Zusammenfassung fehlen Falldaten.")
 
-    if response.output_parsed is None:
-        raise RuntimeError(
-            "Die strukturierte Management-Zusammenfassung konnte nicht gelesen werden."
+    result = _clean_result(_parse_management_summary(context))
+
+    # The two fields have opposite temporal purposes. If the first answer makes
+    # them too similar, ask once for a targeted rewrite instead of showing a
+    # confusing duplicate to management.
+    overlap = _semantic_overlap(
+        result.latest_development,
+        result.next_required_action,
+    )
+    if overlap >= 0.62:
+        correction = (
+            "Die Felder 'latest_development' und 'next_required_action' sind in "
+            "der ersten Fassung zu ähnlich. Erstelle die gesamte strukturierte "
+            "Antwort erneut. 'latest_development' darf ausschließlich bereits "
+            "eingetretene, bestätigte Ereignisse beschreiben. "
+            "'next_required_action' darf ausschließlich zukünftige, konkrete "
+            "Handlungsschritte beschreiben. Behalte die inhaltliche Tiefe bei "
+            "und kürze die Felder nicht künstlich."
         )
+        result = _clean_result(_parse_management_summary(context, correction=correction))
 
-    result = response.output_parsed
-    result.short_case_summary = _clean_short_summary(result.short_case_summary)
-    result.latest_development = _clean_latest_development(
-        result.latest_development
-    )
     return result
