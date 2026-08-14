@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app import schemas
 from app.services.openai_client import analysis_model, get_openai_client
+from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ Aufgabe:
 Regeln:
 - Antworte auf Deutsch.
 - Erfinde keine Namen, Firmen, Fristen oder Beträge.
+- Interne RAG-Kennungen wie Chunk-ID, Dokument-ID oder Dok.-ID dürfen nie in benutzerseitigem Text erscheinen.
 - Verwende null, wenn ein Wert nicht verlässlich aus dem Dokument hervorgeht.
 - Der Falltitel darf eine Überschrift, einen Betreff oder den zentralen
   Dokumentinhalt sinnvoll verkürzen, aber keine neuen Tatsachen hinzufügen.
@@ -108,6 +110,7 @@ Regeln:
   Vektorähnlichkeit.
 - Die endgültige Entscheidung trifft immer ein Benutzer. Du speicherst nichts.
 - Erfinde keine Informationen. Antworte auf Deutsch.
+- Interne RAG-Kennungen wie Chunk-ID, Dokument-ID oder Dok.-ID dürfen nie in der Begründung erscheinen.
 """.strip()
 
 
@@ -147,6 +150,14 @@ def create_document_case_draft(document_context: str) -> DocumentCaseDraft:
         user_content=document_context,
         text_format=DocumentCaseDraft,
     )
+    draft.title = clean_required_user_facing_text(draft.title, field_name="Falltitel")
+    draft.company = clean_user_facing_text(draft.company)
+    draft.department = clean_user_facing_text(draft.department)
+    draft.external_contact = clean_user_facing_text(draft.external_contact)
+    draft.description = clean_user_facing_text(draft.description)
+    draft.management_summary = clean_user_facing_text(draft.management_summary)
+    draft.next_action = clean_user_facing_text(draft.next_action)
+
     logger.info(
         "Document case draft created",
         extra={
@@ -195,6 +206,11 @@ def suggest_document_case_route(
         system_prompt=ROUTING_SYSTEM_PROMPT,
         user_content=prompt,
         text_format=DocumentCaseRouteSuggestion,
+    )
+
+    suggestion.reason = clean_required_user_facing_text(
+        suggestion.reason,
+        field_name="Fallzuordnungsbegründung",
     )
 
     valid_ids = {item.case_id for item in candidates}

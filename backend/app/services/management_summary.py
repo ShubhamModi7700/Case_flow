@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 
 from app import schemas
 from app.services.openai_client import analysis_model, get_openai_client
+from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
 
 SYSTEM_PROMPT = """
 Du bist der Management-Assistent der Anwendung Case Flow.
@@ -82,6 +83,10 @@ inhaltlich wiederholen.
 - supporting_chunk_ids nur für Quellen verwenden, die konkrete Aussagen der
   Ausgabe wirklich stützen.
 - relevant_documents nur für tatsächlich verwendete Dokumente zurückgeben.
+- Interne Quellenkennungen wie "Chunk-ID", "Dokument-ID", "Dok.-ID" oder
+  Klammerangaben wie "(Chunk-ID 4, Dok.-ID 3)" dürfen niemals im Fließtext
+  erscheinen. Diese Kennungen gehören ausschließlich in supporting_chunk_ids
+  und relevant_documents.
 
 Qualitätsregeln:
 - Antworte auf Deutsch.
@@ -119,12 +124,11 @@ _TECHNICAL_DEVELOPMENT_TERMS = (
 
 
 def _clean_text(value: str | None) -> str | None:
-    if not value:
+    cleaned = clean_user_facing_text(value)
+    if not cleaned:
         return None
-    # Preserve paragraph meaning while removing accidental whitespace noise.
-    paragraphs = [" ".join(part.split()).strip() for part in re.split(r"\n\s*\n", value)]
-    cleaned = "\n\n".join(part for part in paragraphs if part)
-    return cleaned or None
+    paragraphs = [" ".join(part.split()).strip() for part in re.split(r"\n\s*\n", cleaned)]
+    return "\n\n".join(part for part in paragraphs if part) or None
 
 
 def _clean_short_summary(value: str) -> str:
@@ -135,7 +139,7 @@ def _clean_short_summary(value: str) -> str:
         cleaned = _TECHNICAL_SUMMARY_SUFFIX.sub("", cleaned).strip()
     if not cleaned:
         raise RuntimeError("Die KI hat keine belastbare Fallzusammenfassung geliefert.")
-    return cleaned
+    return clean_required_user_facing_text(cleaned, field_name="Fallzusammenfassung")
 
 
 def _clean_latest_development(value: str | None) -> str | None:

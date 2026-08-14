@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cleanAIText } from "../../utils/aiText";
 
 import { useAuth } from "../../AuthContext";
 import type {
@@ -46,9 +47,9 @@ export default function EditCaseModal({
   );
   const [status, setStatus] = useState<CaseStatus>(caseItem.status);
   const [risk, setRisk] = useState<RiskLevel>(caseItem.risk);
-  const [riskReason, setRiskReason] = useState(caseItem.risk_reason ?? "");
+  const [riskReason, setRiskReason] = useState(cleanAIText(caseItem.risk_reason));
   const [managementSummary, setManagementSummary] = useState(
-    caseItem.management_summary ?? "",
+    cleanAIText(caseItem.management_summary),
   );
   const [financialAmount, setFinancialAmount] = useState(
     caseItem.financial_amount?.toString() ?? "",

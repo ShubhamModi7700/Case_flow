@@ -129,6 +129,15 @@ export async function getManagementSummaries(
   return data;
 }
 
+export async function getLatestApprovedManagementSummary(
+  caseId: number,
+): Promise<CaseAISummary | null> {
+  const { data } = await api.get<CaseAISummary | null>(
+    `/cases/${caseId}/management-summaries/latest-approved`,
+  );
+  return data;
+}
+
 export async function approveManagementSummary(
   summaryId: number,
   payload: ManagementSummaryApprovalPayload,

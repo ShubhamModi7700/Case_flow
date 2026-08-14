@@ -9,6 +9,7 @@ from openai import APIConnectionError, APIError, RateLimitError
 
 from app import schemas
 from app.services.openai_client import analysis_model, get_openai_client
+from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,8 @@ Weitere Aufgaben
 - Erstelle eine sachliche, managementorientierte Dokumentzusammenfassung.
 - Erkenne nur eindeutig belegte offene Fristen; sonst null.
 - Schlage eine passende Fallzuordnung vor.
-- Verweise nur auf tatsächlich bereitgestellte Dokument- und Chunk-IDs.
+- Verwende Dokument- und Chunk-IDs ausschließlich in den strukturierten Quellenfeldern.
+- Interne Kennungen wie Chunk-ID, Dokument-ID oder Dok.-ID dürfen niemals in benutzerseitigem Fließtext erscheinen.
 - Risiko, Frist, Fallzuordnung und nächste Maßnahme sind Vorschläge und müssen
   vom Benutzer bestätigt werden.
 - Antworte auf Deutsch.
@@ -147,6 +149,21 @@ def analyze_document_context(context: str) -> schemas.DocumentAIAnalysis:
         raise ValueError("Für die Dokumentanalyse fehlen Inhalte.")
 
     result = _parse_document_analysis(context)
+    result.suggested_summary = clean_required_user_facing_text(
+        result.suggested_summary,
+        field_name="Dokumentzusammenfassung",
+    )
+    result.latest_development = clean_user_facing_text(result.latest_development)
+    result.deadline_source = clean_user_facing_text(result.deadline_source)
+    result.proposed_next_action = clean_user_facing_text(result.proposed_next_action)
+    for item in result.relevant_documents:
+        item.reason = clean_user_facing_text(item.reason) or item.reason
+    result.uncertainty_notes = [
+        cleaned
+        for note in result.uncertainty_notes
+        if (cleaned := clean_user_facing_text(note))
+    ]
+
     overlap = _semantic_overlap(result.latest_development, result.proposed_next_action)
 
     # Repair the source-level evidence before it can propagate into the case-level
@@ -162,6 +179,20 @@ def analyze_document_context(context: str) -> schemas.DocumentAIAnalysis:
             "keine Sätze, Aufzählungen oder Handlungspläne zwischen diesen Feldern."
         )
         result = _parse_document_analysis(context, correction=correction)
+        result.suggested_summary = clean_required_user_facing_text(
+            result.suggested_summary,
+            field_name="Dokumentzusammenfassung",
+        )
+        result.latest_development = clean_user_facing_text(result.latest_development)
+        result.deadline_source = clean_user_facing_text(result.deadline_source)
+        result.proposed_next_action = clean_user_facing_text(result.proposed_next_action)
+        for item in result.relevant_documents:
+            item.reason = clean_user_facing_text(item.reason) or item.reason
+        result.uncertainty_notes = [
+            cleaned
+            for note in result.uncertainty_notes
+            if (cleaned := clean_user_facing_text(note))
+        ]
         overlap = _semantic_overlap(result.latest_development, result.proposed_next_action)
 
     if overlap >= 0.65:

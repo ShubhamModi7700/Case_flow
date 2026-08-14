@@ -18,6 +18,7 @@ import type {
   DocumentItem,
   RiskLevel,
 } from "../../types";
+import { cleanAIText } from "../../utils/aiText";
 
 type KITabProps = {
   caseItem: CaseItem;
@@ -160,26 +161,26 @@ export default function KITab({
   useEffect(() => {
     if (!visibleSummary) return;
     setSummaryForm({
-      short_case_summary: visibleSummary.short_case_summary || "",
-      latest_development: visibleSummary.latest_development || "",
-      next_required_action: visibleSummary.next_required_action || "",
+      short_case_summary: cleanAIText(visibleSummary.short_case_summary),
+      latest_development: cleanAIText(visibleSummary.latest_development),
+      next_required_action: cleanAIText(visibleSummary.next_required_action),
       open_deadline: visibleSummary.open_deadline || "",
-      deadline_comment: visibleSummary.deadline_comment || "",
+      deadline_comment: cleanAIText(visibleSummary.deadline_comment),
       risk: (visibleSummary.suggested_risk || "") as "" | RiskLevel,
-      risk_comment: visibleSummary.risk_comment || "",
+      risk_comment: cleanAIText(visibleSummary.risk_comment),
     });
   }, [visibleSummary?.id]);
 
   useEffect(() => {
     if (!pendingSuggestion) return;
     setSuggestionForm({
-      summary: pendingSuggestion.suggested_summary || "",
+      summary: cleanAIText(pendingSuggestion.suggested_summary),
       latest_development:
-        pendingSuggestion.suggested_latest_development || "",
+        cleanAIText(pendingSuggestion.suggested_latest_development),
       deadline: pendingSuggestion.suggested_deadline || "",
-      next_action: pendingSuggestion.suggested_next_action || "",
+      next_action: cleanAIText(pendingSuggestion.suggested_next_action),
       risk: (pendingSuggestion.suggested_risk || "") as "" | RiskLevel,
-      risk_reason: pendingSuggestion.suggested_risk_reason || "",
+      risk_reason: cleanAIText(pendingSuggestion.suggested_risk_reason),
     });
   }, [pendingSuggestion?.id]);
 
@@ -699,15 +700,15 @@ export default function KITab({
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <div className="lg:col-span-2 rounded-xl border border-emerald-100 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dokumentzusammenfassung</p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{approvedSuggestion.suggested_summary || "Keine Zusammenfassung gespeichert."}</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{cleanAIText(approvedSuggestion.suggested_summary) || "Keine Zusammenfassung gespeichert."}</p>
             </div>
             <div className="rounded-xl border border-emerald-100 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Letzte Entwicklung</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{approvedSuggestion.suggested_latest_development || "Nicht angegeben"}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{cleanAIText(approvedSuggestion.suggested_latest_development) || "Nicht angegeben"}</p>
             </div>
             <div className="rounded-xl border border-emerald-100 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{approvedSuggestion.suggested_next_action || "Nicht angegeben"}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{cleanAIText(approvedSuggestion.suggested_next_action) || "Nicht angegeben"}</p>
             </div>
             <div className="rounded-xl border border-emerald-100 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Erkannte Frist</p>
@@ -716,7 +717,7 @@ export default function KITab({
             <div className="rounded-xl border border-emerald-100 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Risikohinweis</p>
               <p className="mt-2 text-sm font-semibold text-slate-900">{approvedSuggestion.suggested_risk || "Nicht angegeben"}</p>
-              {approvedSuggestion.suggested_risk_reason && <p className="mt-1 text-sm leading-6 text-slate-600">{approvedSuggestion.suggested_risk_reason}</p>}
+              {approvedSuggestion.suggested_risk_reason && <p className="mt-1 text-sm leading-6 text-slate-600">{cleanAIText(approvedSuggestion.suggested_risk_reason)}</p>}
             </div>
           </div>
         </section>
