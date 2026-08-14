@@ -92,9 +92,12 @@ def get_case_timeline(
                 is_future=occurred_at > now and task.status != "Completed",
             ))
 
+    # Deadlines are planning milestones, not business developments. Their
+    # descriptions must not copy case.next_action, otherwise a future deadline
+    # can look like the latest development in clients consuming the timeline.
     milestones = [
-        ("primary-deadline", case.primary_deadline, "Hauptfrist", case.next_action),
-        ("follow-up", case.follow_up_date, "Wiedervorlagetermin", case.next_action),
+        ("primary-deadline", case.primary_deadline, "Hauptfrist", "Offene Hauptfrist des Falls."),
+        ("follow-up", case.follow_up_date, "Wiedervorlagetermin", "Geplanter Wiedervorlagetermin des Falls."),
     ]
     for key, milestone_date, title, description in milestones:
         if milestone_date:

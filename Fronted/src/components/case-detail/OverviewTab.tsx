@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "../../api";
 import type {
+  CaseAISummary,
   CaseItem,
   DocumentItem,
   RiskLevel,
   TaskItem,
   TimelineEvent,
 } from "../../types";
+import { getManagementSummaries } from "../../services/ai";
 import { RiskBadge, StatusBadge } from "./Badges";
 import { formatDateTime } from "./formatters";
 
@@ -112,11 +114,52 @@ export default function OverviewTab({
     return new Date(`${task.due_date}T00:00:00`) < today;
   });
 
-  const latestEvent = [...timeline].sort(
-    (a, b) =>
-      new Date(b.occurred_at).getTime() -
-      new Date(a.occurred_at).getTime(),
-  )[0];
+  const [approvedSummary, setApprovedSummary] = useState<CaseAISummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadApprovedSummary() {
+      try {
+        const summaries = await getManagementSummaries(caseItem.id);
+        if (cancelled) return;
+
+        const approved = summaries
+          .filter((summary) => summary.status === "Approved")
+          .sort(
+            (a, b) =>
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          )[0];
+
+        setApprovedSummary(approved ?? null);
+      } catch {
+        if (!cancelled) setApprovedSummary(null);
+      }
+    }
+
+    void loadApprovedSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, [caseItem.id, caseItem.updated_at]);
+
+  // A confirmed AI management summary is the authoritative source for the
+  // business-facing "Letzte Entwicklung". The timeline is only a fallback.
+  // Future milestones/deadlines must never become the latest development.
+  const latestEvent = [...timeline]
+    .filter(
+      (event) =>
+        !event.is_future &&
+        event.event_type !== "Milestone" &&
+        event.event_type !== "Task deadline",
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.occurred_at).getTime() -
+        new Date(a.occurred_at).getTime(),
+    )[0];
+
+  const confirmedLatestDevelopment = approvedSummary?.latest_development?.trim() || null;
   const relevantDocuments = [...documents]
     .sort(
       (a, b) =>
@@ -300,16 +343,31 @@ export default function OverviewTab({
             </div>
             <div>
               <dt className="font-medium text-slate-500">Letzte Entwicklung</dt>
-              <dd className="mt-1 text-slate-900">
-                {latestEvent ? latestEvent.title : "Kein Verlaufseintrag vorhanden"}
-              </dd>
-              {latestEvent?.description && (
-                <dd className="mt-2 text-slate-600">{latestEvent.description}</dd>
-              )}
-              {latestEvent && (
-                <dd className="mt-2 text-xs text-slate-400">
-                  {formatDateTime(latestEvent.occurred_at)}
-                </dd>
+              {confirmedLatestDevelopment ? (
+                <>
+                  <dd className="mt-1 whitespace-pre-wrap leading-6 text-slate-900">
+                    {confirmedLatestDevelopment}
+                  </dd>
+                  <dd className="mt-2 text-xs text-slate-400">
+                    Bestätigte KI-Management-Zusammenfassung
+                  </dd>
+                </>
+              ) : (
+                <>
+                  <dd className="mt-1 text-slate-900">
+                    {latestEvent ? latestEvent.title : "Kein bestätigter Verlaufseintrag vorhanden"}
+                  </dd>
+                  {latestEvent?.description && (
+                    <dd className="mt-2 whitespace-pre-wrap leading-6 text-slate-600">
+                      {latestEvent.description}
+                    </dd>
+                  )}
+                  {latestEvent && (
+                    <dd className="mt-2 text-xs text-slate-400">
+                      {formatDateTime(latestEvent.occurred_at)}
+                    </dd>
+                  )}
+                </>
               )}
             </div>
           </dl>
