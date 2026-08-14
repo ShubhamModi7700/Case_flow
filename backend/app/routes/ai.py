@@ -696,6 +696,27 @@ def list_management_summaries(
     )
 
 
+@router.get(
+    "/cases/{case_id}/management-summaries/latest-approved",
+    response_model=schemas.CaseAISummaryResponse | None,
+)
+def latest_approved_management_summary(
+    case_id: int,
+    db: Session = Depends(get_db),
+):
+    """Return the latest confirmed management summary for Overview screens."""
+    _case(case_id, db)
+    return (
+        db.query(models.CaseAISummary)
+        .filter(
+            models.CaseAISummary.case_id == case_id,
+            models.CaseAISummary.status.in_(["Approved", "EditedAndApproved"]),
+        )
+        .order_by(models.CaseAISummary.reviewed_at.desc(), models.CaseAISummary.created_at.desc())
+        .first()
+    )
+
+
 @router.post(
     "/case-ai-summaries/{summary_id}/approve",
     response_model=schemas.CaseAISummaryResponse,
