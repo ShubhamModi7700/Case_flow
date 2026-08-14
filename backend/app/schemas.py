@@ -605,7 +605,10 @@ class CaseAISummaryApproval(BaseModel):
     next_required_action: str | None = None
     open_deadline: date | None = None
     deadline_comment: str | None = None
+
+    risk: RiskLevel | None = None
     risk_comment: str | None = None
+
     relevant_document_ids: list[int] = Field(default_factory=list)
 
 class AISuggestionResponse(BaseModel):

@@ -1,5 +1,6 @@
 from copy import copy
 from datetime import date
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -17,6 +18,23 @@ from app.services.risk import calculate_case_risk
 from app.services.retrieval import match_cases, retrieve_chunks
 
 router = APIRouter(tags=["AI"], dependencies=[Depends(get_current_user)])
+
+logger = logging.getLogger(__name__)
+
+
+def _normalized_role(user: models.User) -> str:
+    role = (user.role or "").strip().title()
+    return "Manager" if role == "Admin" else role
+
+
+def _payload_risk(payload) -> schemas.RiskLevel | None:
+    """Read risk defensively during rolling frontend/backend deployments.
+
+    `risk` must still be declared on the Pydantic approval schema so FastAPI
+    preserves the field from the request body. `getattr` prevents an old schema
+    version from causing a 500 AttributeError while deployments overlap.
+    """
+    return getattr(payload, "risk", None)
 
 
 TECHNICAL_HISTORY_CHANGES = {
@@ -338,11 +356,10 @@ def approve_suggestion(
 
     case = _case(payload.selected_case_id, db)
     document = _document(suggestion.document_id, db)
-    normalized_role = (current_user.role or "").strip().title()
-    if normalized_role == "Admin":
-        normalized_role = "Manager"
+    normalized_role = _normalized_role(current_user)
+    approved_risk = _payload_risk(payload)
 
-    if payload.risk is not None and normalized_role != "Manager":
+    if approved_risk is not None and normalized_role != "Manager":
         raise HTTPException(403, "Nur Manager dürfen das Risiko bestätigen.")
 
     try:
@@ -353,8 +370,8 @@ def approve_suggestion(
         suggestion.suggested_latest_development = payload.latest_development
         suggestion.suggested_deadline = payload.deadline
         suggestion.suggested_next_action = payload.next_action
-        if payload.risk is not None:
-            suggestion.suggested_risk = payload.risk.value
+        if approved_risk is not None:
+            suggestion.suggested_risk = approved_risk.value
             suggestion.suggested_risk_reason = payload.risk_reason
 
         document.case_id = case.id
@@ -389,9 +406,9 @@ def approve_suggestion(
             approved_changes.append(
                 f"Vorgeschlagene nächste Maßnahme bestätigt: {payload.next_action}"
             )
-        if payload.risk is not None:
+        if approved_risk is not None:
             approved_changes.append(
-                f"Risikohinweis aus Dokument bestätigt: {payload.risk.value}"
+                f"Risikohinweis aus Dokument bestätigt: {approved_risk.value}"
             )
             if payload.risk_reason:
                 approved_changes.append(
@@ -443,6 +460,10 @@ def approve_suggestion(
         # Document approval must remain valid even if the follow-up AI call
         # temporarily fails. The user can still regenerate it manually.
         db.rollback()
+        logger.exception(
+            "Automatic management-summary generation failed after document approval",
+            extra={"case_id": case.id, "suggestion_id": suggestion.id},
+        )
 
     return {
         "status": "approved",
@@ -718,19 +739,18 @@ def approve_management_summary(
         case.management_summary = summary.short_case_summary
 
         # Only Managers may change the official deadline or next action.
-        normalized_role = (current_user.role or "").strip().title()
-        if normalized_role == "Admin":
-            normalized_role = "Manager"
-        if payload.risk is not None and normalized_role != "Manager":
+        normalized_role = _normalized_role(current_user)
+        approved_risk = _payload_risk(payload)
+        if approved_risk is not None and normalized_role != "Manager":
             raise HTTPException(403, "Nur Manager dürfen das Risiko bestätigen.")
         if normalized_role == "Manager":
             if summary.next_required_action:
                 case.next_action = summary.next_required_action
             if summary.open_deadline:
                 case.primary_deadline = summary.open_deadline
-            if payload.risk is not None:
-                summary.suggested_risk = payload.risk.value
-                case.risk = payload.risk.value
+            if approved_risk is not None:
+                summary.suggested_risk = approved_risk.value
+                case.risk = approved_risk.value
                 case.risk_reason = summary.risk_comment
                 case.risk_is_manual = True
 
@@ -759,9 +779,9 @@ def approve_management_summary(
             summary_changes.append(
                 f"Offene Frist übernommen: {summary.open_deadline.strftime('%d.%m.%Y')}"
             )
-        if normalized_role == "Manager" and payload.risk is not None:
+        if normalized_role == "Manager" and approved_risk is not None:
             summary_changes.append(
-                f"Risiko übernommen: {payload.risk.value}"
+                f"Risiko übernommen: {approved_risk.value}"
             )
         if summary.risk_comment:
             summary_changes.append(
@@ -787,6 +807,10 @@ def approve_management_summary(
         refresh_case_embedding(case=case, db=db)
     except Exception:
         db.rollback()
+        logger.exception(
+            "Case embedding refresh failed after management-summary approval",
+            extra={"case_id": case.id, "summary_id": summary.id},
+        )
 
     return summary
 
