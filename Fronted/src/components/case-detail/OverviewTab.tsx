@@ -42,8 +42,39 @@ function getRiskLabel(
 }
 
 /**
- * Keep the overview scannable without changing or losing the full AI text.
- * The complete content remains available in the KI-Assistent tab.
+ * Split German management prose without treating common abbreviations such as
+ * "z. B." or "d. h." as sentence boundaries.
+ */
+function splitOverviewSentences(value: string): string[] {
+  const abbreviations: Array<[RegExp, string]> = [
+    [/\bz\.\s*B\./gi, "z<DOT> B<DOT>"],
+    [/\bd\.\s*h\./gi, "d<DOT> h<DOT>"],
+    [/\bu\.\s*a\./gi, "u<DOT> a<DOT>"],
+    [/\bu\.\s*U\./g, "u<DOT> U<DOT>"],
+    [/\bggf\./gi, "ggf<DOT>"],
+    [/\bbzw\./gi, "bzw<DOT>"],
+    [/\bca\./gi, "ca<DOT>"],
+    [/\bNr\./g, "Nr<DOT>"],
+    [/\bAbs\./g, "Abs<DOT>"],
+    [/\bArt\./g, "Art<DOT>"],
+    [/\bDr\./g, "Dr<DOT>"],
+  ];
+
+  let protectedText = value;
+
+  for (const [pattern, replacement] of abbreviations) {
+    protectedText = protectedText.replace(pattern, replacement);
+  }
+
+  return protectedText
+    .split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ0-9])/)
+    .map((sentence) => sentence.replaceAll("<DOT>", ".").trim())
+    .filter(Boolean);
+}
+
+/**
+ * Keep the Overview scannable without cutting a sentence in the middle.
+ * The full AI text remains available in the KI-Assistent tab.
  */
 function compactOverviewText(
   value: string | null | undefined,
@@ -61,11 +92,11 @@ function compactOverviewText(
     return normalized;
   }
 
-  const sentences = normalized.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [normalized];
+  const sentences = splitOverviewSentences(normalized);
   let result = "";
 
   for (const sentence of sentences) {
-    const candidate = `${result} ${sentence.trim()}`.trim();
+    const candidate = `${result} ${sentence}`.trim();
 
     if (candidate.length > maxCharacters) {
       break;
@@ -78,10 +109,10 @@ function compactOverviewText(
     return result;
   }
 
-  const shortened = normalized.slice(0, maxCharacters);
-  const lastSpace = shortened.lastIndexOf(" ");
-
-  return `${shortened.slice(0, lastSpace > 0 ? lastSpace : maxCharacters).trim()}…`;
+  // If even the first sentence is longer than the preferred Overview limit,
+  // show that complete sentence instead of producing a broken fragment such
+  // as "(z. B.". Readability is more important than a hard character limit.
+  return sentences[0] ?? normalized;
 }
 
 function ManagementCard({
