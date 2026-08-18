@@ -8,6 +8,76 @@ import {
   formatCaseNumber,
 } from "../types";
 
+const DASHBOARD_ACTION_PREVIEW_MAX = 340;
+
+const sentenceBoundaryPattern =
+  /(?<!\b(?:z|d|u|bzw|ggf|ca|nr|abs|art|dr|prof))([.!?])\s+(?=[A-ZÄÖÜ0-9])/gi;
+
+function shortenDashboardAction(
+  value: string | null | undefined,
+  maxLength = DASHBOARD_ACTION_PREVIEW_MAX,
+): string {
+  const text = value?.replace(/\s+/g, " ").trim();
+
+  if (!text) {
+    return "Keine nächste Maßnahme definiert.";
+  }
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const protectedText = text
+    .replace(/\bz\.\s*B\./gi, "z§B§")
+    .replace(/\bd\.\s*h\./gi, "d§h§")
+    .replace(/\bu\.\s*a\./gi, "u§a§")
+    .replace(/\bu\.\s*U\./gi, "u§U§")
+    .replace(/\bz\.\s*T\./gi, "z§T§");
+
+  const parts = protectedText
+    .split(sentenceBoundaryPattern)
+    .reduce<string[]>((acc, part, index, array) => {
+      if (index % 2 === 0) {
+        const punctuation = array[index + 1] ?? "";
+        const sentence = `${part}${punctuation}`.trim();
+        if (sentence) acc.push(sentence);
+      }
+      return acc;
+    }, [])
+    .map((part) =>
+      part
+        .replace(/z§B§/gi, "z. B.")
+        .replace(/d§h§/gi, "d. h.")
+        .replace(/u§a§/gi, "u. a.")
+        .replace(/u§U§/gi, "u. U.")
+        .replace(/z§T§/gi, "z. T."),
+    );
+
+  let preview = "";
+
+  for (const sentence of parts) {
+    const candidate = `${preview} ${sentence}`.trim();
+
+    if (candidate.length > maxLength && preview) {
+      break;
+    }
+
+    preview = candidate;
+
+    if (preview.length >= maxLength) {
+      break;
+    }
+  }
+
+  if (preview) {
+    return preview;
+  }
+
+  // If the first sentence itself is long, keep it intact rather than
+  // cutting the text in the middle of a phrase.
+  return parts[0] || text;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
@@ -175,8 +245,8 @@ export default function Dashboard() {
                     {formatCaseNumber(action.case_id)} — {action.title}
                   </p>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {action.next_action}
+                  <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-500">
+                    {shortenDashboardAction(action.next_action)}
                   </p>
                 </div>
 
