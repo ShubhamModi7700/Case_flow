@@ -41,6 +41,49 @@ function getRiskLabel(
   return riskLabels[risk];
 }
 
+/**
+ * Keep the overview scannable without changing or losing the full AI text.
+ * The complete content remains available in the KI-Assistent tab.
+ */
+function compactOverviewText(
+  value: string | null | undefined,
+  maxCharacters: number,
+): string | null {
+  const cleaned = cleanAIText(value);
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const normalized = cleaned.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxCharacters) {
+    return normalized;
+  }
+
+  const sentences = normalized.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [normalized];
+  let result = "";
+
+  for (const sentence of sentences) {
+    const candidate = `${result} ${sentence.trim()}`.trim();
+
+    if (candidate.length > maxCharacters) {
+      break;
+    }
+
+    result = candidate;
+  }
+
+  if (result) {
+    return result;
+  }
+
+  const shortened = normalized.slice(0, maxCharacters);
+  const lastSpace = shortened.lastIndexOf(" ");
+
+  return `${shortened.slice(0, lastSpace > 0 ? lastSpace : maxCharacters).trim()}…`;
+}
+
 function ManagementCard({
   label,
   value,
@@ -144,6 +187,12 @@ export default function OverviewTab({
   const cleanedNextAction =
     cleanAIText(
       caseItem.next_action,
+    );
+
+  const overviewNextAction =
+    compactOverviewText(
+      cleanedNextAction,
+      600,
     );
 
   const missingNextAction =
@@ -253,6 +302,18 @@ export default function OverviewTab({
   const cleanedRiskReason =
     cleanAIText(
       caseItem.risk_reason,
+    );
+
+  const overviewRiskReason =
+    compactOverviewText(
+      cleanedRiskReason,
+      420,
+    );
+
+  const overviewLatestDevelopment =
+    compactOverviewText(
+      confirmedLatestDevelopment,
+      550,
     );
 
   const cleanedSuggestedRiskReason =
@@ -373,7 +434,7 @@ export default function OverviewTab({
             />
           }
           detail={
-            cleanedRiskReason ||
+            overviewRiskReason ||
             "Keine Risikobegründung vorhanden."
           }
         />
@@ -381,7 +442,7 @@ export default function OverviewTab({
         <ManagementCard
           label="Nächste Maßnahme"
           value={
-            cleanedNextAction ||
+            overviewNextAction ||
             "Nicht definiert"
           }
           warning={
@@ -577,11 +638,11 @@ export default function OverviewTab({
                 Letzte Entwicklung
               </dt>
 
-              {confirmedLatestDevelopment ? (
+              {overviewLatestDevelopment ? (
                 <>
                   <dd className="mt-1 whitespace-pre-wrap leading-6 text-slate-900">
                     {
-                      confirmedLatestDevelopment
+                      overviewLatestDevelopment
                     }
                   </dd>
 

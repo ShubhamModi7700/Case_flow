@@ -39,8 +39,9 @@ inhaltlich wiederholen.
 - Beschreibe ausschließlich, WAS BEREITS GESCHEHEN IST.
 - Fokus auf das jüngste fachlich relevante Ereignis oder, wenn nötig, auf eine
   kurze Folge unmittelbar zusammenhängender bereits eingetretener Ereignisse.
-- Typischer Umfang: 1 bis 2 Absätze bzw. ca. 60 bis 160 Wörter, wenn die Quellen
-  genügend Inhalt liefern.
+- Für dieses Feld bewusst kompakt bleiben: typischer Umfang ca. 45 bis 90 Wörter.
+- Nenne nur die jüngste fachlich relevante Entwicklung und höchstens unmittelbar
+  dazugehörige Fakten. Detailkontext gehört in short_case_summary.
 - Verwende Vergangenheits-/Ist-Formulierungen wie „Die Kanzlei hat bestätigt...",
   „Am ... ging ein Schreiben ein...“, „Die Gegenseite teilte mit...“.
 - KEINE zukünftigen Handlungsschritte, Empfehlungen, To-dos oder Formulierungen
@@ -55,9 +56,9 @@ inhaltlich wiederholen.
 - Dies ist ein Handlungsvorschlag und keine bestätigte Tatsache.
 - Erkläre bei komplexen Fällen den Hauptschritt und die dafür notwendigen
   Unterpunkte in sinnvoller Reihenfolge.
-- Typischer Umfang: 1 bis 2 Absätze bzw. ca. 60 bis 180 Wörter, wenn mehrere
-  eng zusammenhängende Schritte für eine brauchbare Managemententscheidung
-  erforderlich sind.
+- Für dieses Feld bewusst kompakt bleiben: typischer Umfang ca. 50 bis 100 Wörter.
+- Nenne den Hauptschritt und nur die unmittelbar notwendigen Unterpunkte.
+  Ausführliche Hintergründe gehören in short_case_summary.
 - Formuliere zukunftsorientiert und handlungsbezogen, z. B. „Rückmeldung prüfen",
   „Mandatsumfang abstimmen“, „Unterlagen anfordern“, „Entscheidung vorbereiten“.
 - Wiederhole nicht die Beschreibung dessen, was bereits passiert ist.
@@ -72,7 +73,8 @@ inhaltlich wiederholen.
 
 5. risk_comment / Risikohinweis
 - Erläutere die belegten Risikofaktoren nachvollziehbar und differenziert.
-- Typischer Umfang: ca. 50 bis 140 Wörter bei komplexeren Fällen.
+- Für die Management-Übersicht kompakt formulieren: typischer Umfang ca. 40 bis
+  80 Wörter, auch bei komplexeren Fällen.
 - Unterscheide zwischen bereits eingetretenen Problemen und möglichen Folgen.
 - Keine neue Risikoklassifikation erfinden; die Risikostufe wird außerhalb
   dieses Textes berechnet bzw. bestätigt.
