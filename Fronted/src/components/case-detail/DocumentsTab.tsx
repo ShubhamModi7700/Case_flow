@@ -254,7 +254,7 @@ export default function DocumentsTab({
                     >
                       {analyzingId === document.id
                         ? "KI analysiert..."
-                        : "Mit KI analysieren"}
+                        : "KI analysieren"}
                     </button>
                   )}
 

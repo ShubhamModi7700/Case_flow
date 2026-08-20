@@ -620,7 +620,7 @@ export default function DocumentsPage() {
                             onClick={() => void analyzeWithAI(item)}
                             className="rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {isBusy ? "Bitte warten..." : "Mit KI analysieren"}
+                            {isBusy ? "Bitte warten..." : "KI analysieren"}
                           </button>
                         )}
 

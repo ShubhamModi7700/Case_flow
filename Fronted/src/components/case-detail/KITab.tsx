@@ -592,7 +592,7 @@ export default function KITab({
                     onClick={() => void analyzeDocument(document)}
                     className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   >
-                    {working === `document-${document.id}` ? "Wird analysiert..." : "Mit KI analysieren"}
+                    {working === `document-${document.id}` ? "Wird analysiert..." : "KI analysieren"}
                   </button>
                 )}
               </div>
