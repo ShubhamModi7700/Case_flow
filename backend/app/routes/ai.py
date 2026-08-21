@@ -244,18 +244,25 @@ def analyze_document(
         limit=12,
     )
 
-    if not related:
-        related = [
-            {
-                "chunk_id": chunk.id,
-                "document_id": chunk.document_id,
-                "case_id": chunk.case_id,
-                "content": chunk.content,
-                "page_number": chunk.page_number,
-                "similarity": 1.0,
-            }
-            for chunk in own_chunks[:12]
-        ]
+    # The document the user just asked us to analyse must always be present in
+    # the prompt. Pure similarity retrieval can otherwise return only older case
+    # documents, which makes an old demand/deadline incorrectly look current.
+    own_chunk_payloads = [
+        {
+            "chunk_id": chunk.id,
+            "document_id": chunk.document_id,
+            "case_id": chunk.case_id,
+            "content": chunk.content,
+            "page_number": chunk.page_number,
+            "similarity": 1.0,
+        }
+        for chunk in own_chunks[:12]
+    ]
+    seen_chunk_ids = {item["chunk_id"] for item in own_chunk_payloads}
+    related = own_chunk_payloads + [
+        item for item in related if item["chunk_id"] not in seen_chunk_ids
+    ]
+    related = related[:20]
 
     current_case = _case(document.case_id, db) if document.case_id else None
     analysis = analyze_document_context(
@@ -310,10 +317,20 @@ def analyze_document(
         ],
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="document-analysis-v2-temporal-separation",
+        prompt_version="document-analysis-v3-newest-evidence",
         raw_response=analysis.model_dump(mode="json"),
         created_by=current_user.id,
     )
+    # A newer analysis for the same case supersedes older unreviewed proposals.
+    # Keep them for audit/history, but do not present them as concurrently valid.
+    target_case_id = document.case_id or suggested_case_id
+    if target_case_id is not None:
+        db.query(models.AIDocumentSuggestion).filter(
+            models.AIDocumentSuggestion.status == "Pending",
+            (models.AIDocumentSuggestion.current_case_id == target_case_id)
+            | (models.AIDocumentSuggestion.suggested_case_id == target_case_id),
+        ).update({"status": "Outdated"}, synchronize_session=False)
+
     db.add(suggestion)
     db.commit()
     db.refresh(suggestion)
@@ -554,6 +571,35 @@ def _create_management_summary_record(
         limit=8,
     )
 
+    # Always include chunks from the newest case document. This prevents an old
+    # but semantically similar lawyer letter from outranking a newer settlement
+    # or closure document in the management summary.
+    if documents:
+        newest_document = documents[0]
+        newest_chunks = (
+            db.query(models.DocumentChunk)
+            .filter(models.DocumentChunk.document_id == newest_document.id)
+            .order_by(models.DocumentChunk.chunk_index.asc())
+            .limit(8)
+            .all()
+        )
+        newest_payloads = [
+            {
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "case_id": chunk.case_id,
+                "content": chunk.content,
+                "page_number": chunk.page_number,
+                "similarity": 1.0,
+            }
+            for chunk in newest_chunks
+        ]
+        newest_ids = {item["chunk_id"] for item in newest_payloads}
+        chunks = newest_payloads + [
+            item for item in chunks if item["chunk_id"] not in newest_ids
+        ]
+        chunks = chunks[:16]
+
     context = _build_management_context(
         case=case,
         tasks=tasks,
@@ -630,9 +676,15 @@ def _create_management_summary_record(
     # A confirmed document analysis is evidence. Its risk suggestion can raise
     # the pending case-level recommendation, but never changes the official
     # case risk until a manager approves the management summary.
-    risk_candidates = [case.suggested_risk, case.risk]
-    risk_candidates.extend(item.suggested_risk for item in confirmed_suggestions)
-    suggested_risk = max(risk_candidates, key=_risk_rank) if any(risk_candidates) else None
+    # confirmed_suggestions are ordered newest-first. The newest confirmed
+    # document analysis represents the current evidence and must be able to lower
+    # an older risk level after settlement/closure. Falling back to the case risk
+    # preserves current behaviour when no confirmed document risk exists.
+    newest_confirmed_risk = next(
+        (item.suggested_risk for item in confirmed_suggestions if item.suggested_risk),
+        None,
+    )
+    suggested_risk = newest_confirmed_risk or case.suggested_risk or case.risk
 
     db.query(models.CaseAISummary).filter(
         models.CaseAISummary.case_id == case.id,
@@ -652,7 +704,7 @@ def _create_management_summary_record(
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-summary-v6-temporal-separation",
+        prompt_version="management-summary-v7-newest-evidence",
         generated_by=generated_by,
     )
     db.add(summary)

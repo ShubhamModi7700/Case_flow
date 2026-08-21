@@ -90,6 +90,20 @@ inhaltlich wiederholen.
   erscheinen. Diese Kennungen gehören ausschließlich in supporting_chunk_ids
   und relevant_documents.
 
+Zeitliche Priorität und Erledigung:
+- Ordne Dokumente und bestätigte Dokumentanalysen zeitlich ein. Neuere bestätigte
+  Evidenz hat bei Widersprüchen Vorrang vor älteren Angaben.
+- Ein neuer Vergleich, eine Einigung, Erledigung, Zahlung oder Abschlussregelung
+  kann ältere Forderungen, Fristen und Maßnahmen ersetzen. Solche historischen
+  Angaben dürfen dann nicht mehr als aktuell offen dargestellt werden.
+- open_deadline muss die aktuell noch gültige Frist sein. Eine durch ein neueres
+  Dokument ersetzte Frist ist historisch und darf nicht als offene Frist erscheinen.
+- next_required_action soll bei weitgehend erledigten Fällen nur den verbleibenden
+  Restschritt nennen, z. B. Zahlung überwachen, Abschluss dokumentieren oder Fall
+  schließen.
+- Risiko und Risikohinweis sollen den aktuellen Sachstand widerspiegeln und nicht
+  allein das frühere Ausgangsrisiko fortschreiben.
+
 Qualitätsregeln:
 - Antworte auf Deutsch.
 - Erfinde keine Informationen, Namen, Daten, Beträge oder Ereignisse.
