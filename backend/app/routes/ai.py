@@ -990,10 +990,20 @@ def approve_management_summary(
         if payload.status is not None and normalized_role != "Manager":
             raise HTTPException(403, "Nur Manager dürfen den Fallstatus bestätigen.")
         if normalized_role == "Manager":
-            if summary.next_required_action:
-                case.next_action = summary.next_required_action
-            if summary.open_deadline:
-                case.primary_deadline = summary.open_deadline
+            approved_status = payload.status.value if payload.status is not None else None
+
+            # Closing a case is authoritative current-state information. Do not
+            # reintroduce an AI-generated action/deadline into a completed case.
+            if approved_status == "Completed":
+                case.next_action = None
+                case.primary_deadline = None
+                case.follow_up_date = None
+            else:
+                if summary.next_required_action:
+                    case.next_action = summary.next_required_action
+                if summary.open_deadline:
+                    case.primary_deadline = summary.open_deadline
+
             if approved_risk is not None:
                 summary.suggested_risk = approved_risk.value
                 case.risk = approved_risk.value

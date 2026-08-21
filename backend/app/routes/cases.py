@@ -380,6 +380,15 @@ def update_case(
             ),
         )
 
+    # A completed case must not keep operational "next work" fields.
+    # Preserve the information in History via the generated change entries,
+    # while clearing it from the current state so dashboards do not treat the
+    # closed case as actionable.
+    if update_values.get("status") == "Completed":
+        update_values["next_action"] = None
+        update_values["primary_deadline"] = None
+        update_values["follow_up_date"] = None
+
     changes: list[str] = []
 
     for field, new_value in update_values.items():

@@ -106,15 +106,17 @@ export default function EditCaseModal({
     };
 
     if (isManager) {
+      const isCompleted = status === "Completed";
+
       Object.assign(values, {
         responsible_person: responsiblePerson.trim() || null,
         status,
         risk,
         risk_reason: riskReason.trim() || null,
         risk_is_manual: true,
-        next_action: nextAction.trim() || null,
-        primary_deadline: primaryDeadline || null,
-        follow_up_date: followUpDate || null,
+        next_action: isCompleted ? null : nextAction.trim() || null,
+        primary_deadline: isCompleted ? null : primaryDeadline || null,
+        follow_up_date: isCompleted ? null : followUpDate || null,
       });
     }
 
@@ -230,9 +232,16 @@ export default function EditCaseModal({
             <select
               disabled={!isManager}
               value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as CaseStatus)
-              }
+              onChange={(event) => {
+                const nextStatus = event.target.value as CaseStatus;
+                setStatus(nextStatus);
+
+                if (nextStatus === "Completed") {
+                  setNextAction("");
+                  setPrimaryDeadline("");
+                  setFollowUpDate("");
+                }
+              }}
               className={`input ${readOnlyClass}`}
             >
               <option value="New">Neu</option>
@@ -290,7 +299,7 @@ export default function EditCaseModal({
           <Field label="Hauptfrist">
             <input
               type="date"
-              disabled={!isManager}
+              disabled={!isManager || status === "Completed"}
               value={primaryDeadline}
               onChange={(event) => setPrimaryDeadline(event.target.value)}
               className={`input ${readOnlyClass}`}
@@ -300,7 +309,7 @@ export default function EditCaseModal({
           <Field label="Nächste Prüfung am">
             <input
               type="date"
-              disabled={!isManager}
+              disabled={!isManager || status === "Completed"}
               value={followUpDate}
               onChange={(event) => setFollowUpDate(event.target.value)}
               className={`input ${readOnlyClass}`}
@@ -333,7 +342,7 @@ export default function EditCaseModal({
 
           <Field label="Nächste Maßnahme" className="sm:col-span-2">
             <textarea
-              disabled={!isManager}
+              disabled={!isManager || status === "Completed"}
               value={nextAction}
               onChange={(event) => setNextAction(event.target.value)}
               rows={3}
