@@ -427,7 +427,7 @@ export default function KITab({
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Status</p>
                     <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
                       <div><p className="text-xs text-slate-500">Aktuell</p><p className="mt-1 font-semibold">{caseStatusLabel(caseItem.status)}</p></div>
-                      <div><p className="text-xs text-violet-600">KI-Vorschlag</p><p className="mt-1 font-semibold text-violet-900">{caseStatusLabel(pendingSummary.suggested_status)}</p></div>
+                      <div><p className="text-xs text-violet-600">KI-Vorschlag</p><p className="mt-1 font-semibold text-violet-900">{pendingSummary.suggested_status ? caseStatusLabel(pendingSummary.suggested_status) : "Neu berechnen"}</p></div>
                     </div>
                     {pendingSummary.status_reason && (
                       <p className="mt-2 text-xs leading-5 text-slate-500">{cleanAIText(pendingSummary.status_reason)}</p>

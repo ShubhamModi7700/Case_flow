@@ -342,16 +342,26 @@ def calculate_case_risk(
         )
 
         if financial_amount >= high_threshold:
-            add_reason(
-                high_reasons,
-                (
-                    "Der finanzielle Betrag von "
-                    f"{format_euro(financial_amount)} "
-                    "erreicht oder überschreitet den "
-                    f"hohen Schwellenwert von "
-                    f"{format_euro(high_threshold)}."
-                ),
-            )
+            if has_resolution_signal and not has_live_escalation:
+                add_reason(
+                    medium_reasons,
+                    (
+                        "Der historische finanzielle Betrag ist erheblich, wurde "
+                        "durch neuere Vergleichs-/Erledigungsangaben jedoch in der "
+                        "aktuellen Risikowirkung reduziert."
+                    ),
+                )
+            else:
+                add_reason(
+                    high_reasons,
+                    (
+                        "Der finanzielle Betrag von "
+                        f"{format_euro(financial_amount)} "
+                        "erreicht oder überschreitet den "
+                        f"hohen Schwellenwert von "
+                        f"{format_euro(high_threshold)}."
+                    ),
+                )
 
         elif financial_amount >= medium_threshold:
             add_reason(

@@ -72,6 +72,7 @@ inhaltlich wiederholen.
   bis dahin erwartet wird und warum sie für den Fall relevant ist.
 
 5. suggested_risk + risk_comment / Aktuelles Restrisiko
+- suggested_risk und risk_comment sind PFLICHTFELDER. Gib niemals null zurück.
 - Bewerte das AKTUELL verbleibende Restrisiko, nicht das höchste historische
   Risiko des Falls.
 - High nur bei aktuell erheblichem ungelöstem Risiko, z. B. aktiver Klage,
@@ -84,10 +85,18 @@ inhaltlich wiederholen.
 - Ein früherer hoher Streitwert oder eine frühere Klageandrohung hält die
   Risikostufe nicht automatisch auf High, wenn neuere Evidenz das Risiko
   reduziert hat.
+- Beispiel: Frühere Forderung/Klageandrohung = High. Späterer wirksamer
+  Vergleich, der den Hauptstreit erledigt, aber eine Vergleichszahlung mit
+  zukünftiger Frist offen lässt = normalerweise Medium. Nach vollständiger
+  Erfüllung ohne wesentliche Restpflicht = Low.
 - risk_comment erklärt in ca. 40 bis 80 Wörtern: historisches Risiko, neue
   Evidenz, verbleibende Exposition und daraus folgende aktuelle Risikostufe.
 
 6. suggested_status + status_reason / Aktueller Fallstatus
+- suggested_status und status_reason sind PFLICHTFELDER. Gib niemals null oder
+  einen leeren Status zurück und verwende nicht einfach den bestehenden Status.
+- Bestimme den Status neu aus der neuesten bestätigten Evidenz und den noch
+  tatsächlich offenen Verpflichtungen.
 - Schlage den Status vor, der nach der neuesten bestätigten Evidenz tatsächlich
   zum heutigen Arbeitsstand passt.
 - New: neu, fachliche Bearbeitung noch nicht begonnen.

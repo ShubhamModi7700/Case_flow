@@ -37,6 +37,92 @@ def _payload_risk(payload) -> schemas.RiskLevel | None:
     return getattr(payload, "risk", None)
 
 
+def _current_state_text(*values: str | None) -> str:
+    return " ".join(
+        value.strip().lower()
+        for value in values
+        if isinstance(value, str) and value.strip()
+    )
+
+
+def _normalize_management_current_state(
+    *,
+    case: models.Case,
+    result: schemas.ManagementSummaryAnalysis,
+) -> None:
+    """Conservative guardrails for risk/status after model generation."""
+    text = _current_state_text(
+        result.short_case_summary,
+        result.latest_development,
+        result.next_required_action,
+        result.risk_comment,
+        result.status_reason,
+    )
+    resolution_terms = (
+        "vergleich", "einigung", "erledigt", "beendet", "abgeschlossen",
+        "streit beigelegt", "streit geregelt", "ansprüche erledigt",
+    )
+    live_escalation_terms = (
+        "vergleichsbruch", "nicht gezahlt", "zahlung überfällig",
+        "klage anhängig", "klage eingereicht", "vollstreckung",
+        "frist überschritten", "kritische frist",
+    )
+    waiting_terms = (
+        "abwarten", "wartet auf", "rückmeldung", "antwort ausstehend",
+        "gegenpartei", "behörde",
+    )
+    own_action_terms = (
+        "zahlen", "zahlung", "beschaffen", "prüfen", "dokumentieren",
+        "unterzeichnen", "einreichen", "umsetzen", "erfüllen",
+    )
+    has_resolution = any(term in text for term in resolution_terms)
+    has_live_escalation = any(term in text for term in live_escalation_terms)
+    has_open_deadline = result.open_deadline is not None
+    next_action = (result.next_required_action or "").lower()
+
+    if has_resolution and not has_live_escalation:
+        if has_open_deadline or next_action:
+            if result.suggested_risk == schemas.RiskLevel.HIGH:
+                result.suggested_risk = schemas.RiskLevel.MEDIUM
+                result.risk_comment = (
+                    "Das frühere hohe Streitrisiko wurde durch die neuere "
+                    "Vergleichs-/Erledigungslage wesentlich reduziert. "
+                    "Ein materielles Restrisiko besteht bis zur vollständigen "
+                    "Erfüllung und Dokumentation der noch offenen Verpflichtungen."
+                )
+        else:
+            result.suggested_risk = schemas.RiskLevel.LOW
+
+        if has_open_deadline or next_action:
+            if any(term in next_action for term in waiting_terms) and not any(
+                term in next_action for term in own_action_terms
+            ):
+                result.suggested_status = schemas.CaseStatus.WAITING
+                result.status_reason = (
+                    "Der Hauptstreit ist durch neuere Evidenz weitgehend geregelt; "
+                    "der nächste materielle Schritt hängt überwiegend von einer "
+                    "externen Reaktion oder einem zukünftigen Ereignis ab."
+                )
+            else:
+                result.suggested_status = schemas.CaseStatus.IN_PROGRESS
+                result.status_reason = (
+                    "Der Hauptstreit ist durch neuere Evidenz weitgehend geregelt, "
+                    "es bestehen jedoch noch konkrete Erfüllungs-, Zahlungs- oder "
+                    "Dokumentationsschritte."
+                )
+        else:
+            result.suggested_status = schemas.CaseStatus.COMPLETED
+            result.status_reason = (
+                "Die neueste bestätigte Evidenz weist auf eine materielle "
+                "Erledigung ohne wesentliche offene Verpflichtungen hin."
+            )
+
+    if has_live_escalation:
+        result.suggested_risk = schemas.RiskLevel.HIGH
+        if result.open_deadline is not None:
+            result.suggested_status = schemas.CaseStatus.CRITICAL
+
+
 TECHNICAL_HISTORY_CHANGES = {
     "KI-Management-Zusammenfassung bestätigt",
     "KI-Vorschläge bestätigt",
@@ -616,6 +702,7 @@ def _create_management_summary_record(
         chunks=chunks,
     )
     result = generate_management_summary(context)
+    _normalize_management_current_state(case=case, result=result)
 
     valid_document_ids = {document.id for document in documents}
     valid_chunk_ids = {int(chunk["chunk_id"]) for chunk in chunks}
@@ -711,17 +798,13 @@ def _create_management_summary_record(
         deadline_comment=result.deadline_comment,
         suggested_risk=suggested_risk,
         risk_comment=result.risk_comment,
-        suggested_status=(
-            result.suggested_status.value
-            if result.suggested_status is not None
-            else case.status
-        ),
+        suggested_status=result.suggested_status.value,
         status_reason=result.status_reason,
         relevant_document_ids=relevant_document_ids,
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-summary-v8-current-state",
+        prompt_version="management-summary-v9-unified-current-state",
         generated_by=generated_by,
     )
     db.add(summary)
@@ -830,6 +913,13 @@ def approve_management_summary(
             summary.relevant_document_ids = payload.relevant_document_ids
 
         case.management_summary = summary.short_case_summary
+
+        # Keep the blue automatic recommendation aligned with the latest
+        # approved management current-state analysis. This remains a suggestion;
+        # the official risk changes only when a Manager approves it.
+        if summary.suggested_risk:
+            case.suggested_risk = summary.suggested_risk
+            case.suggested_risk_reason = summary.risk_comment
 
         # Only Managers may change the official deadline or next action.
         normalized_role = _normalized_role(current_user)

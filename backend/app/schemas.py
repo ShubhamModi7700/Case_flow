@@ -597,10 +597,12 @@ class ManagementSummaryAnalysis(BaseModel):
     next_required_action: str | None = None
     open_deadline: date | None = None
     deadline_comment: str | None = None
-    suggested_risk: RiskLevel | None = None
-    risk_comment: str | None = None
-    suggested_status: CaseStatus | None = None
-    status_reason: str | None = None
+    # Current-state fields are mandatory so a management generation can never
+    # silently fall back to the historical case risk/status.
+    suggested_risk: RiskLevel
+    risk_comment: str
+    suggested_status: CaseStatus
+    status_reason: str
     relevant_documents: list[RelevantDocumentResult] = Field(default_factory=list)
     supporting_chunk_ids: list[int] = Field(default_factory=list)
     uncertainty_notes: list[str] = Field(default_factory=list)

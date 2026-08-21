@@ -677,10 +677,6 @@ export default function OverviewTab({
                     }
                   </dd>
 
-                  <dd className="mt-2 text-xs text-slate-400">
-                    Bestätigte
-                    KI-Management-Zusammenfassung
-                  </dd>
                 </>
               ) : (
                 <>
