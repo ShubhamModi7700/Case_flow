@@ -215,6 +215,9 @@ export default function OverviewTab({
       caseItem.status,
     );
 
+  const isClosed =
+    caseItem.status === "Completed";
+
   const cleanedNextAction =
     cleanAIText(
       caseItem.next_action,
@@ -473,8 +476,9 @@ export default function OverviewTab({
         <ManagementCard
           label="Nächste Maßnahme"
           value={
-            overviewNextAction ||
-            "Nicht definiert"
+            isClosed
+              ? "Keine – Fall abgeschlossen"
+              : overviewNextAction || "Nicht definiert"
           }
           warning={
             missingNextAction
@@ -484,8 +488,9 @@ export default function OverviewTab({
         <ManagementCard
           label="Nächste Frist"
           value={
-            caseItem.primary_deadline ??
-            "Nicht definiert"
+            isClosed
+              ? "Keine"
+              : caseItem.primary_deadline ?? "Nicht definiert"
           }
           detail={
             deadlineIsOverdue
@@ -805,8 +810,9 @@ export default function OverviewTab({
             </dt>
 
             <dd className="mt-2 text-sm text-slate-800">
-              {caseItem.follow_up_date ??
-                "Nicht definiert"}
+              {isClosed
+                ? "Keine"
+                : caseItem.follow_up_date ?? "Nicht definiert"}
             </dd>
           </div>
 

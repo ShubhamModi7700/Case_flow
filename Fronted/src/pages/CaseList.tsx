@@ -231,6 +231,27 @@ export default function CaseList() {
     setSearchParams(next);
   }
 
+  function setCaseGroup(group: "" | "open" | "completed") {
+    const next = new URLSearchParams(searchParams);
+
+    if (group) {
+      next.set("status_group", group);
+      next.delete("status");
+    } else {
+      next.delete("status_group");
+    }
+
+    // Group navigation is about the lifecycle state; remove dashboard-only
+    // filters that could make the result unexpectedly empty.
+    next.delete("overdue");
+    next.delete("upcoming");
+    next.delete("missing_owner");
+    next.delete("missing_next_action");
+
+    setStatus("");
+    setSearchParams(next);
+  }
+
   function clearFilters() {
     setSearch("");
     setStatus("");
@@ -263,6 +284,42 @@ export default function CaseList() {
           + Fall anlegen
         </Link>
       </header>
+
+      <div className="mb-5 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setCaseGroup("")}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            !searchParams.get("status_group")
+              ? "bg-slate-950 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Alle
+        </button>
+        <button
+          type="button"
+          onClick={() => setCaseGroup("open")}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            searchParams.get("status_group") === "open"
+              ? "bg-slate-950 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Offen
+        </button>
+        <button
+          type="button"
+          onClick={() => setCaseGroup("completed")}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            searchParams.get("status_group") === "completed"
+              ? "bg-emerald-600 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Abgeschlossen
+        </button>
+      </div>
 
       {activeFilter && (
         <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -484,8 +541,9 @@ export default function CaseList() {
                         : "text-slate-600"
                     }`}
                   >
-                    {caseItem.primary_deadline ??
-                      "–"}
+                    {caseItem.status === "Completed"
+                      ? "Keine"
+                      : caseItem.primary_deadline ?? "–"}
                   </td>
 
                   <td
@@ -495,8 +553,9 @@ export default function CaseList() {
                         : "font-semibold text-amber-700"
                     }`}
                   >
-                    {caseItem.next_action ??
-                      "Fehlt"}
+                    {caseItem.status === "Completed"
+                      ? "Keine – Fall abgeschlossen"
+                      : caseItem.next_action ?? "Fehlt"}
                   </td>
                 </tr>
               ))}
@@ -536,6 +595,12 @@ function getActiveFilterLabel(
     params.get("status_group") === "open"
   ) {
     return "Offene Fälle";
+  }
+
+  if (
+    params.get("status_group") === "completed"
+  ) {
+    return "Abgeschlossene Fälle";
   }
 
   if (params.get("risk") === "High") {

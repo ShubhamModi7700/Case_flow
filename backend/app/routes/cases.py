@@ -128,6 +128,10 @@ def list_cases(
         query = query.filter(
             models.Case.status != "Completed",
         )
+    elif status_group == "completed":
+        query = query.filter(
+            models.Case.status == "Completed",
+        )
 
     if risk:
         query = query.filter(

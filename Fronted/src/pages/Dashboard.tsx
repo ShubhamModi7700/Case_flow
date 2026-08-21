@@ -149,6 +149,15 @@ export default function Dashboard() {
         />
 
         <DashboardCard
+          to="/cases?status_group=completed"
+          title="Abgeschlossene Fälle"
+          value={data.completed_cases}
+          description="Alle abgeschlossenen Fälle"
+          containerClass="border-emerald-200 bg-emerald-50"
+          textClass="text-emerald-700"
+        />
+
+        <DashboardCard
           to="/cases?risk=High"
           title="Hohes Risiko"
           value={data.high_risk_cases}
