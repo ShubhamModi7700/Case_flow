@@ -576,6 +576,10 @@ class DocumentAIAnalysis(BaseModel):
     recognized_deadline: date | None = None
     deadline_source: str | None = None
     proposed_next_action: str | None = None
+    suggested_risk: RiskLevel | None = None
+    risk_reason: str | None = None
+    suggested_status: CaseStatus | None = None
+    status_reason: str | None = None
     document_is_lawyer_letter: bool = False
     document_is_labour_law: bool = False
     detected_financial_amount: float | None = None
@@ -593,7 +597,10 @@ class ManagementSummaryAnalysis(BaseModel):
     next_required_action: str | None = None
     open_deadline: date | None = None
     deadline_comment: str | None = None
+    suggested_risk: RiskLevel | None = None
     risk_comment: str | None = None
+    suggested_status: CaseStatus | None = None
+    status_reason: str | None = None
     relevant_documents: list[RelevantDocumentResult] = Field(default_factory=list)
     supporting_chunk_ids: list[int] = Field(default_factory=list)
     uncertainty_notes: list[str] = Field(default_factory=list)
@@ -608,6 +615,8 @@ class CaseAISummaryApproval(BaseModel):
 
     risk: RiskLevel | None = None
     risk_comment: str | None = None
+    status: CaseStatus | None = None
+    status_reason: str | None = None
 
     relevant_document_ids: list[int] = Field(default_factory=list)
 
@@ -652,6 +661,8 @@ class CaseAISummaryResponse(BaseModel):
     deadline_comment: str | None = None
     suggested_risk: str | None = None
     risk_comment: str | None = None
+    suggested_status: str | None = None
+    status_reason: str | None = None
     relevant_document_ids: list[int] = Field(default_factory=list)
     relevant_chunk_ids: list[int] = Field(default_factory=list)
     status: str

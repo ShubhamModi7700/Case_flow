@@ -197,8 +197,10 @@ export type CaseAISummary = {
   next_required_action: string | null;
   open_deadline: string | null;
   deadline_comment: string | null;
-  suggested_risk: string | null;
+  suggested_risk: RiskLevel | null;
   risk_comment: string | null;
+  suggested_status: CaseStatus | null;
+  status_reason: string | null;
   relevant_document_ids: number[];
   relevant_chunk_ids: number[];
   status: string;

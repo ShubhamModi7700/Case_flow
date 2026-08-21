@@ -71,15 +71,39 @@ inhaltlich wiederholen.
 - deadline_comment darf ausführlicher erklären, von wem die Frist stammt, was
   bis dahin erwartet wird und warum sie für den Fall relevant ist.
 
-5. risk_comment / Risikohinweis
-- Erläutere die belegten Risikofaktoren nachvollziehbar und differenziert.
-- Für die Management-Übersicht kompakt formulieren: typischer Umfang ca. 40 bis
-  80 Wörter, auch bei komplexeren Fällen.
-- Unterscheide zwischen bereits eingetretenen Problemen und möglichen Folgen.
-- Keine neue Risikoklassifikation erfinden; die Risikostufe wird außerhalb
-  dieses Textes berechnet bzw. bestätigt.
+5. suggested_risk + risk_comment / Aktuelles Restrisiko
+- Bewerte das AKTUELL verbleibende Restrisiko, nicht das höchste historische
+  Risiko des Falls.
+- High nur bei aktuell erheblichem ungelöstem Risiko, z. B. aktiver Klage,
+  Vergleichsbruch, überfälliger wesentlicher Zahlung, kritischer Frist oder
+  sonstiger akuter rechtlicher/finanzieller Exposition.
+- Medium, wenn der Hauptstreit durch neuere Evidenz weitgehend geregelt ist,
+  aber wesentliche Erfüllungs- oder Abschlussmaßnahmen noch offen sind.
+- Low, wenn materielle Streitpunkte und wesentliche Pflichten erledigt sind und
+  nur noch routinemäßige Dokumentation/Archivierung verbleibt.
+- Ein früherer hoher Streitwert oder eine frühere Klageandrohung hält die
+  Risikostufe nicht automatisch auf High, wenn neuere Evidenz das Risiko
+  reduziert hat.
+- risk_comment erklärt in ca. 40 bis 80 Wörtern: historisches Risiko, neue
+  Evidenz, verbleibende Exposition und daraus folgende aktuelle Risikostufe.
 
-6. Quellen
+6. suggested_status + status_reason / Aktueller Fallstatus
+- Schlage den Status vor, der nach der neuesten bestätigten Evidenz tatsächlich
+  zum heutigen Arbeitsstand passt.
+- New: neu, fachliche Bearbeitung noch nicht begonnen.
+- Under Review: wesentliche Prüfung/Bewertung steht noch aus.
+- In Progress: aktive interne Bearbeitung oder eigene Erfüllungsschritte laufen.
+- Waiting: nächster materieller Schritt hängt überwiegend von externer Antwort,
+  Zahlung oder zukünftigem Ereignis ab.
+- Completed: materieller Fall erledigt; keine wesentlichen offenen Pflichten oder
+  Fristen mehr.
+- Critical: akute erhebliche Eskalation/kritische Frist.
+- Ein Vergleich mit noch ausstehender wesentlicher Zahlung ist normalerweise
+  noch nicht Completed.
+- status_reason begründet den Vorschlag anhand der neuesten Evidenz.
+- Statusänderung ist immer nur ein Vorschlag und erfordert Benutzerbestätigung.
+
+7. Quellen
 - Verwende nur Dokument-IDs und Chunk-IDs, die im Kontext tatsächlich
   bereitgestellt wurden.
 - supporting_chunk_ids nur für Quellen verwenden, die konkrete Aussagen der
@@ -246,6 +270,7 @@ def _clean_result(result: schemas.ManagementSummaryAnalysis) -> schemas.Manageme
     result.latest_development = _clean_latest_development(result.latest_development)
     result.next_required_action = _clean_action(result.next_required_action)
     result.risk_comment = _clean_risk_comment(result.risk_comment)
+    result.status_reason = _clean_text(result.status_reason)
     result.deadline_comment = _clean_deadline_comment(result.deadline_comment)
     return result
 

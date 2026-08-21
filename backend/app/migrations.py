@@ -403,3 +403,24 @@ def migrate_legacy_admin_roles(engine) -> None:
         connection.execute(
             text("UPDATE users SET role = 'Manager' WHERE role = 'Admin'")
         )
+
+
+def migrate_ai_summary_status_fields(engine: Engine) -> None:
+    """Add AI-proposed status fields to case_ai_summaries."""
+    columns = _column_map(engine, "case_ai_summaries")
+    if not columns:
+        return
+
+    statements = {
+        "suggested_status": (
+            "ALTER TABLE case_ai_summaries ADD COLUMN suggested_status VARCHAR(30)"
+        ),
+        "status_reason": (
+            "ALTER TABLE case_ai_summaries ADD COLUMN status_reason TEXT"
+        ),
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in statements.items():
+            if column_name not in columns:
+                connection.execute(text(statement))

@@ -2,6 +2,7 @@ import api from "../api";
 import type {
   AISuggestion,
   CaseAISummary,
+  CaseStatus,
   RiskLevel,
 } from "../types";
 
@@ -33,6 +34,8 @@ export type ManagementSummaryApprovalPayload = {
   // Needed by KITab.tsx
   risk: RiskLevel | null;
   risk_comment: string | null;
+  status: CaseStatus | null;
+  status_reason: string | null;
 
   relevant_document_ids: number[];
 };

@@ -295,9 +295,16 @@ def analyze_document(
         if analysis.detected_financial_amount is not None:
             simulated_case.financial_amount = analysis.detected_financial_amount
 
-        risk_result = calculate_case_risk(simulated_case)
-        suggested_risk = risk_result.level
-        suggested_risk_reason = risk_result.reason
+        if analysis.suggested_risk is not None:
+            suggested_risk = analysis.suggested_risk.value
+            suggested_risk_reason = (
+                analysis.risk_reason
+                or "Aktuelles Restrisiko wurde aus der neuesten Dokumentlage abgeleitet."
+            )
+        else:
+            risk_result = calculate_case_risk(simulated_case)
+            suggested_risk = risk_result.level
+            suggested_risk_reason = risk_result.reason
 
     suggestion = models.AIDocumentSuggestion(
         document_id=document.id,
@@ -317,7 +324,7 @@ def analyze_document(
         ],
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="document-analysis-v3-newest-evidence",
+        prompt_version="document-analysis-v4-current-state",
         raw_response=analysis.model_dump(mode="json"),
         created_by=current_user.id,
     )
@@ -684,7 +691,11 @@ def _create_management_summary_record(
         (item.suggested_risk for item in confirmed_suggestions if item.suggested_risk),
         None,
     )
-    suggested_risk = newest_confirmed_risk or case.suggested_risk or case.risk
+    suggested_risk = (
+        result.suggested_risk.value
+        if result.suggested_risk is not None
+        else newest_confirmed_risk or case.suggested_risk or case.risk
+    )
 
     db.query(models.CaseAISummary).filter(
         models.CaseAISummary.case_id == case.id,
@@ -700,11 +711,17 @@ def _create_management_summary_record(
         deadline_comment=result.deadline_comment,
         suggested_risk=suggested_risk,
         risk_comment=result.risk_comment,
+        suggested_status=(
+            result.suggested_status.value
+            if result.suggested_status is not None
+            else case.status
+        ),
+        status_reason=result.status_reason,
         relevant_document_ids=relevant_document_ids,
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-summary-v7-newest-evidence",
+        prompt_version="management-summary-v8-current-state",
         generated_by=generated_by,
     )
     db.add(summary)
@@ -806,6 +823,9 @@ def approve_management_summary(
             payload.deadline_comment or summary.deadline_comment
         )
         summary.risk_comment = payload.risk_comment or summary.risk_comment
+        summary.status_reason = payload.status_reason or summary.status_reason
+        if payload.status is not None:
+            summary.suggested_status = payload.status.value
         if payload.relevant_document_ids:
             summary.relevant_document_ids = payload.relevant_document_ids
 
@@ -816,6 +836,8 @@ def approve_management_summary(
         approved_risk = _payload_risk(payload)
         if approved_risk is not None and normalized_role != "Manager":
             raise HTTPException(403, "Nur Manager dürfen das Risiko bestätigen.")
+        if payload.status is not None and normalized_role != "Manager":
+            raise HTTPException(403, "Nur Manager dürfen den Fallstatus bestätigen.")
         if normalized_role == "Manager":
             if summary.next_required_action:
                 case.next_action = summary.next_required_action
@@ -826,6 +848,8 @@ def approve_management_summary(
                 case.risk = approved_risk.value
                 case.risk_reason = summary.risk_comment
                 case.risk_is_manual = True
+            if payload.status is not None:
+                case.status = payload.status.value
 
         db.query(models.CaseAISummary).filter(
             models.CaseAISummary.case_id == case.id,
@@ -856,6 +880,14 @@ def approve_management_summary(
             summary_changes.append(
                 f"Risiko übernommen: {approved_risk.value}"
             )
+        if normalized_role == "Manager" and payload.status is not None:
+            summary_changes.append(
+                f"Status übernommen: {payload.status.value}"
+            )
+            if summary.status_reason:
+                summary_changes.append(
+                    f"Statusbegründung: {summary.status_reason}"
+                )
         if summary.risk_comment:
             summary_changes.append(
                 f"Risikohinweis: {summary.risk_comment}"

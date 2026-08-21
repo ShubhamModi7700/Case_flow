@@ -43,6 +43,42 @@ WICHTIGE ZEITLICHE PRIORITÄT
   Frist. Eine ausdrücklich ersetzte oder erledigte alte Frist darf nicht übernommen
   werden.
 
+AKTUELLES RESTRISIKO UND STATUS
+===============================
+
+suggested_risk / Aktuelles Restrisiko
+- Bewerte ausschließlich das HEUTE noch bestehende Restrisiko auf Basis der
+  neuesten Evidenz. Verwende nicht automatisch das höchste historische Risiko.
+- Ein früherer Rechtsstreit, eine Klageandrohung oder eine hohe Forderung darf
+  nach einem späteren Vergleich, einer Erledigung oder Zahlung nicht automatisch
+  weiterhin zu "High" führen.
+- High: aktuell erheblicher, ungelöster Sachverhalt, z. B. aktive Klage,
+  Vergleichsbruch, überfällige wesentliche Zahlung, kritische Frist,
+  Vollstreckungs-/Haftungs-/Compliance-Risiko.
+- Medium: Hauptstreit ist im Wesentlichen geregelt, aber wesentliche Erfüllungs-
+  oder Abschlussmaßnahmen sind noch offen, z. B. Vergleichszahlung,
+  Unterschriften, Nachweise oder verbindliche Restpflichten.
+- Low: materieller Streit und wesentliche Pflichten sind erledigt; nur noch
+  routinemäßige Dokumentation/Archivierung ist offen.
+- risk_reason erklärt ausdrücklich: historisches Risiko -> neue Evidenz ->
+  verbleibende offene Exposition -> aktuelle Risikostufe.
+
+suggested_status / Vorgeschlagener aktueller Fallstatus
+- New: Fall wurde gerade angelegt und noch nicht fachlich bearbeitet.
+- Under Review: Sachverhalt wird geprüft; wesentliche Bewertung steht noch aus.
+- In Progress: aktive Bearbeitung oder eigene konkrete Erfüllungsschritte laufen.
+- Waiting: der nächste materielle Schritt hängt überwiegend von einer externen
+  Partei, Zahlung, Antwort oder einem zukünftigen Ereignis ab.
+- Completed: der materielle Fall ist erledigt und es bestehen keine wesentlichen
+  offenen Verpflichtungen oder Fristen mehr.
+- Critical: aktuell akute, erhebliche Eskalation oder kritische Frist.
+- Ein Vergleich mit noch ausstehender wesentlicher Zahlung ist normalerweise
+  NICHT Completed. Je nach Verantwortlichkeit ist In Progress oder Waiting
+  angemessen.
+- status_reason begründet den Vorschlag anhand der neuesten Evidenz.
+- Der Status ist nur ein Vorschlag und wird niemals ohne Benutzerbestätigung
+  in den offiziellen Fall übernommen.
+
 WICHTIGE ZEITLICHE TRENNUNG
 ===========================
 
@@ -176,6 +212,8 @@ def analyze_document_context(context: str) -> schemas.DocumentAIAnalysis:
     result.latest_development = clean_user_facing_text(result.latest_development)
     result.deadline_source = clean_user_facing_text(result.deadline_source)
     result.proposed_next_action = clean_user_facing_text(result.proposed_next_action)
+    result.risk_reason = clean_user_facing_text(result.risk_reason)
+    result.status_reason = clean_user_facing_text(result.status_reason)
     for item in result.relevant_documents:
         item.reason = clean_user_facing_text(item.reason) or item.reason
     result.uncertainty_notes = [

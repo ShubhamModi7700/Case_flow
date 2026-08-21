@@ -15,6 +15,7 @@ import type {
   AISuggestion,
   CaseAISummary,
   CaseItem,
+  CaseStatus,
   DocumentItem,
   RiskLevel,
 } from "../../types";
@@ -50,6 +51,18 @@ function statusLabel(status: string): string {
     Outdated: "Nicht mehr aktuell",
   };
   return labels[status] ?? status;
+}
+
+function caseStatusLabel(value: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    New: "Neu",
+    "Under Review": "In Prüfung",
+    "In Progress": "In Bearbeitung",
+    Waiting: "Wartend",
+    Completed: "Abgeschlossen",
+    Critical: "Kritisch",
+  };
+  return value ? labels[value] ?? value : "Nicht bewertet";
 }
 
 function confidenceLabel(value: number | null): string {
@@ -121,6 +134,8 @@ export default function KITab({
     deadline_comment: "",
     risk: "" as "" | RiskLevel,
     risk_comment: "",
+    status: "" as "" | CaseStatus,
+    status_reason: "",
   });
 
   const [suggestionForm, setSuggestionForm] = useState({
@@ -168,6 +183,8 @@ export default function KITab({
       deadline_comment: cleanAIText(visibleSummary.deadline_comment),
       risk: (visibleSummary.suggested_risk || "") as "" | RiskLevel,
       risk_comment: cleanAIText(visibleSummary.risk_comment),
+      status: (visibleSummary.suggested_status || "") as "" | CaseStatus,
+      status_reason: cleanAIText(visibleSummary.status_reason),
     });
   }, [visibleSummary?.id]);
 
@@ -217,6 +234,8 @@ export default function KITab({
         deadline_comment: summaryForm.deadline_comment || null,
         risk: isManager && summaryForm.risk ? summaryForm.risk : null,
         risk_comment: summaryForm.risk_comment || null,
+        status: isManager && summaryForm.status ? summaryForm.status : null,
+        status_reason: summaryForm.status_reason || null,
         relevant_document_ids: pendingSummary.relevant_document_ids,
       });
       setNotice("Die Management-Zusammenfassung wurde bestätigt.");
@@ -405,6 +424,16 @@ export default function KITab({
                     </div>
                   </div>
                   <div className="rounded-xl border border-violet-100 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Status</p>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+                      <div><p className="text-xs text-slate-500">Aktuell</p><p className="mt-1 font-semibold">{caseStatusLabel(caseItem.status)}</p></div>
+                      <div><p className="text-xs text-violet-600">KI-Vorschlag</p><p className="mt-1 font-semibold text-violet-900">{caseStatusLabel(pendingSummary.suggested_status)}</p></div>
+                    </div>
+                    {pendingSummary.status_reason && (
+                      <p className="mt-2 text-xs leading-5 text-slate-500">{cleanAIText(pendingSummary.status_reason)}</p>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Frist</p>
                     <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
                       <div><p className="text-xs text-slate-500">Aktuell</p><p className="mt-1 font-semibold">{formatDate(caseItem.primary_deadline)}</p></div>
@@ -504,6 +533,33 @@ export default function KITab({
                 <option value="Medium">Mittel</option>
                 <option value="High">Hoch</option>
               </select>
+            </label>
+            <label>
+              <span className="text-sm font-semibold text-slate-700">Vorgeschlagener Status</span>
+              <select
+                disabled={!pendingSummary || !isManager}
+                value={summaryForm.status}
+                onChange={(event) =>
+                  setSummaryForm((current) => ({
+                    ...current,
+                    status: event.target.value as "" | CaseStatus,
+                  }))
+                }
+                className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50"
+              >
+                <option value="">Nicht ändern</option>
+                <option value="New">Neu</option>
+                <option value="Under Review">In Prüfung</option>
+                <option value="In Progress">In Bearbeitung</option>
+                <option value="Waiting">Wartend</option>
+                <option value="Completed">Abgeschlossen</option>
+                <option value="Critical">Kritisch</option>
+              </select>
+              {summaryForm.status_reason && (
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {summaryForm.status_reason}
+                </p>
+              )}
             </label>
             <label>
               <span className="text-sm font-semibold text-slate-700">Risikohinweis</span>

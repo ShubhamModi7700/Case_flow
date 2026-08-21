@@ -327,6 +327,8 @@ class CaseAISummary(Base):
     deadline_comment = Column(Text, nullable=True)
     suggested_risk = Column(String(20), nullable=True)
     risk_comment = Column(Text, nullable=True)
+    suggested_status = Column(String(30), nullable=True)
+    status_reason = Column(Text, nullable=True)
     relevant_document_ids = Column(JSONB, nullable=False, default=list)
     relevant_chunk_ids = Column(JSONB, nullable=False, default=list)
     status = Column(String(30), nullable=False, default="Pending")

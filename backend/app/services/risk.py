@@ -202,6 +202,29 @@ def calculate_case_risk(
     # Text-based rules
     case_text = build_case_text(case)
 
+    resolution_terms = (
+        "vergleich",
+        "einigung",
+        "erledigt",
+        "abgeschlossen",
+        "beendet",
+        "vollständig erfüllt",
+        "zahlung erfolgt",
+    )
+    live_escalation_terms = (
+        "nicht gezahlt",
+        "zahlung ausstehend",
+        "vergleichsbruch",
+        "verstoß gegen den vergleich",
+        "klage eingereicht",
+        "klage anhängig",
+        "vollstreckung",
+        "frist überschritten",
+        "überfällig",
+    )
+    has_resolution_signal = any(term in case_text for term in resolution_terms)
+    has_live_escalation = any(term in case_text for term in live_escalation_terms)
+
     matched_high_keywords = [
         keyword
         for keyword in HIGH_RISK_KEYWORDS
@@ -215,13 +238,23 @@ def calculate_case_risk(
     ]
 
     if matched_high_keywords:
-        add_reason(
-            high_reasons,
-            (
-                "Der Fall enthält Hinweise auf einen rechtlichen, "
-                "arbeitsrechtlichen oder sonstigen kritischen Sachverhalt."
-            ),
-        )
+        if has_resolution_signal and not has_live_escalation:
+            add_reason(
+                medium_reasons,
+                (
+                    "Der Fall hatte einen rechtlich kritischen Ausgangssachverhalt, "
+                    "neuere Angaben deuten jedoch auf Vergleich, Erledigung oder "
+                    "wesentliche Risikoreduktion hin."
+                ),
+            )
+        else:
+            add_reason(
+                high_reasons,
+                (
+                    "Der Fall enthält aktuell Hinweise auf einen rechtlichen, "
+                    "arbeitsrechtlichen oder sonstigen kritischen Sachverhalt."
+                ),
+            )
 
     elif matched_medium_keywords:
         add_reason(
@@ -229,14 +262,13 @@ def calculate_case_risk(
             "Der Fall enthält Hinweise auf möglichen Handlungsbedarf.",
         )
 
-    # Employment-law category
+    # Employment-law category alone is not a High-risk signal.
+    # It can justify additional attention, but current exposure must come from
+    # deadlines, active disputes, non-performance or other live evidence.
     if case.category == "Employee":
         add_reason(
-            high_reasons,
-            (
-                "Der Fall ist als Mitarbeiter- bzw. "
-                "arbeitsrechtlicher Fall eingestuft."
-            ),
+            medium_reasons,
+            "Der Fall betrifft einen Mitarbeiter- bzw. arbeitsrechtlichen Sachverhalt.",
         )
 
     # Responsible person
