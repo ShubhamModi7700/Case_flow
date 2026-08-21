@@ -45,19 +45,56 @@ def _current_state_text(*values: str | None) -> str:
     )
 
 
+def _document_suggestion_status(
+    suggestion: models.AIDocumentSuggestion | None,
+) -> schemas.CaseStatus | None:
+    """Read the status proposed by the newest confirmed document analysis.
+
+    We intentionally keep this in raw_response to avoid another migration on the
+    document-suggestion table. Confirmed document evidence is the source of truth
+    for the current-state transition used by the management layer.
+    """
+    if suggestion is None or not isinstance(suggestion.raw_response, dict):
+        return None
+
+    value = suggestion.raw_response.get("suggested_status")
+    if not value:
+        return None
+
+    try:
+        return schemas.CaseStatus(value)
+    except ValueError:
+        return None
+
+
+def _newest_evidence_text(
+    suggestion: models.AIDocumentSuggestion | None,
+) -> str:
+    if suggestion is None:
+        return ""
+
+    return _current_state_text(
+        suggestion.suggested_summary,
+        suggestion.suggested_latest_development,
+        suggestion.suggested_next_action,
+        suggestion.suggested_risk_reason,
+    )
+
+
 def _normalize_management_current_state(
     *,
     case: models.Case,
     result: schemas.ManagementSummaryAnalysis,
+    newest_confirmed: models.AIDocumentSuggestion | None = None,
 ) -> None:
-    """Conservative guardrails for risk/status after model generation."""
-    text = _current_state_text(
-        result.short_case_summary,
-        result.latest_development,
-        result.next_required_action,
-        result.risk_comment,
-        result.status_reason,
-    )
+    """Normalize risk/status from the newest confirmed evidence.
+
+    Historical case prose is deliberately not used to decide whether an
+    escalation is current. Otherwise old phrases such as "Klage", "42.000 EUR"
+    or "Frist überschritten" can keep a settled case at High/Critical forever.
+    """
+    newest_text = _newest_evidence_text(newest_confirmed)
+
     resolution_terms = (
         "vergleich", "einigung", "erledigt", "beendet", "abgeschlossen",
         "streit beigelegt", "streit geregelt", "ansprüche erledigt",
@@ -65,7 +102,8 @@ def _normalize_management_current_state(
     live_escalation_terms = (
         "vergleichsbruch", "nicht gezahlt", "zahlung überfällig",
         "klage anhängig", "klage eingereicht", "vollstreckung",
-        "frist überschritten", "kritische frist",
+        "neue klage", "erneute klage", "frist überschritten",
+        "überfällige zahlung",
     )
     waiting_terms = (
         "abwarten", "wartet auf", "rückmeldung", "antwort ausstehend",
@@ -74,49 +112,68 @@ def _normalize_management_current_state(
     own_action_terms = (
         "zahlen", "zahlung", "beschaffen", "prüfen", "dokumentieren",
         "unterzeichnen", "einreichen", "umsetzen", "erfüllen",
+        "veranlassen", "vorbereiten",
     )
-    has_resolution = any(term in text for term in resolution_terms)
-    has_live_escalation = any(term in text for term in live_escalation_terms)
+
+    has_resolution = any(term in newest_text for term in resolution_terms)
+    has_live_escalation = any(term in newest_text for term in live_escalation_terms)
     has_open_deadline = result.open_deadline is not None
     next_action = (result.next_required_action or "").lower()
 
+    # The newest confirmed document risk is the strongest current-state signal.
+    # It may lower a stale official High risk after a later settlement.
+    if newest_confirmed and newest_confirmed.suggested_risk:
+        try:
+            result.suggested_risk = schemas.RiskLevel(
+                newest_confirmed.suggested_risk
+            )
+        except ValueError:
+            pass
+
+    newest_status = _document_suggestion_status(newest_confirmed)
+    if newest_status is not None:
+        result.suggested_status = newest_status
+
     if has_resolution and not has_live_escalation:
+        # A settlement with a material future obligation is residual Medium risk,
+        # not historical High. If no material step remains, Low is appropriate.
         if has_open_deadline or next_action:
             if result.suggested_risk == schemas.RiskLevel.HIGH:
                 result.suggested_risk = schemas.RiskLevel.MEDIUM
+            if not result.risk_comment:
                 result.risk_comment = (
                     "Das frühere hohe Streitrisiko wurde durch die neuere "
                     "Vergleichs-/Erledigungslage wesentlich reduziert. "
                     "Ein materielles Restrisiko besteht bis zur vollständigen "
                     "Erfüllung und Dokumentation der noch offenen Verpflichtungen."
                 )
-        else:
-            result.suggested_risk = schemas.RiskLevel.LOW
 
-        if has_open_deadline or next_action:
             if any(term in next_action for term in waiting_terms) and not any(
                 term in next_action for term in own_action_terms
             ):
                 result.suggested_status = schemas.CaseStatus.WAITING
                 result.status_reason = (
-                    "Der Hauptstreit ist durch neuere Evidenz weitgehend geregelt; "
-                    "der nächste materielle Schritt hängt überwiegend von einer "
-                    "externen Reaktion oder einem zukünftigen Ereignis ab."
+                    "Der Hauptstreit ist durch die neueste bestätigte Evidenz "
+                    "weitgehend geregelt; der nächste materielle Schritt hängt "
+                    "überwiegend von einem externen Ereignis ab."
                 )
             else:
                 result.suggested_status = schemas.CaseStatus.IN_PROGRESS
                 result.status_reason = (
-                    "Der Hauptstreit ist durch neuere Evidenz weitgehend geregelt, "
-                    "es bestehen jedoch noch konkrete Erfüllungs-, Zahlungs- oder "
-                    "Dokumentationsschritte."
+                    "Der Hauptstreit ist durch die neueste bestätigte Evidenz "
+                    "weitgehend geregelt; es bestehen jedoch noch konkrete "
+                    "Erfüllungs-, Zahlungs- oder Dokumentationsschritte."
                 )
         else:
+            result.suggested_risk = schemas.RiskLevel.LOW
             result.suggested_status = schemas.CaseStatus.COMPLETED
             result.status_reason = (
                 "Die neueste bestätigte Evidenz weist auf eine materielle "
                 "Erledigung ohne wesentliche offene Verpflichtungen hin."
             )
 
+    # High/Critical may only be reintroduced by a live escalation found in the
+    # newest confirmed evidence, never by historical case text.
     if has_live_escalation:
         result.suggested_risk = schemas.RiskLevel.HIGH
         if result.open_deadline is not None:
@@ -702,7 +759,11 @@ def _create_management_summary_record(
         chunks=chunks,
     )
     result = generate_management_summary(context)
-    _normalize_management_current_state(case=case, result=result)
+    _normalize_management_current_state(
+        case=case,
+        result=result,
+        newest_confirmed=confirmed_suggestions[0] if confirmed_suggestions else None,
+    )
 
     valid_document_ids = {document.id for document in documents}
     valid_chunk_ids = {int(chunk["chunk_id"]) for chunk in chunks}

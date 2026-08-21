@@ -192,13 +192,6 @@ def calculate_case_risk(
             "Die Hauptfrist liegt innerhalb der nächsten sieben Tage.",
         )
 
-    # Critical status
-    if case.status == "Critical":
-        add_reason(
-            high_reasons,
-            "Der Fall hat den Status „Kritisch“.",
-        )
-
     # Text-based rules
     case_text = build_case_text(case)
 
@@ -224,6 +217,24 @@ def calculate_case_risk(
     )
     has_resolution_signal = any(term in case_text for term in resolution_terms)
     has_live_escalation = any(term in case_text for term in live_escalation_terms)
+
+    # A stored Critical status can itself be stale after a newer settlement.
+    # Do not let the old status permanently force High. It only remains a
+    # current High signal when there is live escalation in the present state.
+    if case.status == "Critical":
+        if has_resolution_signal and not has_live_escalation:
+            add_reason(
+                medium_reasons,
+                (
+                    "Der Fall war zuvor kritisch; neuere Vergleichs-/"
+                    "Erledigungsangaben reduzieren das aktuelle Restrisiko."
+                ),
+            )
+        else:
+            add_reason(
+                high_reasons,
+                "Der Fall hat aktuell den Status „Kritisch“.",
+            )
 
     matched_high_keywords = [
         keyword

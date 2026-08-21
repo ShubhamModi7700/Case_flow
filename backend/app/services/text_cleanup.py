@@ -17,6 +17,12 @@ _DASH_TRANSLATION = str.maketrans({
 
 _ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 
+_AI_PROVENANCE_RE = re.compile(
+    r"(?:Bestätigte\s+KI[- ]Management[- ]Zusammenfassung|"
+    r"KI[- ]Management[- ]Zusammenfassung\s+bestätigt)",
+    re.IGNORECASE,
+)
+
 _GROUPED_INTERNAL_REFS = re.compile(
     r"""
     [\(\[\{]\s*
@@ -58,6 +64,7 @@ def clean_user_facing_text(value: str | None) -> str | None:
     text = _ZERO_WIDTH_RE.sub("", text)
 
     text = _GROUPED_INTERNAL_REFS.sub("", text)
+    text = _AI_PROVENANCE_RE.sub("", text)
     text = _SINGLE_INTERNAL_REF.sub("", text)
 
     text = re.sub(r"\(\s*[,;:/|\-]*\s*\)", "", text)
