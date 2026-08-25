@@ -82,13 +82,6 @@ export default function EditCaseModal({
       return;
     }
 
-    if (isManager && risk !== "Low" && !riskReason.trim()) {
-      setLocalError(
-        "Bitte geben Sie eine Begründung für ein mittleres oder hohes Risiko ein.",
-      );
-      return;
-    }
-
     setLocalError("");
 
     // Normal Users may update the general case information only.
