@@ -182,3 +182,49 @@ def complete_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Die Aufgabe konnte nicht abgeschlossen werden.",
         ) from exc
+
+@router.delete(
+    "/tasks/{task_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
+):
+    task = get_task_or_404(
+        task_id=task_id,
+        db=db,
+    )
+
+    case_id = task.case_id
+    task_title = task.title
+    responsible_person = task.responsible_person
+
+    try:
+        db.delete(task)
+
+        history = models.History(
+            case_id=case_id,
+            change="Aufgabe gelöscht",
+            responsible_person=responsible_person,
+            note=f"Task '{task_title}' was deleted.",
+        )
+        db.add(history)
+
+        case = get_case_or_404(case_id, db)
+        refresh_risk_suggestion(case)
+
+        db.commit()
+        return None
+
+    except SQLAlchemyError as exc:
+        db.rollback()
+
+        print("DATABASE ERROR WHILE DELETING TASK:")
+        print(repr(exc))
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Die Aufgabe konnte nicht gelöscht werden.",
+        ) from exc

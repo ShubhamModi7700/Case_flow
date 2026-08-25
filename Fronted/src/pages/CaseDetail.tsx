@@ -122,6 +122,12 @@ export default function CaseDetail() {
     );
   }
 
+  function handleTaskDeleted(taskId: number): void {
+    setTasks((currentTasks) =>
+      currentTasks.filter((task) => task.id !== taskId),
+    );
+  }
+
   async function deleteCase(): Promise<void> {
     if (!caseItem || deletingCase) {
       return;
@@ -376,6 +382,7 @@ export default function CaseDetail() {
             tasks={tasks}
             onTaskCreated={handleTaskCreated}
             onTaskUpdated={handleTaskUpdated}
+            onTaskDeleted={handleTaskDeleted}
             refreshHistory={loadTimeline}
             canEdit={canEdit}
           />

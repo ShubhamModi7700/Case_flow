@@ -6,11 +6,16 @@ import type { TaskItem } from "../types";
 interface TaskListProps {
   tasks: TaskItem[];
   onTaskUpdated: (task: TaskItem) => void;
+  onTaskDeleted: (taskId: number) => void;
 }
 
 type StatusFilter = "All" | "Open" | "Completed" | "Overdue";
 
-export default function TaskList({ tasks, onTaskUpdated }: TaskListProps) {
+export default function TaskList({
+  tasks,
+  onTaskUpdated,
+  onTaskDeleted,
+}: TaskListProps) {
   const [workingTaskId, setWorkingTaskId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
@@ -42,6 +47,34 @@ export default function TaskList({ tasks, onTaskUpdated }: TaskListProps) {
       console.error(requestError);
       setError(getApiErrorMessage(requestError, "Die Aufgabe konnte nicht abgeschlossen werden."));
     } finally { setWorkingTaskId(null); }
+  }
+
+  async function deleteTask(task: TaskItem): Promise<void> {
+    const confirmed = window.confirm(
+      `Möchten Sie die Aufgabe „${task.title}“ wirklich löschen?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setWorkingTaskId(task.id);
+      setError("");
+
+      await api.delete(`/tasks/${task.id}`);
+      onTaskDeleted(task.id);
+    } catch (requestError: unknown) {
+      console.error(requestError);
+      setError(
+        getApiErrorMessage(
+          requestError,
+          "Die Aufgabe konnte nicht gelöscht werden.",
+        ),
+      );
+    } finally {
+      setWorkingTaskId(null);
+    }
   }
 
   if (tasks.length === 0) return <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Noch keine Aufgaben vorhanden.</p>;
@@ -82,7 +115,31 @@ export default function TaskList({ tasks, onTaskUpdated }: TaskListProps) {
           {task.description && <p className="mt-2 text-sm text-slate-600">{task.description}</p>}
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500"><span><b>Verantwortlich:</b> {task.responsible_person ?? "Nicht zugewiesen"}</span><span><b>Fällig:</b> {task.due_date ?? "Keine Frist"}</span></div>
         </div>
-        {completed ? <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">Erledigt</span> : <button type="button" disabled={working} onClick={() => void completeTask(task.id)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50">{working ? "Wird abgeschlossen..." : "Als erledigt markieren"}</button>}
+        <div className="flex flex-wrap items-center gap-2">
+          {completed ? (
+            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+              Erledigt
+            </span>
+          ) : (
+            <button
+              type="button"
+              disabled={working}
+              onClick={() => void completeTask(task.id)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+            >
+              {working ? "Wird verarbeitet..." : "Als erledigt markieren"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={working}
+            onClick={() => void deleteTask(task)}
+            className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            Löschen
+          </button>
+        </div>
         </div>
       </article>;
     })}</div>

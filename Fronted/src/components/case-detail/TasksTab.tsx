@@ -2,11 +2,20 @@ import TaskForm from "../TaskForm";
 import TaskList from "../TaskList";
 import type { TaskItem } from "../../types";
 
-export default function TasksTab({ caseId, tasks, onTaskCreated, onTaskUpdated, refreshHistory, canEdit }: {
+export default function TasksTab({
+  caseId,
+  tasks,
+  onTaskCreated,
+  onTaskUpdated,
+  onTaskDeleted,
+  refreshHistory,
+  canEdit,
+}: {
   caseId: number;
   tasks: TaskItem[];
   onTaskCreated: (task: TaskItem) => void;
   onTaskUpdated: (task: TaskItem) => void;
+  onTaskDeleted: (taskId: number) => void;
   refreshHistory: () => Promise<void>;
   canEdit: boolean;
 }) {
@@ -21,7 +30,17 @@ export default function TasksTab({ caseId, tasks, onTaskCreated, onTaskUpdated, 
         <h2 className="text-lg font-semibold text-slate-950">Aufgabenübersicht</h2>
         <p className="mt-1 text-sm text-slate-500">{tasks.length} {tasks.length === 1 ? "Aufgabe" : "Aufgaben"}</p>
         <div className="mt-5">
-          <TaskList tasks={tasks} onTaskUpdated={(task) => { onTaskUpdated(task); void refreshHistory(); }} />
+          <TaskList
+            tasks={tasks}
+            onTaskUpdated={(task) => {
+              onTaskUpdated(task);
+              void refreshHistory();
+            }}
+            onTaskDeleted={(taskId) => {
+              onTaskDeleted(taskId);
+              void refreshHistory();
+            }}
+          />
         </div>
       </section>
     </div>
