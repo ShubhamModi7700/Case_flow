@@ -48,7 +48,7 @@ export default function CaseList() {
 
   const [sortBy, setSortBy] = useState<SortOption>(
     (searchParams.get("sort") as SortOption) ??
-      "priority",
+      "caseDesc",
   );
 
   const [loading, setLoading] = useState(true);
@@ -256,7 +256,7 @@ export default function CaseList() {
     setSearch("");
     setStatus("");
     setRisk("");
-    setSortBy("priority");
+    setSortBy("caseDesc");
     setSearchParams({});
   }
 
