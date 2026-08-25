@@ -36,7 +36,7 @@ export default function EditCaseModal({
   const isViewer = user?.role === "Viewer";
 
   const [title, setTitle] = useState(caseItem.title);
-  const [company, setCompany] = useState(caseItem.company);
+  const [company, setCompany] = useState<string>(caseItem.company ?? "");
   const [category, setCategory] = useState<CaseCategory>(caseItem.category);
   const [department, setDepartment] = useState(caseItem.department ?? "");
   const [externalContact, setExternalContact] = useState(
@@ -77,8 +77,8 @@ export default function EditCaseModal({
     const normalizedTitle = title.trim();
     const normalizedCompany = company.trim();
 
-    if (!normalizedTitle || !normalizedCompany) {
-      setLocalError("Titel und Unternehmen sind Pflichtfelder.");
+    if (!normalizedTitle) {
+      setLocalError("Titel ist ein Pflichtfeld.");
       return;
     }
 
@@ -96,7 +96,7 @@ export default function EditCaseModal({
     // preventing the backend from rejecting an otherwise valid User update.
     const values: CaseUpdatePayload = {
       title: normalizedTitle,
-      company: normalizedCompany,
+      company: normalizedCompany || null,
       department: department.trim() || null,
       category,
       external_contact: externalContact.trim() || null,
@@ -196,7 +196,6 @@ export default function EditCaseModal({
 
           <Field label="Unternehmen" className="sm:col-span-2">
             <input
-              required
               value={company}
               onChange={(event) => setCompany(event.target.value)}
               className="input"
@@ -371,7 +370,7 @@ export default function EditCaseModal({
 
             <button
               type="submit"
-              disabled={saving || !title.trim() || !company.trim()}
+              disabled={saving || !title.trim()}
               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Wird gespeichert..." : "Änderungen speichern"}

@@ -13,7 +13,7 @@ export type TabName =
  */
 export interface CaseUpdatePayload {
   title?: string;
-  company?: string;
+  company?: string | null;
   department?: string | null;
   category?: CaseCategory;
   external_contact?: string | null;
