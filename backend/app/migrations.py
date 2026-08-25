@@ -424,3 +424,16 @@ def migrate_ai_summary_status_fields(engine: Engine) -> None:
         for column_name, statement in statements.items():
             if column_name not in columns:
                 connection.execute(text(statement))
+
+
+def migrate_task_assignment_fields(engine: Engine) -> None:
+    """Add task category and enlarge the assignee field for multi-person assignments."""
+    columns = _column_map(engine, "tasks")
+    if not columns:
+        return
+    with engine.begin() as connection:
+        if "category" not in columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN category VARCHAR(120)"))
+        # PostgreSQL safely widens existing VARCHAR columns.
+        if "responsible_person" in columns:
+            connection.execute(text("ALTER TABLE tasks ALTER COLUMN responsible_person TYPE VARCHAR(500)"))

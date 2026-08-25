@@ -164,7 +164,9 @@ class Task(Base):
 
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    responsible_person = Column(String(200), nullable=True)
+    category = Column(String(120), nullable=True, index=True)
+    # May contain one or multiple comma-separated responsible people.
+    responsible_person = Column(String(500), nullable=True)
 
     due_date = Column(Date, nullable=True)
 

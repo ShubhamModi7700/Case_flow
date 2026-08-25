@@ -16,6 +16,7 @@ export default function TaskForm({
 }: TaskFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("Medium");
@@ -43,6 +44,7 @@ export default function TaskForm({
         {
           title: normalizedTitle,
           description: description.trim() || null,
+          category: category.trim() || null,
           responsible_person: responsiblePerson.trim() || null,
           due_date: dueDate || null,
           priority,
@@ -54,6 +56,7 @@ export default function TaskForm({
 
       setTitle("");
       setDescription("");
+      setCategory("");
       setResponsiblePerson("");
       setDueDate("");
       setPriority("Medium");
@@ -99,12 +102,23 @@ export default function TaskForm({
           />
         </Field>
 
-        <Field label="Verantwortliche Person">
+        <Field label="Bereich / Kategorie">
+          <input
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            placeholder="z. B. Rechtliches, Website, IT"
+            className="input"
+          />
+        </Field>
+
+        <Field label="Verantwortliche Person(en)">
           <input
             value={responsiblePerson}
             onChange={(event) => setResponsiblePerson(event.target.value)}
+            placeholder="z. B. Jan, Kai"
             className="input"
           />
+          <p className="mt-1 text-xs text-slate-500">Mehrere Personen mit Komma trennen.</p>
         </Field>
 
         <Field label="Fälligkeitsdatum">

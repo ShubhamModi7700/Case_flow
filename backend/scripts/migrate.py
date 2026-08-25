@@ -6,6 +6,7 @@ from app.migrations import (
     migrate_document_storage_fields,
     migrate_documents_independent,
     migrate_legacy_admin_roles,
+    migrate_task_assignment_fields,
 )
 
 
@@ -20,6 +21,7 @@ def main() -> None:
     migrate_document_storage_fields(engine)
     migrate_documents_independent(engine)
     migrate_legacy_admin_roles(engine)
+    migrate_task_assignment_fields(engine)
 
     print("Database migration completed successfully.")
 

@@ -255,9 +255,11 @@ class TaskCreate(BaseModel):
 
     description: str | None = None
 
+    category: str | None = Field(default=None, max_length=120)
+
     responsible_person: str | None = Field(
         default=None,
-        max_length=255,
+        max_length=500,
     )
 
     due_date: date | None = None
@@ -272,6 +274,7 @@ class TaskCreate(BaseModel):
 
     @field_validator(
         "description",
+        "category",
         "responsible_person",
         mode="before",
     )
@@ -292,9 +295,11 @@ class TaskUpdate(BaseModel):
 
     description: str | None = None
 
+    category: str | None = Field(default=None, max_length=120)
+
     responsible_person: str | None = Field(
         default=None,
-        max_length=255,
+        max_length=500,
     )
 
     due_date: date | None = None
@@ -315,6 +320,7 @@ class TaskUpdate(BaseModel):
 
     @field_validator(
         "description",
+        "category",
         "responsible_person",
         mode="before",
     )

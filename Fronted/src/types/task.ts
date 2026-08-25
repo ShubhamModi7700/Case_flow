@@ -7,6 +7,7 @@ export interface TaskItem {
   case_id: number;
   title: string;
   description: string | null;
+  category: string | null;
   responsible_person: string | null;
   due_date: string | null;
   priority: TaskPriority;
@@ -20,6 +21,7 @@ export type CaseTask = TaskItem;
 export interface TaskCreatePayload {
   title: string;
   description: string | null;
+  category: string | null;
   responsible_person: string | null;
   due_date: string | null;
   priority: TaskPriority;

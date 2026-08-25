@@ -62,6 +62,7 @@ export type TaskItem = {
   case_id: number | null;
   title: string;
   description: string | null;
+  category: string | null;
   responsible_person: string | null;
   due_date: string | null;
   priority: TaskPriority;
