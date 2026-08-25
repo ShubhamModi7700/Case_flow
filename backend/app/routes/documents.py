@@ -458,7 +458,7 @@ def confirm_document_case_route(
     draft = payload.new_case
     new_case = models.Case(
         title=draft.title.strip(),
-        company=(draft.company or "Zu prüfen").strip() or "Zu prüfen",
+        company=(draft.company or "").strip() or None,
         department=(draft.department or "").strip() or None,
         category=draft.category.value,
         external_contact=(draft.external_contact or "").strip() or None,

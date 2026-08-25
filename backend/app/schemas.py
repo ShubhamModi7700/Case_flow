@@ -83,8 +83,8 @@ class CaseBase(BaseModel):
         max_length=255,
     )
 
-    company: str = Field(
-        min_length=1,
+    company: str | None = Field(
+        default=None,
         max_length=255,
     )
 
@@ -125,12 +125,8 @@ class CaseBase(BaseModel):
     def normalize_case_title(cls, value: str) -> str:
         return clean_required_text(value, "Title")
 
-    @field_validator("company", mode="before")
-    @classmethod
-    def normalize_company(cls, value: str) -> str:
-        return clean_required_text(value, "Company")
-
     @field_validator(
+        "company",
         "department",
         "external_contact",
         "responsible_person",
@@ -162,7 +158,6 @@ class CaseUpdate(BaseModel):
 
     company: str | None = Field(
         default=None,
-        min_length=1,
         max_length=255,
     )
 
@@ -206,18 +201,8 @@ class CaseUpdate(BaseModel):
             return None
         return clean_required_text(value, "Title")
 
-    @field_validator("company", mode="before")
-    @classmethod
-    def normalize_optional_company(
-        cls,
-        value: str | None,
-    ) -> str | None:
-        if value is None:
-            return None
-
-        return clean_required_text(value, "Company")
-
     @field_validator(
+        "company",
         "department",
         "external_contact",
         "responsible_person",

@@ -73,7 +73,7 @@ class Case(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     title = Column(String(255), nullable=False)
-    company = Column(String(200), nullable=False)
+    company = Column(String(200), nullable=True)
     department = Column(String(200), nullable=True)
     category = Column(String(50), nullable=False)
 

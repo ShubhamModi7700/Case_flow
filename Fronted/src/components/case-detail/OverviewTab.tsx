@@ -777,7 +777,7 @@ export default function OverviewTab({
 
             <dd className="mt-2 text-sm text-slate-800">
               {
-                caseItem.company
+                caseItem.company ?? "Nicht angegeben"
               }
             </dd>
           </div>

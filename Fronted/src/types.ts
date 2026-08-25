@@ -31,7 +31,7 @@ export type LoginResponse = {
 export type CaseItem = {
   id: number;
   title: string;
-  company: string;
+  company: string | null;
   department: string | null;
   category: CaseCategory;
   external_contact: string | null;

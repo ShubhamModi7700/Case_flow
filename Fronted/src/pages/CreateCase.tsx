@@ -68,18 +68,13 @@ export default function CreateCase() {
       return;
     }
 
-    if (!form.company.trim()) {
-      setError("Unternehmen ist erforderlich.");
-      return;
-    }
-
     try {
       setSubmitting(true);
       setError("");
 
       const payload = {
         title: form.title.trim(),
-        company: form.company.trim(),
+        company: form.company.trim() || null,
         department: form.department.trim() || null,
         category: form.category,
         external_contact:
@@ -159,8 +154,8 @@ export default function CreateCase() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Erfassen Sie die Falldaten, Zuständigkeit, das Risiko
-          und die nächste Maßnahme.
+          Nur der Titel ist erforderlich. Alle weiteren Angaben können
+          ergänzt werden, sobald sie verfügbar sind.
         </p>
       </header>
 
@@ -190,7 +185,6 @@ export default function CreateCase() {
             name="company"
             value={form.company}
             onChange={handleChange}
-            required
             className="input"
           />
         </Field>
@@ -323,9 +317,7 @@ export default function CreateCase() {
         <div className="flex justify-end md:col-span-2">
           <button
             type="submit"
-            disabled={
-              submitting || !form.title.trim() || !form.company.trim()
-            }
+            disabled={submitting || !form.title.trim()}
             className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting
