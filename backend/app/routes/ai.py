@@ -95,15 +95,6 @@ def _normalize_management_current_state(
     """
     newest_text = _newest_evidence_text(newest_confirmed)
 
-    # The newest confirmed document analysis has already been reviewed by a
-    # user. Its operational current-state fields must not be replaced by a
-    # model continuation of an older summary.
-    if newest_confirmed is not None:
-        if newest_confirmed.suggested_latest_development:
-            result.latest_development = newest_confirmed.suggested_latest_development.strip()
-        if newest_confirmed.suggested_next_action:
-            result.next_required_action = newest_confirmed.suggested_next_action.strip()
-
     resolution_terms = (
         "vergleich", "einigung", "erledigt", "beendet", "abgeschlossen",
         "streit beigelegt", "streit geregelt", "ansprüche erledigt",

@@ -225,7 +225,7 @@ export default function OverviewTab({
   const isClosed =
     caseItem.status === "Completed";
 
-  const caseNextAction =
+  const cleanedCaseNextAction =
     cleanAIText(
       caseItem.next_action,
     );
@@ -259,50 +259,30 @@ export default function OverviewTab({
       try {
         const [approved, suggestions] =
           await Promise.all([
-            getLatestApprovedManagementSummary(
-              caseItem.id,
-            ),
-            getCaseAISuggestions(
-              caseItem.id,
-            ),
+            getLatestApprovedManagementSummary(caseItem.id),
+            getCaseAISuggestions(caseItem.id),
           ]);
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
-        setApprovedSummary(
-          approved,
-        );
+        setApprovedSummary(approved);
 
         const latestSuggestion =
           suggestions
             .filter((item) =>
-              ["Approved", "EditedAndApproved"].includes(
-                item.status,
-              ),
+              ["Approved", "EditedAndApproved"].includes(item.status),
             )
-            .sort(
-              (a, b) =>
-                new Date(
-                  b.created_at,
-                ).getTime() -
-                new Date(
-                  a.created_at,
-                ).getTime(),
-            )[0] ?? null;
+            .sort((a, b) => {
+              const bTime = new Date(b.reviewed_at || b.created_at).getTime();
+              const aTime = new Date(a.reviewed_at || a.created_at).getTime();
+              return bTime - aTime;
+            })[0] ?? null;
 
-        setLatestApprovedSuggestion(
-          latestSuggestion,
-        );
+        setLatestApprovedSuggestion(latestSuggestion);
       } catch {
         if (!cancelled) {
-          setApprovedSummary(
-            null,
-          );
-          setLatestApprovedSuggestion(
-            null,
-          );
+          setApprovedSummary(null);
+          setLatestApprovedSuggestion(null);
         }
       }
     }
@@ -312,10 +292,7 @@ export default function OverviewTab({
     return () => {
       cancelled = true;
     };
-  }, [
-    caseItem.id,
-    caseItem.updated_at,
-  ]);
+  }, [caseItem.id, caseItem.updated_at]);
 
   const latestEvent =
     [...timeline]
@@ -344,47 +321,31 @@ export default function OverviewTab({
       )[0];
 
   const approvedSummaryDevelopment =
-    cleanAIText(
-      approvedSummary
-        ?.latest_development,
-    ) || null;
+    cleanAIText(approvedSummary?.latest_development) || null;
 
   const approvedDocumentDevelopment =
-    cleanAIText(
-      latestApprovedSuggestion
-        ?.suggested_latest_development,
-    ) || null;
+    cleanAIText(latestApprovedSuggestion?.suggested_latest_development) || null;
 
-  const approvedSummaryAction =
-    cleanAIText(
-      approvedSummary
-        ?.next_required_action,
-    ) || null;
+  const approvedSummaryNextAction =
+    cleanAIText(approvedSummary?.next_required_action) || null;
 
-  const approvedDocumentAction =
-    cleanAIText(
-      latestApprovedSuggestion
-        ?.suggested_next_action,
-    ) || null;
+  const approvedDocumentNextAction =
+    cleanAIText(latestApprovedSuggestion?.suggested_next_action) || null;
 
   const approvedSummaryTime =
     approvedSummary
-      ? new Date(
-          approvedSummary.reviewed_at ||
-            approvedSummary.created_at,
-        ).getTime()
+      ? new Date(approvedSummary.reviewed_at || approvedSummary.created_at).getTime()
       : 0;
 
   const approvedDocumentTime =
     latestApprovedSuggestion
       ? new Date(
-          latestApprovedSuggestion.reviewed_at ||
-            latestApprovedSuggestion.created_at,
+          latestApprovedSuggestion.reviewed_at || latestApprovedSuggestion.created_at,
         ).getTime()
       : 0;
 
   const documentIsNewestConfirmedSource =
-    approvedDocumentTime > approvedSummaryTime;
+    Boolean(latestApprovedSuggestion) && approvedDocumentTime >= approvedSummaryTime;
 
   const confirmedLatestDevelopment =
     documentIsNewestConfirmedSource
@@ -393,18 +354,14 @@ export default function OverviewTab({
 
   const confirmedNextAction =
     documentIsNewestConfirmedSource
-      ? approvedDocumentAction || approvedSummaryAction || caseNextAction
-      : approvedSummaryAction || approvedDocumentAction || caseNextAction;
+      ? approvedDocumentNextAction || approvedSummaryNextAction || cleanedCaseNextAction
+      : approvedSummaryNextAction || approvedDocumentNextAction || cleanedCaseNextAction;
 
   const overviewNextAction =
-    compactOverviewText(
-      confirmedNextAction,
-      600,
-    );
+    compactOverviewText(confirmedNextAction, 600);
 
   const missingNextAction =
-    needsActiveAttention &&
-    !confirmedNextAction;
+    needsActiveAttention && !confirmedNextAction;
 
   const cleanedManagementSummary =
     cleanAIText(
