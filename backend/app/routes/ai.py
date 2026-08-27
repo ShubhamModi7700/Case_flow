@@ -215,6 +215,7 @@ def _build_context(
     case: models.Case | None,
     chunks: list[dict],
     candidates: list[dict],
+    confirmed_suggestions: list[models.AIDocumentSuggestion] | None = None,
 ) -> str:
     sections = [
         f"NEUES DOKUMENT\nDokument-ID: {document.id}\nDateiname: {document.file_name}"
@@ -230,6 +231,22 @@ def _build_context(
             f"Frist: {case.primary_deadline or 'Nicht angegeben'}\n"
             f"Verantwortlich: {case.responsible_person or 'Nicht angegeben'}\n"
             f"Management-Zusammenfassung: {case.management_summary or 'Nicht angegeben'}"
+        )
+
+    if confirmed_suggestions:
+        sections.append(
+            "BISHER BESTÄTIGTE DOKUMENT-EVIDENZ\n"
+            + "\n".join(
+                (
+                    f"- Dokument-ID {item.document_id}; "
+                    f"Zusammenfassung: {item.suggested_summary or 'Nicht angegeben'}; "
+                    f"Letzte Entwicklung: {item.suggested_latest_development or 'Nicht angegeben'}; "
+                    f"Neue Erkenntnisse: "
+                    f"{'; '.join(item.new_facts or []) or 'Keine'}; "
+                    f"Nächste Maßnahme: {item.suggested_next_action or 'Nicht angegeben'}"
+                )
+                for item in confirmed_suggestions
+            )
         )
 
     if candidates:
@@ -312,7 +329,9 @@ def _build_management_context(
                     f"Vorgeschlagene Frist: {item.suggested_deadline or 'Nicht angegeben'}; "
                     f"Nächste Maßnahme: {item.suggested_next_action or 'Nicht angegeben'}; "
                     f"Risikohinweis: {item.suggested_risk or 'Nicht angegeben'}; "
-                    f"Risikobegründung: {item.suggested_risk_reason or 'Nicht angegeben'}"
+                    f"Risikobegründung: {item.suggested_risk_reason or 'Nicht angegeben'}; "
+                    f"Neue Erkenntnisse: "
+                    f"{'; '.join(item.new_facts or []) or 'Keine'}"
                 )
                 for item in confirmed_suggestions
             )
@@ -408,8 +427,30 @@ def analyze_document(
     related = related[:20]
 
     current_case = _case(document.case_id, db) if document.case_id else None
+    confirmed_context: list[models.AIDocumentSuggestion] = []
+    if current_case is not None:
+        confirmed_context = (
+            db.query(models.AIDocumentSuggestion)
+            .filter(
+                models.AIDocumentSuggestion.current_case_id == current_case.id,
+                models.AIDocumentSuggestion.document_id != document.id,
+                models.AIDocumentSuggestion.status.in_(
+                    ["Approved", "EditedAndApproved"]
+                ),
+            )
+            .order_by(models.AIDocumentSuggestion.reviewed_at.desc().nullslast())
+            .limit(8)
+            .all()
+        )
+
     analysis = analyze_document_context(
-        _build_context(document, current_case, related, candidates)
+        _build_context(
+            document,
+            current_case,
+            related,
+            candidates,
+            confirmed_context,
+        )
     )
 
     suggested_case_id = analysis.proposed_case.case_id
@@ -465,9 +506,14 @@ def analyze_document(
         relevant_document_ids=[
             item.document_id for item in analysis.relevant_documents
         ],
+        new_facts=analysis.new_facts,
+        proposed_tasks=[
+            item.model_dump(mode="json") for item in analysis.proposed_tasks
+        ],
+        created_task_ids=[],
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="document-analysis-v4-current-state",
+        prompt_version="document-analysis-v5-case-aware-insights",
         raw_response=analysis.model_dump(mode="json"),
         created_by=current_user.id,
     )
@@ -541,6 +587,62 @@ def approve_suggestion(
             suggestion.suggested_risk = approved_risk.value
             suggestion.suggested_risk_reason = payload.risk_reason
 
+        # A Manager has explicitly reviewed and confirmed this document
+        # analysis. Confirmed operational values become official immediately.
+        # The generated management summary remains the place for consolidated
+        # narrative, status and official risk approval.
+        if normalized_role == "Manager" and case.status != "Completed":
+            if payload.next_action is not None:
+                case.next_action = payload.next_action.strip() or None
+            if payload.deadline is not None:
+                case.primary_deadline = payload.deadline
+
+        proposed_tasks = suggestion.proposed_tasks or []
+        selected_indexes = sorted(set(payload.selected_task_indexes))
+        invalid_indexes = [
+            index
+            for index in selected_indexes
+            if index < 0 or index >= len(proposed_tasks)
+        ]
+        if invalid_indexes:
+            raise HTTPException(
+                422,
+                "Mindestens eine ausgewählte KI-Aufgabe ist nicht mehr verfügbar.",
+            )
+
+        created_task_ids: list[int] = []
+        created_task_titles: list[str] = []
+        for index in selected_indexes:
+            task_payload = dict(proposed_tasks[index])
+            task_payload.pop("evidence", None)
+            if not task_payload.get("priority"):
+                task_payload["priority"] = schemas.TaskPriority.MEDIUM.value
+            task_payload["status"] = schemas.TaskStatus.OPEN.value
+            validated_task = schemas.TaskCreate.model_validate(task_payload)
+
+            duplicate = (
+                db.query(models.Task)
+                .filter(
+                    models.Task.case_id == case.id,
+                    models.Task.title == validated_task.title,
+                    models.Task.status == schemas.TaskStatus.OPEN.value,
+                )
+                .first()
+            )
+            if duplicate is not None:
+                continue
+
+            task = models.Task(
+                case_id=case.id,
+                **validated_task.model_dump(),
+            )
+            db.add(task)
+            db.flush()
+            created_task_ids.append(task.id)
+            created_task_titles.append(task.title)
+
+        suggestion.created_task_ids = created_task_ids
+
         document.case_id = case.id
         db.query(models.DocumentChunk).filter(
             models.DocumentChunk.document_id == document.id
@@ -567,11 +669,19 @@ def approve_suggestion(
             )
         if payload.deadline:
             approved_changes.append(
-                f"Erkannte Frist bestätigt: {payload.deadline.strftime('%d.%m.%Y')}"
+                (
+                    f"Offene Frist übernommen: {payload.deadline.strftime('%d.%m.%Y')}"
+                    if normalized_role == "Manager"
+                    else f"Erkannte Frist bestätigt: {payload.deadline.strftime('%d.%m.%Y')}"
+                )
             )
         if payload.next_action:
             approved_changes.append(
-                f"Vorgeschlagene nächste Maßnahme bestätigt: {payload.next_action}"
+                (
+                    f"Nächste Maßnahme übernommen: {payload.next_action}"
+                    if normalized_role == "Manager"
+                    else f"Vorgeschlagene nächste Maßnahme bestätigt: {payload.next_action}"
+                )
             )
         if approved_risk is not None:
             approved_changes.append(
@@ -581,6 +691,14 @@ def approve_suggestion(
                 approved_changes.append(
                     f"Risikobegründung: {payload.risk_reason}"
                 )
+        if suggestion.new_facts:
+            approved_changes.append(
+                "Neue Erkenntnisse: " + "; ".join(suggestion.new_facts)
+            )
+        if created_task_titles:
+            approved_changes.append(
+                "Übernommene Aufgaben: " + "; ".join(created_task_titles)
+            )
         if suggestion.current_case_id != case.id:
             approved_changes.append(
                 f"Dokument dem Fall CF-{case.id:04d} zugeordnet"
@@ -636,6 +754,7 @@ def approve_suggestion(
         "status": "approved",
         "case_id": case.id,
         "management_summary_created": management_summary_created,
+        "tasks_created": len(suggestion.created_task_ids or []),
     }
 
 

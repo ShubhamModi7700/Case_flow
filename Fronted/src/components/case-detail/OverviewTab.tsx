@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../../api";
 import type {
+  AISuggestion,
   CaseAISummary,
   CaseItem,
   DocumentItem,
@@ -9,7 +10,10 @@ import type {
   TaskItem,
   TimelineEvent,
 } from "../../types";
-import { getLatestApprovedManagementSummary } from "../../services/ai";
+import {
+  getCaseAISuggestions,
+  getLatestApprovedManagementSummary,
+} from "../../services/ai";
 import { cleanAIText } from "../../utils/aiText";
 import { RiskBadge, StatusBadge } from "./Badges";
 import { formatDateTime } from "./formatters";
@@ -182,6 +186,9 @@ export default function OverviewTab({
   const [approvedSummary, setApprovedSummary] =
     useState<CaseAISummary | null>(null);
 
+  const [latestApprovedSuggestion, setLatestApprovedSuggestion] =
+    useState<AISuggestion | null>(null);
+
   const today = new Date();
 
   today.setHours(
@@ -258,12 +265,17 @@ export default function OverviewTab({
   useEffect(() => {
     let cancelled = false;
 
-    async function loadApprovedSummary() {
+    async function loadApprovedAIState() {
       try {
-        const approved =
-          await getLatestApprovedManagementSummary(
-            caseItem.id,
-          );
+        const [approved, suggestions] =
+          await Promise.all([
+            getLatestApprovedManagementSummary(
+              caseItem.id,
+            ),
+            getCaseAISuggestions(
+              caseItem.id,
+            ),
+          ]);
 
         if (cancelled) {
           return;
@@ -272,16 +284,40 @@ export default function OverviewTab({
         setApprovedSummary(
           approved,
         );
+
+        const latestSuggestion =
+          suggestions
+            .filter((item) =>
+              ["Approved", "EditedAndApproved"].includes(
+                item.status,
+              ),
+            )
+            .sort(
+              (a, b) =>
+                new Date(
+                  b.created_at,
+                ).getTime() -
+                new Date(
+                  a.created_at,
+                ).getTime(),
+            )[0] ?? null;
+
+        setLatestApprovedSuggestion(
+          latestSuggestion,
+        );
       } catch {
         if (!cancelled) {
           setApprovedSummary(
+            null,
+          );
+          setLatestApprovedSuggestion(
             null,
           );
         }
       }
     }
 
-    void loadApprovedSummary();
+    void loadApprovedAIState();
 
     return () => {
       cancelled = true;
@@ -317,11 +353,38 @@ export default function OverviewTab({
           ).getTime(),
       )[0];
 
-  const confirmedLatestDevelopment =
+  const approvedSummaryDevelopment =
     cleanAIText(
       approvedSummary
         ?.latest_development,
     ) || null;
+
+  const approvedDocumentDevelopment =
+    cleanAIText(
+      latestApprovedSuggestion
+        ?.suggested_latest_development,
+    ) || null;
+
+  const approvedSummaryTime =
+    approvedSummary
+      ? new Date(
+          approvedSummary.created_at,
+        ).getTime()
+      : 0;
+
+  const approvedDocumentTime =
+    latestApprovedSuggestion
+      ? new Date(
+          latestApprovedSuggestion.created_at,
+        ).getTime()
+      : 0;
+
+  const confirmedLatestDevelopment =
+    approvedDocumentDevelopment &&
+    approvedDocumentTime >= approvedSummaryTime
+      ? approvedDocumentDevelopment
+      : approvedSummaryDevelopment ||
+        approvedDocumentDevelopment;
 
   const cleanedManagementSummary =
     cleanAIText(
