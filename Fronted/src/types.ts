@@ -188,6 +188,7 @@ export type AISuggestion = {
   relevant_document_ids: number[];
   status: string;
   created_at: string;
+  reviewed_at: string | null;
 };
 
 export type CaseAISummary = {
@@ -206,4 +207,5 @@ export type CaseAISummary = {
   relevant_chunk_ids: number[];
   status: string;
   created_at: string;
+  reviewed_at: string | null;
 };

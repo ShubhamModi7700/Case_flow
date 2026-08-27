@@ -225,20 +225,10 @@ export default function OverviewTab({
   const isClosed =
     caseItem.status === "Completed";
 
-  const cleanedNextAction =
+  const caseNextAction =
     cleanAIText(
       caseItem.next_action,
     );
-
-  const overviewNextAction =
-    compactOverviewText(
-      cleanedNextAction,
-      600,
-    );
-
-  const missingNextAction =
-    needsActiveAttention &&
-    !cleanedNextAction;
 
   const missingOwner =
     needsActiveAttention &&
@@ -365,26 +355,56 @@ export default function OverviewTab({
         ?.suggested_latest_development,
     ) || null;
 
+  const approvedSummaryAction =
+    cleanAIText(
+      approvedSummary
+        ?.next_required_action,
+    ) || null;
+
+  const approvedDocumentAction =
+    cleanAIText(
+      latestApprovedSuggestion
+        ?.suggested_next_action,
+    ) || null;
+
   const approvedSummaryTime =
     approvedSummary
       ? new Date(
-          approvedSummary.created_at,
+          approvedSummary.reviewed_at ||
+            approvedSummary.created_at,
         ).getTime()
       : 0;
 
   const approvedDocumentTime =
     latestApprovedSuggestion
       ? new Date(
-          latestApprovedSuggestion.created_at,
+          latestApprovedSuggestion.reviewed_at ||
+            latestApprovedSuggestion.created_at,
         ).getTime()
       : 0;
 
+  const documentIsNewestConfirmedSource =
+    approvedDocumentTime > approvedSummaryTime;
+
   const confirmedLatestDevelopment =
-    approvedDocumentDevelopment &&
-    approvedDocumentTime >= approvedSummaryTime
-      ? approvedDocumentDevelopment
-      : approvedSummaryDevelopment ||
-        approvedDocumentDevelopment;
+    documentIsNewestConfirmedSource
+      ? approvedDocumentDevelopment || approvedSummaryDevelopment
+      : approvedSummaryDevelopment || approvedDocumentDevelopment;
+
+  const confirmedNextAction =
+    documentIsNewestConfirmedSource
+      ? approvedDocumentAction || approvedSummaryAction || caseNextAction
+      : approvedSummaryAction || approvedDocumentAction || caseNextAction;
+
+  const overviewNextAction =
+    compactOverviewText(
+      confirmedNextAction,
+      600,
+    );
+
+  const missingNextAction =
+    needsActiveAttention &&
+    !confirmedNextAction;
 
   const cleanedManagementSummary =
     cleanAIText(

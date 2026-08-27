@@ -630,6 +630,7 @@ class AISuggestionResponse(BaseModel):
     relevant_document_ids: list[int] = Field(default_factory=list)
     status: str
     created_at: datetime
+    reviewed_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -660,6 +661,7 @@ class CaseAISummaryResponse(BaseModel):
     relevant_chunk_ids: list[int] = Field(default_factory=list)
     status: str
     created_at: datetime
+    reviewed_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
