@@ -272,11 +272,14 @@ export default function OverviewTab({
             .filter((item) =>
               ["Approved", "EditedAndApproved"].includes(item.status),
             )
-            .sort((a, b) => {
-              const bTime = new Date(b.reviewed_at || b.created_at).getTime();
-              const aTime = new Date(a.reviewed_at || a.created_at).getTime();
-              return bTime - aTime;
-            })[0] ?? null;
+            // The KI tab and backend list are document-chronology based.
+            // Use created_at here as well: reviewed_at tells us when a manager
+            // clicked Approve, not which document contains the newest facts.
+            .sort(
+              (a, b) =>
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime(),
+            )[0] ?? null;
 
         setLatestApprovedSuggestion(latestSuggestion);
       } catch {
@@ -332,30 +335,16 @@ export default function OverviewTab({
   const approvedDocumentNextAction =
     cleanAIText(latestApprovedSuggestion?.suggested_next_action) || null;
 
-  const approvedSummaryTime =
-    approvedSummary
-      ? new Date(approvedSummary.reviewed_at || approvedSummary.created_at).getTime()
-      : 0;
-
-  const approvedDocumentTime =
-    latestApprovedSuggestion
-      ? new Date(
-          latestApprovedSuggestion.reviewed_at || latestApprovedSuggestion.created_at,
-        ).getTime()
-      : 0;
-
-  const documentIsNewestConfirmedSource =
-    Boolean(latestApprovedSuggestion) && approvedDocumentTime >= approvedSummaryTime;
-
+  // A confirmed document analysis is the freshest evidence for these two
+  // operational fields. Management summaries are consolidated fallbacks and
+  // may have been approved later even though they describe older evidence.
   const confirmedLatestDevelopment =
-    documentIsNewestConfirmedSource
-      ? approvedDocumentDevelopment || approvedSummaryDevelopment
-      : approvedSummaryDevelopment || approvedDocumentDevelopment;
+    approvedDocumentDevelopment || approvedSummaryDevelopment;
 
   const confirmedNextAction =
-    documentIsNewestConfirmedSource
-      ? approvedDocumentNextAction || approvedSummaryNextAction || cleanedCaseNextAction
-      : approvedSummaryNextAction || approvedDocumentNextAction || cleanedCaseNextAction;
+    approvedDocumentNextAction ||
+    approvedSummaryNextAction ||
+    cleanedCaseNextAction;
 
   const overviewNextAction =
     compactOverviewText(confirmedNextAction, 600);
