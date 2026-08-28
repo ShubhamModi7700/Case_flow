@@ -11,6 +11,7 @@ from app import models, schemas
 from app.auth import get_current_user, require_editor
 from app.database import get_db
 from app.services.risk import refresh_risk_suggestion
+from app.services.case_access import require_case_edit, require_case_view
 
 router = APIRouter(
     tags=["Tasks"],
@@ -67,12 +68,13 @@ def create_task(
     case_id: int,
     task_data: schemas.TaskCreate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
     case = get_case_or_404(
         case_id=case_id,
         db=db,
     )
+    require_case_edit(db, current_user, case_id)
 
     try:
         task = models.Task(
@@ -119,11 +121,13 @@ def create_task(
 def list_tasks(
     case_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     get_case_or_404(
         case_id=case_id,
         db=db,
     )
+    require_case_view(db, current_user, case_id)
 
     return (
         db.query(models.Task)
@@ -144,12 +148,13 @@ def list_tasks(
 def complete_task(
     task_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
     task = get_task_or_404(
         task_id=task_id,
         db=db,
     )
+    require_case_edit(db, current_user, task.case_id)
 
     if task.status == "Completed":
         return task
@@ -190,12 +195,13 @@ def complete_task(
 def delete_task(
     task_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
     task = get_task_or_404(
         task_id=task_id,
         db=db,
     )
+    require_case_edit(db, current_user, task.case_id)
 
     case_id = task.case_id
     task_title = task.title

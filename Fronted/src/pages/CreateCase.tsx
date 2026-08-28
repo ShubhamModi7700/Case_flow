@@ -1,10 +1,12 @@
 import axios from "axios";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api";
+import { useAuth } from "../AuthContext";
+import CaseAccessSelector from "../components/CaseAccessSelector";
 import { getRiskConfig } from "../utils/riskStyles";
-import type { CaseItem } from "../types";
+import type { CaseAccessInput, CaseItem, UserItem } from "../types";
 
 type CaseForm = {
   title: string;
@@ -40,10 +42,24 @@ const initialForm: CaseForm = {
 
 export default function CreateCase() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canManageAccess =
+    user?.role === "Manager";
 
   const [form, setForm] = useState<CaseForm>(initialForm);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [access, setAccess] = useState<CaseAccessInput[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!canManageAccess) return;
+
+    api
+      .get<UserItem[]>("/users/")
+      .then((response) => setUsers(response.data))
+      .catch(() => setUsers([]));
+  }, [canManageAccess]);
 
   function handleChange(
     event: React.ChangeEvent<
@@ -92,6 +108,7 @@ export default function CreateCase() {
           form.primary_deadline || null,
         follow_up_date:
           form.follow_up_date || null,
+        access: canManageAccess ? access : [],
       };
 
       const response = await api.post<CaseItem>(
@@ -313,6 +330,16 @@ export default function CreateCase() {
             className="input"
           />
         </Field>
+
+        {canManageAccess && (
+          <div className="md:col-span-2">
+            <CaseAccessSelector
+              users={users}
+              value={access}
+              onChange={setAccess}
+            />
+          </div>
+        )}
 
         <div className="flex justify-end md:col-span-2">
           <button

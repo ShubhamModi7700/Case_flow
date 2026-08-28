@@ -119,6 +119,7 @@ class CaseBase(BaseModel):
 
     primary_deadline: date | None = None
     follow_up_date: date | None = None
+    access: list[CaseAccessInput] | None = None
 
     @field_validator("title", mode="before")
     @classmethod
@@ -145,8 +146,20 @@ class CaseBase(BaseModel):
         return clean_optional_text(value)
 
 
+class CaseAccessInput(BaseModel):
+    user_id: int = Field(gt=0)
+    can_edit: bool = False
+
+
+class CaseAccessResponse(BaseModel):
+    user_id: int
+    full_name: str
+    email: EmailStr
+    can_edit: bool
+
+
 class CaseCreate(CaseBase):
-    pass
+    access: list[CaseAccessInput] = Field(default_factory=list)
 
 
 class CaseUpdate(BaseModel):
@@ -223,6 +236,8 @@ class CaseUpdate(BaseModel):
 class CaseResponse(CaseBase):
     id: int
     is_archived: bool
+    access: list[CaseAccessResponse] = Field(default_factory=list)
+    user_can_edit: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -486,8 +501,8 @@ class UserCreate(BaseModel):
         if normalized_role == "Admin":
             normalized_role = "Manager"
 
-        if normalized_role not in {"Manager", "User", "Viewer"}:
-            raise ValueError("Role must be Manager, User or Viewer")
+        if normalized_role not in {"Manager", "Shareholder", "User", "Viewer"}:
+            raise ValueError("Role must be Manager, Shareholder, User or Viewer")
 
         return normalized_role
 
@@ -538,8 +553,8 @@ class UserUpdate(BaseModel):
         if normalized_role == "Admin":
             normalized_role = "Manager"
 
-        if normalized_role not in {"Manager", "User", "Viewer"}:
-            raise ValueError("Role must be Manager, User or Viewer")
+        if normalized_role not in {"Manager", "Shareholder", "User", "Viewer"}:
+            raise ValueError("Role must be Manager, Shareholder, User or Viewer")
 
         return normalized_role
 class DocumentProcessingResponse(BaseModel):

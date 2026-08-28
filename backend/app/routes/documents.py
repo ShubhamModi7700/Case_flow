@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.auth import get_current_user, require_editor, require_manager
 from app.database import get_db
+from app.services.case_access import has_global_case_access, require_case_edit, require_case_view
 from app.storage import (
     create_signed_url,
     delete_object,
@@ -228,6 +229,8 @@ async def upload_case_document(
     current_user: models.User = Depends(require_editor),
 ):
     """Upload a document and link it directly to a case."""
+    _get_case_or_404(case_id, db)
+    require_case_edit(db, current_user, case_id)
     return await _store_document(
         file=file,
         description=description,
@@ -241,9 +244,20 @@ async def upload_case_document(
     "/documents",
     response_model=list[schemas.DocumentResponse],
 )
-def list_all_documents(db: Session = Depends(get_db)):
+def list_all_documents(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    query = db.query(models.Document)
+    if not has_global_case_access(current_user):
+        allowed_case_ids = (
+            db.query(models.CaseAccess.case_id)
+            .filter(models.CaseAccess.user_id == current_user.id)
+        )
+        query = query.filter(models.Document.case_id.in_(allowed_case_ids))
+
     documents = (
-        db.query(models.Document)
+        query
         .options(joinedload(models.Document.case))
         .order_by(models.Document.uploaded_at.desc())
         .all()
@@ -255,8 +269,13 @@ def list_all_documents(db: Session = Depends(get_db)):
     "/cases/{case_id}/documents",
     response_model=list[schemas.DocumentResponse],
 )
-def list_case_documents(case_id: int, db: Session = Depends(get_db)):
+def list_case_documents(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     _get_case_or_404(case_id, db)
+    require_case_view(db, current_user, case_id)
     documents = (
         db.query(models.Document)
         .options(joinedload(models.Document.case))
@@ -275,11 +294,14 @@ def assign_document_to_case(
     document_id: int,
     payload: schemas.DocumentCaseUpdate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
     document = _get_document_or_404(document_id, db)
 
+    if document.case_id is not None:
+        require_case_edit(db, current_user, document.case_id)
     if payload.case_id is not None:
+        require_case_edit(db, current_user, payload.case_id)
         document.case = _get_case_or_404(payload.case_id, db)
         document.case_id = payload.case_id
     else:
@@ -302,9 +324,13 @@ def assign_document_to_case(
 def process_document(
     document_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
     document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_edit(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
     if document.processing_status in {"Extracting", "Chunking", "Embedding"}:
         raise HTTPException(status_code=409, detail="Das Dokument wird bereits verarbeitet.")
     try:
@@ -532,8 +558,13 @@ def get_processing_status(document_id: int, db: Session = Depends(get_db)):
 def get_document_download_url(
     document_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_view(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
 
     try:
         signed_url = create_signed_url(document.storage_path, expires_in=60)

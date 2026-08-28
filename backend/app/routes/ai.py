@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import get_current_user, require_editor
 from app.database import get_db
+from app.services.case_access import require_case_edit, require_case_view
 from app.models import utc_now
 from app.services.ai_analysis import analyze_document_context
 from app.services.case_embeddings import refresh_case_embedding
@@ -537,7 +538,12 @@ def analyze_document(
     "/cases/{case_id}/ai-suggestions",
     response_model=list[schemas.AISuggestionResponse],
 )
-def list_case_suggestions(case_id: int, db: Session = Depends(get_db)):
+def list_case_suggestions(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    require_case_view(db, current_user, case_id)
     _case(case_id, db)
     return (
         db.query(models.AIDocumentSuggestion)
@@ -1002,6 +1008,7 @@ def create_management_summary(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_editor),
 ):
+    require_case_edit(db, current_user, case_id)
     case = _case(case_id, db)
     return _create_management_summary_record(
         case=case,
@@ -1018,7 +1025,8 @@ def create_management_summary(
 def list_management_summaries(
     case_id: int,
     db: Session = Depends(get_db),
-):
+    current_user: models.User = Depends(get_current_user),):
+    require_case_view(db, current_user, case_id)
     _case(case_id, db)
     return (
         db.query(models.CaseAISummary)
@@ -1035,7 +1043,8 @@ def list_management_summaries(
 def latest_approved_management_summary(
     case_id: int,
     db: Session = Depends(get_db),
-):
+    current_user: models.User = Depends(get_current_user),):
+    require_case_view(db, current_user, case_id)
     """Return the latest confirmed management summary for Overview screens."""
     _case(case_id, db)
     return (

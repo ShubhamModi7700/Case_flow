@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cleanAIText } from "../../utils/aiText";
 
 import { useAuth } from "../../AuthContext";
+import { api } from "../../api";
+import CaseAccessSelector from "../CaseAccessSelector";
 import type {
   CaseCategory,
   CaseItem,
   CaseStatus,
   RiskLevel,
+  CaseAccessInput,
+  UserItem,
 } from "../../types";
 import { getRiskConfig } from "../../utils/riskStyles";
 import Field from "./Field";
@@ -32,7 +36,8 @@ export default function EditCaseModal({
 }: EditCaseModalProps) {
   const { user } = useAuth();
 
-  const isManager = user?.role === "Manager";
+  const isManager =
+    user?.role === "Manager";
   const isViewer = user?.role === "Viewer";
 
   const [title, setTitle] = useState(caseItem.title);
@@ -63,6 +68,21 @@ export default function EditCaseModal({
     caseItem.follow_up_date ?? "",
   );
   const [localError, setLocalError] = useState("");
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [access, setAccess] = useState<CaseAccessInput[]>(
+    caseItem.access.map((entry) => ({
+      user_id: entry.user_id,
+      can_edit: entry.can_edit,
+    })),
+  );
+
+  useEffect(() => {
+    if (!isManager) return;
+    api
+      .get<UserItem[]>("/users/")
+      .then((response) => setUsers(response.data))
+      .catch(() => setUsers([]));
+  }, [isManager]);
 
   async function submitForm(
     event: React.FormEvent<HTMLFormElement>,
@@ -110,6 +130,7 @@ export default function EditCaseModal({
         next_action: isCompleted ? null : nextAction.trim() || null,
         primary_deadline: isCompleted ? null : primaryDeadline || null,
         follow_up_date: isCompleted ? null : followUpDate || null,
+        access,
       });
     }
 
@@ -350,6 +371,17 @@ export default function EditCaseModal({
               className="input"
             />
           </Field>
+
+          {isManager && (
+            <div className="sm:col-span-2">
+              <CaseAccessSelector
+                users={users}
+                value={access}
+                onChange={setAccess}
+                disabled={saving}
+              />
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 sm:col-span-2">
             <button

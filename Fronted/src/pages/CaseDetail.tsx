@@ -28,11 +28,11 @@ export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canEdit = user?.role === "Manager" || user?.role === "User";
   const isManager = user?.role === "Manager";
 
   const [activeTab, setActiveTab] = useState<TabName>("overview");
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
+  const canEdit = Boolean(caseItem?.user_can_edit);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);

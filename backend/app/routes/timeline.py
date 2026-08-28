@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import get_current_user, require_editor
 from app.database import get_db
+from app.services.case_access import require_case_edit, require_case_view
 
 router = APIRouter(prefix="/cases", tags=["Timeline"])
 
@@ -41,6 +42,7 @@ def get_case_timeline(
     current_user: models.User = Depends(get_current_user),
 ):
     case = get_case_or_404(case_id, db)
+    require_case_view(db, current_user, case_id)
     now = datetime.now(timezone.utc)
     events: list[schemas.TimelineEventResponse] = []
 
@@ -128,6 +130,7 @@ def add_timeline_event(
     current_user: models.User = Depends(require_editor),
 ):
     get_case_or_404(case_id, db)
+    require_case_edit(db, current_user, case_id)
 
     entry = models.History(
         case_id=case_id,

@@ -8,6 +8,15 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import get_current_user, require_editor, require_manager
 from app.database import get_db
+from app.services.case_access import (
+    ensure_responsible_access,
+    has_global_case_access,
+    replace_case_access,
+    can_edit_case,
+    require_case_edit,
+    require_case_view,
+    scope_case_query,
+)
 from app.services.risk import refresh_risk_suggestion
 
 
@@ -27,6 +36,29 @@ SortOption = Literal[
 ]
 
 
+def _serialize_case(
+    case: models.Case,
+    current_user: models.User,
+    db: Session,
+) -> schemas.CaseResponse:
+    data = {
+        column.name: getattr(case, column.name)
+        for column in models.Case.__table__.columns
+    }
+    data["user_can_edit"] = can_edit_case(db, current_user, case.id)
+    data["access"] = [
+        {
+            "user_id": entry.user_id,
+            "full_name": entry.user.full_name,
+            "email": entry.user.email,
+            "can_edit": entry.can_edit,
+        }
+        for entry in case.access_entries
+        if entry.user is not None and entry.user.is_active
+    ]
+    return schemas.CaseResponse.model_validate(data)
+
+
 @router.post(
     "/",
     response_model=schemas.CaseResponse,
@@ -35,14 +67,32 @@ SortOption = Literal[
 def create_case(
     case_data: schemas.CaseCreate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
-    new_case = models.Case(
-        **case_data.model_dump(),
-    )
+    values = case_data.model_dump(exclude={"access"})
+    new_case = models.Case(**values)
 
     db.add(new_case)
     db.flush()
+
+    # Managers/shareholders may explicitly grant access. A normal employee
+    # creating a case always receives edit access to that case.
+    if has_global_case_access(current_user):
+        replace_case_access(db, new_case.id, case_data.access)
+    else:
+        db.add(
+            models.CaseAccess(
+                case_id=new_case.id,
+                user_id=current_user.id,
+                can_edit=True,
+            )
+        )
+
+    ensure_responsible_access(
+        db,
+        new_case.id,
+        new_case.responsible_person,
+    )
     refresh_risk_suggestion(new_case)
 
     db.add(
@@ -57,7 +107,7 @@ def create_case(
     db.commit()
     db.refresh(new_case)
 
-    return new_case
+    return _serialize_case(new_case, current_user, db)
 
 
 @router.get(
@@ -77,11 +127,12 @@ def list_cases(
     missing_next_action: bool = Query(default=False),
     include_archived: bool = Query(default=False),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     today = date.today()
     next_seven_days = today + timedelta(days=7)
 
-    query = db.query(models.Case)
+    query = scope_case_query(db.query(models.Case), current_user)
 
     if not include_archived:
         query = query.filter(
@@ -308,7 +359,7 @@ def list_cases(
             models.Case.id.asc(),
         )
 
-    return query.all()
+    return [_serialize_case(item, current_user, db) for item in query.all()]
 
 
 @router.get(
@@ -318,6 +369,7 @@ def list_cases(
 def get_case(
     case_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     case = (
         db.query(models.Case)
@@ -331,7 +383,8 @@ def get_case(
             detail="Fall nicht gefunden",
         )
 
-    return case
+    require_case_view(db, current_user, case_id)
+    return _serialize_case(case, current_user, db)
 
 
 @router.patch(
@@ -356,9 +409,12 @@ def update_case(
             detail="Fall nicht gefunden",
         )
 
+    require_case_edit(db, current_user, case_id)
+
     update_values = case_data.model_dump(
         exclude_unset=True,
     )
+    access_values = update_values.pop("access", None)
 
     manager_only_fields = {
         "responsible_person",
@@ -426,10 +482,24 @@ def update_case(
             ),
         )
 
+    if access_values is not None:
+        if (current_user.role or "").strip().title() != "Manager":
+            raise HTTPException(
+                status_code=403,
+                detail="Nur die Geschäftsführung darf Fallzugriffe ändern",
+            )
+        replace_case_access(db, case.id, case_data.access or [])
+
+    ensure_responsible_access(
+        db,
+        case.id,
+        case.responsible_person,
+    )
+
     db.commit()
     db.refresh(case)
 
-    return case
+    return _serialize_case(case, current_user, db)
 
 
 @router.post(

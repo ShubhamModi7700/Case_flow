@@ -28,6 +28,18 @@ export type LoginResponse = {
   user: AuthUser;
 };
 
+export type CaseAccessEntry = {
+  user_id: number;
+  full_name: string;
+  email: string;
+  can_edit: boolean;
+};
+
+export type CaseAccessInput = {
+  user_id: number;
+  can_edit: boolean;
+};
+
 export type CaseItem = {
   id: number;
   title: string;
@@ -51,6 +63,8 @@ export type CaseItem = {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+  access: CaseAccessEntry[];
+  user_can_edit: boolean;
 };
 
 export type TaskPriority = "Low" | "Medium" | "High";
@@ -120,7 +134,7 @@ export type DashboardData = {
   next_due_actions: DashboardAction[];
 };
 
-export type UserRole = "Manager" | "User" | "Viewer";
+export type UserRole = "Manager" | "Shareholder" | "User" | "Viewer";
 
 export type UserItem = {
   id: number;

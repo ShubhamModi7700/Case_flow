@@ -175,7 +175,8 @@ export default function Users() {
               }
             >
               <option value="User">Benutzer</option>
-              <option value="Manager">Manager</option>
+              <option value="Manager">Geschäftsführung</option>
+              <option value="Shareholder">Shareholder</option>
               <option value="Viewer">Betrachter</option>
             </select>
           </label>
@@ -225,7 +226,8 @@ export default function Users() {
                           }
                         >
                           <option value="User">Benutzer</option>
-                          <option value="Manager">Manager</option>
+                          <option value="Manager">Geschäftsführung</option>
+              <option value="Shareholder">Shareholder</option>
               <option value="Viewer">Betrachter</option>
                         </select>
                       </td>

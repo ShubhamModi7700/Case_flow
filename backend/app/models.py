@@ -10,6 +10,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from pgvector.sqlalchemy import Vector
@@ -149,6 +150,37 @@ class Case(Base):
         back_populates="case",
         cascade="all, delete-orphan",
     )
+
+    access_entries = relationship(
+        "CaseAccess",
+        back_populates="case",
+        cascade="all, delete-orphan",
+    )
+
+
+class CaseAccess(Base):
+    __tablename__ = "case_access"
+    __table_args__ = (
+        UniqueConstraint("case_id", "user_id", name="uq_case_access_case_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(
+        Integer,
+        ForeignKey("cases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    can_edit = Column(Boolean, nullable=False, default=False)
+
+    case = relationship("Case", back_populates="access_entries")
+    user = relationship("User")
 
 
 class Task(Base):

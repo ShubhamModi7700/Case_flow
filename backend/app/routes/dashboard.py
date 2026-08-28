@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.auth import get_current_user
 from app.database import get_db
+from app.services.case_access import scope_case_query
 
 router = APIRouter(
     prefix="/dashboard",
@@ -20,6 +21,7 @@ router = APIRouter(
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     today = date.today()
     next_seven_days = today + timedelta(days=7)
@@ -29,14 +31,18 @@ def dashboard_summary(
         models.Case.is_archived.is_(False),
     )
 
+    def visible_cases():
+        return scope_case_query(db.query(models.Case), current_user)
+
+
     open_cases = (
-        db.query(models.Case)
+        visible_cases()
         .filter(*active_case_filters)
         .count()
     )
 
     completed_cases = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             models.Case.status == "Completed",
             models.Case.is_archived.is_(False),
@@ -45,7 +51,7 @@ def dashboard_summary(
     )
 
     low_risk_cases = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             models.Case.risk == "Low",
             *active_case_filters,
@@ -54,7 +60,7 @@ def dashboard_summary(
     )
 
     medium_risk_cases = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             models.Case.risk == "Medium",
             *active_case_filters,
@@ -63,13 +69,15 @@ def dashboard_summary(
     )
 
     high_risk_cases = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             models.Case.risk == "High",
             *active_case_filters,
         )
         .count()
     )
+
+    visible_case_ids = visible_cases().with_entities(models.Case.id).subquery()
 
     overdue_deadlines = (
         db.query(models.Task)
@@ -81,6 +89,7 @@ def dashboard_summary(
             models.Task.due_date.isnot(None),
             models.Task.due_date < today,
             models.Task.status != "Completed",
+            models.Case.id.in_(visible_case_ids),
             *active_case_filters,
         )
         .count()
@@ -97,13 +106,14 @@ def dashboard_summary(
             models.Task.due_date >= today,
             models.Task.due_date <= next_seven_days,
             models.Task.status != "Completed",
+            models.Case.id.in_(visible_case_ids),
             *active_case_filters,
         )
         .count()
     )
 
     cases_without_responsible = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             *active_case_filters,
             or_(
@@ -115,7 +125,7 @@ def dashboard_summary(
     )
 
     cases_without_next_action = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             *active_case_filters,
             or_(
@@ -128,13 +138,19 @@ def dashboard_summary(
 
     pending_ai_suggestions = (
         db.query(models.AIDocumentSuggestion)
-        .filter(models.AIDocumentSuggestion.status == "Pending")
+        .filter(
+            models.AIDocumentSuggestion.status == "Pending",
+            models.AIDocumentSuggestion.current_case_id.in_(visible_case_ids),
+        )
         .count()
     )
 
     pending_management_summaries = (
         db.query(models.CaseAISummary)
-        .filter(models.CaseAISummary.status == "Pending")
+        .filter(
+            models.CaseAISummary.status == "Pending",
+            models.CaseAISummary.case_id.in_(visible_case_ids),
+        )
         .count()
     )
 
@@ -142,13 +158,13 @@ def dashboard_summary(
         db.query(models.Document)
         .filter(
             models.Document.embedding_status == "Ready",
-            models.Document.case_id.isnot(None),
+            models.Document.case_id.in_(visible_case_ids),
         )
         .count()
     )
 
     next_actions = (
-        db.query(models.Case)
+        visible_cases()
         .filter(
             *active_case_filters,
             models.Case.primary_deadline.isnot(None),
