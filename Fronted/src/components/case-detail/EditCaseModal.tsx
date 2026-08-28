@@ -309,6 +309,23 @@ export default function EditCaseModal({
             />
           </Field>
 
+          {isManager && (
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-3">
+                <div className="text-sm font-semibold text-slate-900">Fallzugriff / Berechtigungen</div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Legen Sie direkt bei der verantwortlichen Person fest, welche Mitarbeiter diesen Fall sehen oder bearbeiten dürfen.
+                </p>
+              </div>
+              <CaseAccessSelector
+                users={users}
+                value={access}
+                onChange={setAccess}
+                disabled={saving}
+              />
+            </div>
+          )}
+
           <Field label="Hauptfrist">
             <input
               type="date"
@@ -371,17 +388,6 @@ export default function EditCaseModal({
               className="input"
             />
           </Field>
-
-          {isManager && (
-            <div className="sm:col-span-2">
-              <CaseAccessSelector
-                users={users}
-                value={access}
-                onChange={setAccess}
-                disabled={saving}
-              />
-            </div>
-          )}
 
           <div className="flex justify-end gap-3 sm:col-span-2">
             <button
