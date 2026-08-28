@@ -119,7 +119,6 @@ class CaseBase(BaseModel):
 
     primary_deadline: date | None = None
     follow_up_date: date | None = None
-    access: list[CaseAccessInput] | None = None
 
     @field_validator("title", mode="before")
     @classmethod
@@ -203,6 +202,7 @@ class CaseUpdate(BaseModel):
 
     primary_deadline: date | None = None
     follow_up_date: date | None = None
+    access: list[CaseAccessInput] | None = None
 
     @field_validator("title", mode="before")
     @classmethod

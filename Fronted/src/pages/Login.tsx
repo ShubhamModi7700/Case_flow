@@ -45,7 +45,7 @@ export default function Login() {
         replace: true,
       });
     } catch {
-      setError("Incorrect email or password.");
+      setError("E-Mail oder Passwort nicht korrekt.");
     } finally {
       setSubmitting(false);
     }
@@ -61,10 +61,6 @@ export default function Login() {
         <h1 className="mt-6 text-3xl font-bold">
           Anmelden
         </h1>
-
-        <p className="mt-2 text-sm text-slate-500">
-          Sign in to access Case Flow.
-        </p>
 
         {error && (
           <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -114,7 +110,7 @@ export default function Login() {
             className="w-full rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             {submitting
-              ? "Signing in..."
+              ? "Anmelden..."
               : "Anmelden"}
           </button>
         </form>
