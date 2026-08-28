@@ -1,4 +1,6 @@
 from pathlib import Path
+import re
+import unicodedata
 from uuid import uuid4
 
 from fastapi import (
@@ -14,7 +16,12 @@ from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.auth import get_current_user, require_editor, require_manager
 from app.database import get_db
-from app.services.case_access import has_global_case_access, require_case_edit, require_case_view
+from app.services.case_access import (
+    ensure_responsible_access,
+    has_global_case_access,
+    require_case_edit,
+    require_case_view,
+)
 from app.storage import (
     create_signed_url,
     delete_object,
@@ -36,6 +43,37 @@ router = APIRouter(
 )
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+def _safe_storage_filename(file_name: str) -> str:
+    """Return an ASCII-only filename safe for Supabase Storage object keys.
+
+    The original filename is still stored in Document.file_name and shown in the UI.
+    Only the internal Storage key uses this normalized variant.
+    """
+    original = Path(file_name or "document").name
+    path = Path(original)
+    suffix = path.suffix.lower()
+    stem = path.stem or "document"
+
+    # German umlauts are more readable when transliterated explicitly.
+    stem = (
+        stem.replace("Ä", "Ae")
+        .replace("Ö", "Oe")
+        .replace("Ü", "Ue")
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    stem = unicodedata.normalize("NFKD", stem).encode("ascii", "ignore").decode("ascii")
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem)
+    stem = re.sub(r"_+", "_", stem).strip("._-") or "document"
+
+    # Keep Storage keys compact while preserving the extension.
+    stem = stem[:120].rstrip("._-") or "document"
+    safe_suffix = re.sub(r"[^a-z0-9.]", "", suffix)[:16]
+    return f"{stem}{safe_suffix}"
 
 # Version 1 supported formats:
 # PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Email (EML/MSG)
@@ -158,7 +196,8 @@ async def _store_document(
             detail="Die Datei überschreitet das Limit von 10 MB",
         )
 
-    object_path = f"documents/{uuid4().hex}_{original_name}"
+    storage_name = _safe_storage_filename(original_name)
+    object_path = f"documents/{uuid4().hex}_{storage_name}"
     cleaned_description = description.strip() if description else None
     cleaned_description = cleaned_description or None
 
@@ -450,6 +489,7 @@ def confirm_document_case_route(
             raise HTTPException(status_code=400, detail="Eine Fall-ID ist erforderlich.")
 
         case = _get_case_or_404(payload.case_id, db)
+        require_case_edit(db, current_user, case.id)
         document.case_id = case.id
         db.query(models.DocumentChunk).filter(
             models.DocumentChunk.document_id == document.id
@@ -501,6 +541,15 @@ def confirm_document_case_route(
     try:
         db.add(new_case)
         db.flush()
+
+        # Keep document-driven case creation consistent with manual case creation:
+        # the responsible employee/creator receives edit access automatically.
+        ensure_responsible_access(
+            db,
+            case_id=new_case.id,
+            responsible_person=new_case.responsible_person,
+        )
+
         refresh_risk_suggestion(new_case)
         document.case_id = new_case.id
         db.query(models.DocumentChunk).filter(
