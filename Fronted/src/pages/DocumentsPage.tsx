@@ -16,12 +16,6 @@ import type { CaseItem, DocumentItem } from "../types";
 import { formatCaseNumber } from "../types/case";
 import { formatFileSize } from "../utils/fileHelpers";
 
-type DocumentDownloadResponse = {
-  download_url: string;
-  file_name: string;
-  expires_in: number;
-};
-
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
@@ -181,31 +175,6 @@ export default function DocumentsPage() {
         getErrorMessage(
           requestError,
           "Die Dokumentzuordnung konnte nicht geändert werden.",
-        ),
-      );
-    } finally {
-      setBusyDocumentId(null);
-    }
-  }
-
-  async function downloadDocument(
-    documentId: number,
-  ): Promise<void> {
-    try {
-      setBusyDocumentId(documentId);
-      setError("");
-
-      const response = await api.get<DocumentDownloadResponse>(
-        `/documents/${documentId}/download`,
-      );
-
-      window.location.assign(response.data.download_url);
-    } catch (requestError) {
-      console.error("Document download failed:", requestError);
-      setError(
-        getErrorMessage(
-          requestError,
-          "Das Dokument konnte nicht heruntergeladen werden.",
         ),
       );
     } finally {
@@ -632,17 +601,6 @@ export default function DocumentsPage() {
                             Fall öffnen
                           </Link>
                         )}
-
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() =>
-                            void downloadDocument(item.id)
-                          }
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          Herunterladen
-                        </button>
 
                         {isManager && (
                           <button

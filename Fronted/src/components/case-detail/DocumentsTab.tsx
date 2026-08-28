@@ -80,36 +80,6 @@ export default function DocumentsTab({
     }
   }
 
-  async function downloadDocument(
-    documentId: number,
-  ): Promise<void> {
-    try {
-      setError("");
-
-      const response =
-        await api.get<{
-          download_url: string;
-        }>(
-          `/documents/${documentId}/download`,
-        );
-
-      window.open(
-        response.data.download_url,
-        "_blank",
-        "noopener,noreferrer",
-      );
-    } catch (requestError) {
-      console.error(
-        "Dokument konnte nicht heruntergeladen werden:",
-        requestError,
-      );
-
-      setError(
-        "Das Dokument konnte nicht heruntergeladen werden.",
-      );
-    }
-  }
-
   async function deleteDocument(
     documentId: number,
   ): Promise<void> {
@@ -257,18 +227,6 @@ export default function DocumentsTab({
                         : "KI analysieren"}
                     </button>
                   )}
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void downloadDocument(
-                        document.id,
-                      )
-                    }
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Herunterladen
-                  </button>
 
                   {isManager && (
                     <button
