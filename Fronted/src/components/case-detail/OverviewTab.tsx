@@ -78,7 +78,7 @@ function splitOverviewSentences(value: string): string[] {
 
 /**
  * Keep the Overview scannable without cutting a sentence in the middle.
- * The full AI text remains available in the KI-Assistent tab.
+ * The full AI review workflow remains available in the KI-Vorschläge-prüfen tab.
  */
 function compactOverviewText(
   value: string | null | undefined,

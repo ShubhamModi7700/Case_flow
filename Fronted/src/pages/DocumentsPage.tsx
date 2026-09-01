@@ -241,7 +241,7 @@ export default function DocumentsPage() {
       await analyzeDocument(document.id);
       setNotice(
         `Die KI-Analyse für „${document.file_name}“ wurde erstellt. ` +
-          "Öffnen Sie den zugeordneten Fall und prüfen Sie den KI-Assistenten.",
+          "Öffnen Sie den zugeordneten Fall und prüfen Sie dort die KI-Vorschläge.",
       );
       await loadData();
     } catch (requestError) {

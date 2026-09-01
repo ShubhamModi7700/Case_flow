@@ -65,7 +65,7 @@ export default function DocumentsTab({
       await reload();
       setNotice(
         `Die KI-Analyse für „${document.file_name}“ ist bereit. ` +
-          "Prüfen Sie die Vorschläge im KI-Assistenten.",
+          "Prüfen Sie die Vorschläge unter „KI-Vorschläge prüfen“.",
       );
       onOpenAI();
     } catch (requestError: any) {

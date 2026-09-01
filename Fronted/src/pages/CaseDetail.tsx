@@ -292,7 +292,7 @@ export default function CaseDetail() {
             onClick={() => setActiveTab("KI")}
             className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-600"
           >
-            KI-Assistent öffnen
+            KI-Vorschläge prüfen
           </button>
 
           {canEdit && (
@@ -356,7 +356,7 @@ export default function CaseDetail() {
           />
 
           <TabButton
-            label="KI-Assistent"
+            label="KI-Vorschläge prüfen"
             active={activeTab === "KI"}
             onClick={() => setActiveTab("KI")}
           />
