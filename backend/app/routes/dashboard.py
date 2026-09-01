@@ -178,6 +178,56 @@ def dashboard_summary(
         .all()
     )
 
+    # Management cockpit: one compact, prioritised list instead of making
+    # managers interpret several independent KPI tiles.  The list is based
+    # only on confirmed case fields; AI suggestions remain human-in-the-loop.
+    attention_candidates = (
+        visible_cases()
+        .filter(*active_case_filters)
+        .all()
+    )
+
+    def attention_priority(case):
+        is_overdue = bool(case.primary_deadline and case.primary_deadline < today)
+        missing_owner = not (case.responsible_person or "").strip()
+        missing_action = not (case.next_action or "").strip()
+        high_risk = case.risk == "High"
+
+        if is_overdue:
+            return (0, case.primary_deadline or date.max, case.id)
+        if high_risk:
+            return (1, case.primary_deadline or date.max, case.id)
+        if missing_owner:
+            return (2, case.primary_deadline or date.max, case.id)
+        if missing_action:
+            return (3, case.primary_deadline or date.max, case.id)
+        return (9, case.primary_deadline or date.max, case.id)
+
+    attention_cases = [
+        case
+        for case in attention_candidates
+        if (
+            case.risk == "High"
+            or (case.primary_deadline and case.primary_deadline < today)
+            or not (case.responsible_person or "").strip()
+            or not (case.next_action or "").strip()
+        )
+    ]
+    attention_cases.sort(key=attention_priority)
+    attention_cases = attention_cases[:10]
+
+    def attention_reason(case):
+        reasons = []
+        if case.primary_deadline and case.primary_deadline < today:
+            reasons.append("Frist überfällig")
+        if case.risk == "High":
+            reasons.append("Hohes Risiko")
+        if not (case.responsible_person or "").strip():
+            reasons.append("Verantwortung offen")
+        if not (case.next_action or "").strip():
+            reasons.append("Nächste Maßnahme offen")
+        return " · ".join(reasons)
+
     return {
         "open_cases": open_cases,
         "completed_cases": completed_cases,
@@ -199,5 +249,17 @@ def dashboard_summary(
                 "deadline": item.primary_deadline,
             }
             for item in next_actions
+        ],
+        "attention_items": [
+            {
+                "case_id": item.id,
+                "title": item.title,
+                "reason": attention_reason(item),
+                "risk": item.risk,
+                "next_action": item.next_action,
+                "responsible_person": item.responsible_person,
+                "deadline": item.primary_deadline,
+            }
+            for item in attention_cases
         ],
     }

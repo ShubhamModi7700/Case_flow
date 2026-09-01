@@ -2,80 +2,20 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
-import { riskConfig } from "../utils/riskStyles";
-import {
-  type DashboardData,
-  formatCaseNumber,
-} from "../types";
+import { type DashboardData, formatCaseNumber } from "../types";
 
-const DASHBOARD_ACTION_PREVIEW_MAX = 340;
+const PREVIEW_MAX = 150;
 
-const sentenceBoundaryPattern =
-  /(?<!\b(?:z|d|u|bzw|ggf|ca|nr|abs|art|dr|prof))([.!?])\s+(?=[A-ZÄÖÜ0-9])/gi;
-
-function shortenDashboardAction(
-  value: string | null | undefined,
-  maxLength = DASHBOARD_ACTION_PREVIEW_MAX,
-): string {
+function compact(value: string | null | undefined, fallback: string) {
   const text = value?.replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX).trim()}…` : text;
+}
 
-  if (!text) {
-    return "Keine nächste Maßnahme definiert.";
-  }
-
-  if (text.length <= maxLength) {
-    return text;
-  }
-
-  const protectedText = text
-    .replace(/\bz\.\s*B\./gi, "z§B§")
-    .replace(/\bd\.\s*h\./gi, "d§h§")
-    .replace(/\bu\.\s*a\./gi, "u§a§")
-    .replace(/\bu\.\s*U\./gi, "u§U§")
-    .replace(/\bz\.\s*T\./gi, "z§T§");
-
-  const parts = protectedText
-    .split(sentenceBoundaryPattern)
-    .reduce<string[]>((acc, part, index, array) => {
-      if (index % 2 === 0) {
-        const punctuation = array[index + 1] ?? "";
-        const sentence = `${part}${punctuation}`.trim();
-        if (sentence) acc.push(sentence);
-      }
-      return acc;
-    }, [])
-    .map((part) =>
-      part
-        .replace(/z§B§/gi, "z. B.")
-        .replace(/d§h§/gi, "d. h.")
-        .replace(/u§a§/gi, "u. a.")
-        .replace(/u§U§/gi, "u. U.")
-        .replace(/z§T§/gi, "z. T."),
-    );
-
-  let preview = "";
-
-  for (const sentence of parts) {
-    const candidate = `${preview} ${sentence}`.trim();
-
-    if (candidate.length > maxLength && preview) {
-      break;
-    }
-
-    preview = candidate;
-
-    if (preview.length >= maxLength) {
-      break;
-    }
-  }
-
-  if (preview) {
-    return preview;
-  }
-
-  // If the first sentence itself is long, keep it intact rather than
-  // cutting the text in the middle of a phrase.
-  return parts[0] || text;
+function formatDeadline(value: string | null) {
+  if (!value) return "Keine Frist";
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("de-DE");
 }
 
 export default function Dashboard() {
@@ -83,234 +23,79 @@ export default function Dashboard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const response =
-          await api.get<DashboardData>("/dashboard/summary");
-
-        setData(response.data);
-      } catch (requestError) {
+    api.get<DashboardData>("/dashboard/summary")
+      .then((response) => setData(response.data))
+      .catch((requestError) => {
         console.error(requestError);
-
-        setError(
-          "Die Übersicht konnte nicht geladen werden. Bitte prüfen Sie, ob das Backend läuft.",
-        );
-      }
-    }
-
-    void loadDashboard();
+        setError("Die Übersicht konnte nicht geladen werden. Bitte prüfen Sie, ob das Backend läuft.");
+      });
   }, []);
 
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-          {error}
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="p-8 text-slate-500">
-        Übersicht wird geladen...
-      </div>
-    );
-  }
+  if (error) return <div className="p-8"><div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</div></div>;
+  if (!data) return <div className="p-8 text-slate-500">Übersicht wird geladen...</div>;
 
   return (
     <div className="mx-auto max-w-7xl p-8">
-      <header className="mb-8 flex items-start justify-between gap-6">
+      <header className="mb-7 flex items-start justify-between gap-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Case Flow
-          </p>
-
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">
-            Management Übersicht
-          </h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Case Flow</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">Management Cockpit</h1>
+          <p className="mt-2 text-sm text-slate-500">Auf einen Blick: Wo besteht Handlungsbedarf?</p>
         </div>
-
-        <Link
-          to="/cases/new"
-          className="shrink-0 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-        >
-          + Fall anlegen
-        </Link>
+        <Link to="/cases/new" className="shrink-0 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">+ Fall anlegen</Link>
       </header>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <DashboardCard
-          to="/cases?status_group=open"
-          title="Offene Fälle"
-          value={data.open_cases}
-          description="Alle aktiven Fälle"
-        />
-
-        <DashboardCard
-          to="/cases?status_group=completed"
-          title="Abgeschlossene Fälle"
-          value={data.completed_cases}
-          description="Alle abgeschlossenen Fälle"
-          containerClass="border-violet-200 bg-violet-50"
-          textClass="text-violet-700"
-        />
-
-        <DashboardCard
-          to="/cases?risk=High"
-          title="Hohes Risiko"
-          value={data.high_risk_cases}
-          description="Sofortige Aufmerksamkeit erforderlich"
-          containerClass={riskConfig.High.cardClass}
-          textClass={riskConfig.High.textClass}
-        />
-
-        <DashboardCard
-          to="/cases?risk=Medium"
-          title="Mittleres Risiko"
-          value={data.medium_risk_cases}
-          description="Zeitnahe Prüfung empfohlen"
-          containerClass={riskConfig.Medium.cardClass}
-          textClass={riskConfig.Medium.textClass}
-        />
-
-        <DashboardCard
-          to="/cases?risk=Low"
-          title="Niedriges Risiko"
-          value={data.low_risk_cases}
-          description="Derzeit kein unmittelbarer Handlungsbedarf"
-          containerClass={riskConfig.Low.cardClass}
-          textClass={riskConfig.Low.textClass}
-        />
-
-        <DashboardCard
-          to="/cases?overdue=true"
-          title="Überfällige Fristen"
-          value={data.overdue_deadlines}
-          description="Fälle mit überfälligen Aufgaben oder Fristen"
-          containerClass="border-slate-300 bg-slate-50"
-          textClass="text-slate-700"
-        />
-
-        <DashboardCard
-          to="/cases?upcoming=true"
-          title="Anstehende Fristen"
-          value={data.upcoming_deadlines}
-          description="Innerhalb der nächsten sieben Tage"
-          containerClass="border-blue-200 bg-blue-50"
-          textClass="text-blue-700"
-        />
-
-        <DashboardCard
-          to="/cases?missing_owner=true"
-          title="Ohne verantwortliche Person"
-          value={data.cases_without_responsible}
-          description="Zuweisung erforderlich"
-        />
-
-        <DashboardCard
-          to="/cases?missing_next_action=true"
-          title="Ohne nächste Maßnahme"
-          value={data.cases_without_next_action}
-          description="Nächsten Schritt festlegen"
-        />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AttentionCard to="/cases?risk=High" title="Kritisch" value={data.high_risk_cases} hint="Fälle mit hohem Risiko" tone="red" />
+        <AttentionCard to="/cases?overdue=true" title="Überfällig" value={data.overdue_deadlines} hint="Fristen mit sofortigem Handlungsbedarf" tone="amber" />
+        <AttentionCard to="/cases?missing_owner=true" title="Ohne Verantwortlichen" value={data.cases_without_responsible} hint="Zuständigkeit festlegen" />
+        <AttentionCard to="/cases?missing_next_action=true" title="Ohne nächste Maßnahme" value={data.cases_without_next_action} hint="Nächsten Schritt festlegen" />
       </div>
 
-      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
+      <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">
-              Nächste fällige Maßnahmen
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Maßnahmen mit Frist innerhalb der nächsten sieben Tage.
-            </p>
+            <h2 className="text-lg font-semibold text-slate-950">Handlungsbedarf</h2>
+            <p className="mt-1 text-sm text-slate-500">Priorisiert nach überfälliger Frist, hohem Risiko und fehlenden Angaben.</p>
           </div>
-
-          <Link
-            to="/cases?upcoming=true"
-            className="shrink-0 text-sm font-medium text-slate-600 hover:text-slate-950"
-          >
-            Alle anzeigen
-          </Link>
+          <Link to="/cases?status_group=open" className="text-sm font-medium text-slate-600 hover:text-slate-950">Alle offenen Fälle</Link>
         </div>
 
-        {!data.next_due_actions.length ? (
-          <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-            In den nächsten sieben Tagen sind keine Maßnahmen fällig.
-          </p>
+        {!data.attention_items.length ? (
+          <p className="m-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Aktuell besteht kein hervorgehobener Handlungsbedarf.</p>
         ) : (
-          <div className="mt-4 divide-y divide-slate-100">
-            {data.next_due_actions.map((action) => (
-              <Link
-                key={action.case_id}
-                to={`/cases/${action.case_id}`}
-                className="flex items-center justify-between gap-4 rounded-lg py-4 hover:bg-slate-50"
-              >
-                <div>
-                  <p className="font-medium text-slate-950">
-                    {formatCaseNumber(action.case_id)} — {action.title}
-                  </p>
-
-                  <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-500">
-                    {shortenDashboardAction(action.next_action)}
-                  </p>
-                </div>
-
-                <span className="shrink-0 text-sm text-slate-500">
-                  {action.deadline ?? "Keine Frist"}
-                </span>
-              </Link>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr><th className="px-6 py-3">Fall</th><th className="px-4 py-3">Warum relevant?</th><th className="px-4 py-3">Nächste Maßnahme</th><th className="px-4 py-3">Verantwortlich</th><th className="px-6 py-3">Frist</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.attention_items.map((item) => (
+                  <tr key={item.case_id} className="align-top hover:bg-slate-50">
+                    <td className="px-6 py-4"><Link to={`/cases/${item.case_id}`} className="font-semibold text-slate-950 hover:underline">{formatCaseNumber(item.case_id)} — {item.title}</Link></td>
+                    <td className="px-4 py-4"><span className={item.risk === "High" ? "font-medium text-red-700" : "font-medium text-slate-700"}>{item.reason}</span></td>
+                    <td className="max-w-md px-4 py-4 leading-6 text-slate-600">{compact(item.next_action, "Noch nicht festgelegt")}</td>
+                    <td className="px-4 py-4 text-slate-700">{item.responsible_person?.trim() || "Nicht zugewiesen"}</td>
+                    <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-700">{formatDeadline(item.deadline)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
+
+      <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500">
+        <span><strong className="text-slate-800">{data.open_cases}</strong> offene Fälle</span>
+        <span><strong className="text-slate-800">{data.upcoming_deadlines}</strong> Fristen in 7 Tagen</span>
+        <span><strong className="text-slate-800">{data.pending_ai_suggestions + data.pending_management_summaries}</strong> KI-Vorschläge zur Prüfung</span>
+      </div>
     </div>
   );
 }
 
-type DashboardCardProps = {
-  to: string;
-  title: string;
-  value: number;
-  description: string;
-  containerClass?: string;
-  textClass?: string;
-};
-
-function DashboardCard({
-  to,
-  title,
-  value,
-  description,
-  containerClass = "border-slate-200 bg-white",
-  textClass = "text-slate-950",
-}: DashboardCardProps) {
-  const descriptionClass =
-    textClass === "text-slate-950"
-      ? "text-slate-500"
-      : textClass;
-
-  return (
-    <Link
-      to={to}
-      className={`block rounded-2xl border p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400 ${containerClass}`}
-    >
-      <p
-        className={`text-xs font-semibold uppercase tracking-wider ${textClass}`}
-      >
-        {title}
-      </p>
-
-      <p className={`mt-4 text-4xl font-bold ${textClass}`}>
-        {value}
-      </p>
-
-      <p className={`mt-2 text-sm ${descriptionClass}`}>
-        {description}
-      </p>
-    </Link>
-  );
+type AttentionCardProps = { to: string; title: string; value: number; hint: string; tone?: "red" | "amber" | "neutral" };
+function AttentionCard({ to, title, value, hint, tone = "neutral" }: AttentionCardProps) {
+  const classes = tone === "red" ? "border-red-200 bg-red-50 text-red-800" : tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-white text-slate-950";
+  return <Link to={to} className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${classes}`}><p className="text-xs font-semibold uppercase tracking-wider">{title}</p><p className="mt-3 text-4xl font-bold">{value}</p><p className="mt-2 text-sm opacity-75">{hint}</p></Link>;
 }

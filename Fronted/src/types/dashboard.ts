@@ -5,6 +5,16 @@ export interface DashboardAction {
   deadline: string | null;
 }
 
+export interface DashboardAttentionItem {
+  case_id: number;
+  title: string;
+  reason: string;
+  risk: string;
+  next_action: string | null;
+  responsible_person: string | null;
+  deadline: string | null;
+}
+
 export interface DashboardData {
   open_cases: number;
   completed_cases: number;
@@ -19,6 +29,7 @@ export interface DashboardData {
   pending_management_summaries: number;
   documents_ready_for_ai: number;
   next_due_actions: DashboardAction[];
+  attention_items: DashboardAttentionItem[];
 }
 
 

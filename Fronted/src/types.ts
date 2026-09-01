@@ -118,6 +118,16 @@ export type DashboardAction = {
   deadline: string | null;
 };
 
+export type DashboardAttentionItem = {
+  case_id: number;
+  title: string;
+  reason: string;
+  risk: string;
+  next_action: string | null;
+  responsible_person: string | null;
+  deadline: string | null;
+};
+
 export type DashboardData = {
   open_cases: number;
   completed_cases: number;
@@ -132,6 +142,7 @@ export type DashboardData = {
   pending_management_summaries: number;
   documents_ready_for_ai: number;
   next_due_actions: DashboardAction[];
+  attention_items: DashboardAttentionItem[];
 };
 
 export type UserRole = "Manager" | "Shareholder" | "User" | "Viewer";
