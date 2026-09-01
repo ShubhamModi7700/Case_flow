@@ -437,3 +437,21 @@ def migrate_task_assignment_fields(engine: Engine) -> None:
         # PostgreSQL safely widens existing VARCHAR columns.
         if "responsible_person" in columns:
             connection.execute(text("ALTER TABLE tasks ALTER COLUMN responsible_person TYPE VARCHAR(500)"))
+
+
+def migrate_management_action_fields(engine: Engine) -> None:
+    """Add Phase 2 evidence-separated recommended-action fields."""
+    columns = _column_map(engine, "case_ai_summaries")
+    if not columns:
+        return
+    statements = {
+        "document_facts": "ALTER TABLE case_ai_summaries ADD COLUMN document_facts JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "interpretation": "ALTER TABLE case_ai_summaries ADD COLUMN interpretation TEXT",
+        "responsible_role": "ALTER TABLE case_ai_summaries ADD COLUMN responsible_role VARCHAR(200)",
+        "action_justification": "ALTER TABLE case_ai_summaries ADD COLUMN action_justification TEXT",
+        "uncertainty_notes": "ALTER TABLE case_ai_summaries ADD COLUMN uncertainty_notes JSONB NOT NULL DEFAULT '[]'::jsonb",
+    }
+    with engine.begin() as connection:
+        for column_name, statement in statements.items():
+            if column_name not in columns:
+                connection.execute(text(statement))

@@ -24,6 +24,24 @@ werden.
 WICHTIG: Die Felder haben unterschiedliche Funktionen und dürfen sich nicht
 inhaltlich wiederholen.
 
+MANAGEMENT-HANDLUNGSEMPFEHLUNG – zwingende Trennung:
+- document_facts: 2 bis 6 kurze, überprüfbare Tatsachen ausschließlich aus den
+  bereitgestellten bestätigten Dokumenten/Falldaten. Keine Interpretation und
+  keine Empfehlung. Wenn keine belastbaren Fakten vorliegen: leere Liste.
+- interpretation: Erkläre knapp, was diese Fakten für den aktuellen Fall
+  wahrscheinlich bedeuten. Kennzeichne Unsicherheit; keine Vermutung als Fakt.
+- next_required_action: genau die konkrete nächste Handlung, die sich direkt aus
+  der Evidenz ergibt. Keine allgemeinen oder kreativen Standardmaßnahmen.
+  Wenn keine konkrete Handlung belastbar ableitbar ist: null.
+- responsible_role: konkrete beteiligte Rolle oder bestätigte Person, z. B.
+  Geschäftsführung, Legal, Buchhaltung oder ein im Kontext genannter Mitarbeiter.
+  Keine Person erfinden. Wenn nicht ableitbar: null.
+- action_justification: begründe die Handlung ausschließlich mit der Dokument-
+  bzw. Fallevidenz. Erkläre, warum genau dieser Schritt jetzt erforderlich ist.
+- uncertainty_notes: nenne explizit, was ein Mensch noch prüfen oder klären muss.
+- open_deadline: nur ausdrücklich belegte Frist. Ist keine klare Frist erkennbar,
+  gib null zurück; die Oberfläche zeigt dann „Keine klare Frist aus dem Dokument erkennbar“.
+
 1. short_case_summary / Fallzusammenfassung
 - Erkläre den Fall in verständlicher Tiefe.
 - Typischer Umfang: etwa 1 bis 3 kompakte Absätze bzw. ca. 120 bis 250 Wörter,
@@ -276,6 +294,11 @@ def _parse_management_summary(context: str, *, correction: str | None = None) ->
 
 def _clean_result(result: schemas.ManagementSummaryAnalysis) -> schemas.ManagementSummaryAnalysis:
     result.short_case_summary = _clean_short_summary(result.short_case_summary)
+    result.document_facts = [clean_required_user_facing_text(item) for item in result.document_facts if clean_user_facing_text(item)][:6]
+    result.interpretation = _clean_text(result.interpretation)
+    result.responsible_role = _clean_text(result.responsible_role)
+    result.action_justification = _clean_text(result.action_justification)
+    result.uncertainty_notes = [clean_required_user_facing_text(item) for item in result.uncertainty_notes if clean_user_facing_text(item)][:6]
     result.latest_development = _clean_latest_development(result.latest_development)
     result.next_required_action = _clean_action(result.next_required_action)
     result.risk_comment = _clean_risk_comment(result.risk_comment)

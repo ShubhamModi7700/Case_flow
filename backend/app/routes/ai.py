@@ -978,6 +978,11 @@ def _create_management_summary_record(
     summary = models.CaseAISummary(
         case_id=case.id,
         short_case_summary=result.short_case_summary,
+        document_facts=result.document_facts,
+        interpretation=result.interpretation,
+        responsible_role=result.responsible_role,
+        action_justification=result.action_justification,
+        uncertainty_notes=result.uncertainty_notes,
         latest_development=result.latest_development,
         next_required_action=result.next_required_action,
         open_deadline=result.open_deadline,
@@ -990,7 +995,7 @@ def _create_management_summary_record(
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-summary-v9-unified-current-state",
+        prompt_version="management-action-v10-evidence-separated",
         generated_by=generated_by,
     )
     db.add(summary)
@@ -1084,6 +1089,13 @@ def approve_management_summary(
         summary.short_case_summary = (
             payload.short_case_summary or summary.short_case_summary
         )
+        if payload.document_facts:
+            summary.document_facts = payload.document_facts
+        summary.interpretation = payload.interpretation or summary.interpretation
+        summary.responsible_role = payload.responsible_role or summary.responsible_role
+        summary.action_justification = payload.action_justification or summary.action_justification
+        if payload.uncertainty_notes:
+            summary.uncertainty_notes = payload.uncertainty_notes
         summary.latest_development = (
             payload.latest_development or summary.latest_development
         )

@@ -128,6 +128,11 @@ export default function KITab({
 
   const [summaryForm, setSummaryForm] = useState({
     short_case_summary: "",
+    document_facts: "",
+    interpretation: "",
+    responsible_role: "",
+    action_justification: "",
+    uncertainty_notes: "",
     latest_development: "",
     next_required_action: "",
     open_deadline: "",
@@ -177,6 +182,11 @@ export default function KITab({
     if (!visibleSummary) return;
     setSummaryForm({
       short_case_summary: cleanAIText(visibleSummary.short_case_summary),
+      document_facts: (visibleSummary.document_facts || []).join("\n"),
+      interpretation: cleanAIText(visibleSummary.interpretation),
+      responsible_role: cleanAIText(visibleSummary.responsible_role),
+      action_justification: cleanAIText(visibleSummary.action_justification),
+      uncertainty_notes: (visibleSummary.uncertainty_notes || []).join("\n"),
       latest_development: cleanAIText(visibleSummary.latest_development),
       next_required_action: cleanAIText(visibleSummary.next_required_action),
       open_deadline: visibleSummary.open_deadline || "",
@@ -228,6 +238,11 @@ export default function KITab({
       setError("");
       await approveManagementSummary(pendingSummary.id, {
         short_case_summary: summaryForm.short_case_summary || null,
+        document_facts: summaryForm.document_facts.split("\n").map((v) => v.trim()).filter(Boolean),
+        interpretation: summaryForm.interpretation || null,
+        responsible_role: summaryForm.responsible_role || null,
+        action_justification: summaryForm.action_justification || null,
+        uncertainty_notes: summaryForm.uncertainty_notes.split("\n").map((v) => v.trim()).filter(Boolean),
         latest_development: summaryForm.latest_development || null,
         next_required_action: summaryForm.next_required_action || null,
         open_deadline: summaryForm.open_deadline || null,
@@ -450,6 +465,18 @@ export default function KITab({
                 </div>
               </div>
             )}
+
+          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Handlungsempfehlung · Phase 2</p>
+            <p className="mt-1 text-sm text-slate-600">Fakten, Einordnung und Handlung werden bewusst getrennt. Änderungen werden erst nach Ihrer Bestätigung in die offiziellen Falldaten übernommen.</p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <label className="lg:col-span-2"><span className="text-sm font-semibold text-slate-700">1. Fakten aus den Dokumenten</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.document_facts} onChange={(e) => setSummaryForm((c) => ({...c, document_facts:e.target.value}))} placeholder="Ein belegter Fakt pro Zeile" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
+              <label><span className="text-sm font-semibold text-slate-700">2. Einordnung / Interpretation</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.interpretation} onChange={(e) => setSummaryForm((c) => ({...c, interpretation:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
+              <label><span className="text-sm font-semibold text-slate-700">3. Begründung der Maßnahme</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.action_justification} onChange={(e) => setSummaryForm((c) => ({...c, action_justification:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
+              <label><span className="text-sm font-semibold text-slate-700">4. Verantwortlich / Rolle</span><input disabled={!pendingSummary || !canEdit} value={summaryForm.responsible_role} onChange={(e) => setSummaryForm((c) => ({...c, responsible_role:e.target.value}))} placeholder="z. B. Geschäftsführung, Legal, Buchhaltung" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
+              <label><span className="text-sm font-semibold text-slate-700">5. Unsicherheit / noch zu prüfen</span><textarea rows={4} disabled={!pendingSummary || !canEdit} value={summaryForm.uncertainty_notes} onChange={(e) => setSummaryForm((c) => ({...c, uncertainty_notes:e.target.value}))} placeholder="Ein offener Punkt pro Zeile" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
+            </div>
+          </div>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-2">
             <label className="lg:col-span-2">

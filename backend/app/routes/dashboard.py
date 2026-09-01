@@ -79,35 +79,25 @@ def dashboard_summary(
 
     visible_case_ids = visible_cases().with_entities(models.Case.id).subquery()
 
+    # Keep cockpit deadline KPIs consistent with the Handlungsbedarf list:
+    # both are based on the confirmed case-level primary_deadline.
     overdue_deadlines = (
-        db.query(models.Task)
-        .join(
-            models.Case,
-            models.Task.case_id == models.Case.id,
-        )
+        visible_cases()
         .filter(
-            models.Task.due_date.isnot(None),
-            models.Task.due_date < today,
-            models.Task.status != "Completed",
-            models.Case.id.in_(visible_case_ids),
             *active_case_filters,
+            models.Case.primary_deadline.isnot(None),
+            models.Case.primary_deadline < today,
         )
         .count()
     )
 
     upcoming_deadlines = (
-        db.query(models.Task)
-        .join(
-            models.Case,
-            models.Task.case_id == models.Case.id,
-        )
+        visible_cases()
         .filter(
-            models.Task.due_date.isnot(None),
-            models.Task.due_date >= today,
-            models.Task.due_date <= next_seven_days,
-            models.Task.status != "Completed",
-            models.Case.id.in_(visible_case_ids),
             *active_case_filters,
+            models.Case.primary_deadline.isnot(None),
+            models.Case.primary_deadline >= today,
+            models.Case.primary_deadline <= next_seven_days,
         )
         .count()
     )

@@ -2,6 +2,7 @@ import type { CaseAccessInput, CaseCategory, CaseStatus, RiskLevel } from "../..
 
 export type TabName =
   | "overview"
+  | "recommended-action"
   | "tasks"
   | "documents"
   | "timeline"

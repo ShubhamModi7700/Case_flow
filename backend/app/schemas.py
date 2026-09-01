@@ -599,6 +599,10 @@ class DocumentAIAnalysis(BaseModel):
 
 class ManagementSummaryAnalysis(BaseModel):
     short_case_summary: str
+    document_facts: list[str] = Field(default_factory=list)
+    interpretation: str | None = None
+    responsible_role: str | None = None
+    action_justification: str | None = None
     latest_development: str | None = None
     next_required_action: str | None = None
     open_deadline: date | None = None
@@ -616,6 +620,11 @@ class ManagementSummaryAnalysis(BaseModel):
 
 class CaseAISummaryApproval(BaseModel):
     short_case_summary: str | None = None
+    document_facts: list[str] = Field(default_factory=list)
+    interpretation: str | None = None
+    responsible_role: str | None = None
+    action_justification: str | None = None
+    uncertainty_notes: list[str] = Field(default_factory=list)
     latest_development: str | None = None
     next_required_action: str | None = None
     open_deadline: date | None = None
@@ -664,6 +673,11 @@ class CaseAISummaryResponse(BaseModel):
     id: int
     case_id: int
     short_case_summary: str | None = None
+    document_facts: list[str] = Field(default_factory=list)
+    interpretation: str | None = None
+    responsible_role: str | None = None
+    action_justification: str | None = None
+    uncertainty_notes: list[str] = Field(default_factory=list)
     latest_development: str | None = None
     next_required_action: str | None = None
     open_deadline: date | None = None

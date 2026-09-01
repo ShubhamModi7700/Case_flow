@@ -9,6 +9,7 @@ import DocumentsTab from "../components/case-detail/DocumentsTab";
 import EditCaseModal from "../components/case-detail/EditCaseModal";
 import KITab from "../components/case-detail/KITab";
 import OverviewTab from "../components/case-detail/OverviewTab";
+import RecommendedActionTab from "../components/case-detail/RecommendedActionTab";
 import TabButton from "../components/case-detail/TabButton";
 import TasksTab from "../components/case-detail/TasksTab";
 import TimelineTab from "../components/case-detail/TimelineTab";
@@ -331,6 +332,12 @@ export default function CaseDetail() {
           />
 
           <TabButton
+            label="Handlungsempfehlung"
+            active={activeTab === "recommended-action"}
+            onClick={() => setActiveTab("recommended-action")}
+          />
+
+          <TabButton
             label={`Aufgaben (${tasks.length})`}
             active={activeTab === "tasks"}
             onClick={() => setActiveTab("tasks")}
@@ -373,6 +380,14 @@ export default function CaseDetail() {
               setCaseItem(updatedCase);
               void loadTimeline();
             }}
+          />
+        )}
+
+        {activeTab === "recommended-action" && (
+          <RecommendedActionTab
+            caseId={caseItem.id}
+            documents={documents}
+            onOpenAI={() => setActiveTab("KI")}
           />
         )}
 

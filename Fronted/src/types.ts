@@ -220,6 +220,11 @@ export type CaseAISummary = {
   id: number;
   case_id: number;
   short_case_summary: string | null;
+  document_facts: string[];
+  interpretation: string | null;
+  responsible_role: string | null;
+  action_justification: string | null;
+  uncertainty_notes: string[];
   latest_development: string | null;
   next_required_action: string | null;
   open_deadline: string | null;
