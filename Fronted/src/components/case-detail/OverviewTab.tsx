@@ -1,19 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../../api";
-import type {
-  AISuggestion,
-  CaseAISummary,
-  CaseItem,
-  DocumentItem,
-  RiskLevel,
-  TaskItem,
-  TimelineEvent,
-} from "../../types";
-import {
-  getCaseAISuggestions,
-  getLatestApprovedManagementSummary,
-} from "../../services/ai";
+import type { AISuggestion, CaseAISummary, CaseItem, DocumentItem, TaskItem, TimelineEvent } from "../../types";
+import { getCaseAISuggestions, getLatestApprovedManagementSummary } from "../../services/ai";
 import { cleanAIText } from "../../utils/aiText";
 import { RiskBadge, StatusBadge } from "./Badges";
 import { formatDateTime } from "./formatters";
@@ -29,865 +18,129 @@ interface OverviewTabProps {
   onRiskConfirmed: (updatedCase: CaseItem) => void;
 }
 
-const riskLabels: Record<RiskLevel, string> = {
-  Low: "niedrig",
-  Medium: "mittel",
-  High: "hoch",
-};
-
-function getRiskLabel(
-  risk: RiskLevel | null | undefined,
-): string {
-  if (!risk) {
-    return "nicht verfügbar";
-  }
-
-  return riskLabels[risk];
+function compact(value: string | null | undefined, limit = 320): string | null {
+  const cleaned = cleanAIText(value)?.replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+  if (cleaned.length <= limit) return cleaned;
+  const cut = cleaned.slice(0, limit);
+  const lastStop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; "));
+  return `${(lastStop > 120 ? cut.slice(0, lastStop + 1) : cut).trim()}…`;
 }
 
-/**
- * Split German management prose without treating common abbreviations such as
- * "z. B." or "d. h." as sentence boundaries.
- */
-function splitOverviewSentences(value: string): string[] {
-  const abbreviations: Array<[RegExp, string]> = [
-    [/\bz\.\s*B\./gi, "z<DOT> B<DOT>"],
-    [/\bd\.\s*h\./gi, "d<DOT> h<DOT>"],
-    [/\bu\.\s*a\./gi, "u<DOT> a<DOT>"],
-    [/\bu\.\s*U\./g, "u<DOT> U<DOT>"],
-    [/\bggf\./gi, "ggf<DOT>"],
-    [/\bbzw\./gi, "bzw<DOT>"],
-    [/\bca\./gi, "ca<DOT>"],
-    [/\bNr\./g, "Nr<DOT>"],
-    [/\bAbs\./g, "Abs<DOT>"],
-    [/\bArt\./g, "Art<DOT>"],
-    [/\bDr\./g, "Dr<DOT>"],
-  ];
-
-  let protectedText = value;
-
-  for (const [pattern, replacement] of abbreviations) {
-    protectedText = protectedText.replace(pattern, replacement);
-  }
-
-  return protectedText
-    .split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ0-9])/)
-    .map((sentence) => sentence.replaceAll("<DOT>", ".").trim())
-    .filter(Boolean);
+function SignalCard({ label, value, detail, alert = false }: { label: string; value: React.ReactNode; detail?: React.ReactNode; alert?: boolean }) {
+  return <div className={`rounded-2xl border p-5 ${alert ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+    <div className="mt-2 text-base font-semibold text-slate-950">{value}</div>
+    {detail ? <div className="mt-2 text-sm leading-6 text-slate-600">{detail}</div> : null}
+  </div>;
 }
 
-/**
- * Keep the Overview scannable without cutting a sentence in the middle.
- * The full AI review workflow remains available in the KI-Vorschläge-prüfen tab.
- */
-function compactOverviewText(
-  value: string | null | undefined,
-  maxCharacters: number,
-): string | null {
-  const cleaned = cleanAIText(value);
-
-  if (!cleaned) {
-    return null;
-  }
-
-  const normalized = cleaned.replace(/\s+/g, " ").trim();
-
-  if (normalized.length <= maxCharacters) {
-    return normalized;
-  }
-
-  const sentences = splitOverviewSentences(normalized);
-  let result = "";
-
-  for (const sentence of sentences) {
-    const candidate = `${result} ${sentence}`.trim();
-
-    if (candidate.length > maxCharacters) {
-      break;
-    }
-
-    result = candidate;
-  }
-
-  if (result) {
-    return result;
-  }
-
-  // If even the first sentence is longer than the preferred Overview limit,
-  // show that complete sentence instead of producing a broken fragment such
-  // as "(z. B.". Readability is more important than a hard character limit.
-  return sentences[0] ?? normalized;
-}
-
-function ManagementCard({
-  label,
-  value,
-  detail,
-  warning = false,
-}: {
-  label: string;
-  value: React.ReactNode;
-  detail?: React.ReactNode;
-  warning?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border p-5 shadow-sm ${
-        warning
-          ? "border-red-200 bg-red-50"
-          : "border-slate-200 bg-white"
-      }`}
-    >
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-        {label}
-      </p>
-
-      <div className="mt-3 text-sm font-semibold text-slate-950">
-        {value}
-      </div>
-
-      {detail && (
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-          {detail}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function WarningItem({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-amber-200 bg-white/70 px-4 py-3 text-sm text-amber-950">
-      {children}
-    </div>
-  );
-}
-
-export default function OverviewTab({
-  caseItem,
-  tasks,
-  documents,
-  timeline,
-  canEdit,
-  isManager,
-  onEditCase,
-  onRiskConfirmed,
-}: OverviewTabProps) {
-  const [confirmingRisk, setConfirmingRisk] =
-    useState(false);
-
-  const [riskError, setRiskError] =
-    useState("");
-
-  const [approvedSummary, setApprovedSummary] =
-    useState<CaseAISummary | null>(null);
-
-  const [latestApprovedSuggestion, setLatestApprovedSuggestion] =
-    useState<AISuggestion | null>(null);
-
-  const today = new Date();
-
-  today.setHours(
-    0,
-    0,
-    0,
-    0,
-  );
-
-  const deadline =
-    caseItem.primary_deadline
-      ? new Date(
-          `${caseItem.primary_deadline}T00:00:00`,
-        )
-      : null;
-
-  const deadlineIsOverdue =
-    deadline !== null &&
-    deadline < today &&
-    caseItem.status !== "Completed";
-
-  const warningStatuses = new Set([
-    "New",
-    "Under Review",
-    "In Progress",
-    "Critical",
-  ]);
-
-  const needsActiveAttention =
-    warningStatuses.has(
-      caseItem.status,
-    );
-
-  const isClosed =
-    caseItem.status === "Completed";
-
-  const cleanedCaseNextAction =
-    cleanAIText(
-      caseItem.next_action,
-    );
-
-  const missingOwner =
-    needsActiveAttention &&
-    !caseItem.responsible_person?.trim();
-
-  const overdueTasks =
-    tasks.filter(
-      (task) => {
-        if (
-          task.status === "Completed" ||
-          !task.due_date
-        ) {
-          return false;
-        }
-
-        return (
-          new Date(
-            `${task.due_date}T00:00:00`,
-          ) < today
-        );
-      },
-    );
+export default function OverviewTab({ caseItem, tasks, documents, timeline, canEdit, isManager, onEditCase, onRiskConfirmed }: OverviewTabProps) {
+  const [approvedSummary, setApprovedSummary] = useState<CaseAISummary | null>(null);
+  const [latestApprovedSuggestion, setLatestApprovedSuggestion] = useState<AISuggestion | null>(null);
+  const [confirmingRisk, setConfirmingRisk] = useState(false);
+  const [riskError, setRiskError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-
-    async function loadApprovedAIState() {
-      try {
-        const [approved, suggestions] =
-          await Promise.all([
-            getLatestApprovedManagementSummary(caseItem.id),
-            getCaseAISuggestions(caseItem.id),
-          ]);
-
+    void Promise.all([getLatestApprovedManagementSummary(caseItem.id), getCaseAISuggestions(caseItem.id)])
+      .then(([summary, suggestions]) => {
         if (cancelled) return;
-
-        setApprovedSummary(approved);
-
-        const latestSuggestion =
+        setApprovedSummary(summary);
+        setLatestApprovedSuggestion(
           suggestions
-            .filter((item) =>
-              ["Approved", "EditedAndApproved"].includes(item.status),
-            )
-            // The KI tab and backend list are document-chronology based.
-            // Use created_at here as well: reviewed_at tells us when a manager
-            // clicked Approve, not which document contains the newest facts.
-            .sort(
-              (a, b) =>
-                new Date(b.created_at).getTime() -
-                new Date(a.created_at).getTime(),
-            )[0] ?? null;
-
-        setLatestApprovedSuggestion(latestSuggestion);
-      } catch {
-        if (!cancelled) {
-          setApprovedSummary(null);
-          setLatestApprovedSuggestion(null);
-        }
-      }
-    }
-
-    void loadApprovedAIState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [caseItem.id, caseItem.updated_at]);
-
-  const latestEvent =
-    [...timeline]
-      .filter((event) => {
-        const eventType =
-          event.event_type
-            .trim()
-            .toLowerCase();
-
-        return (
-          !event.is_future &&
-          eventType !==
-            "milestone" &&
-          eventType !==
-            "task deadline"
+            .filter((item) => ["Approved", "EditedAndApproved"].includes(item.status))
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null,
         );
       })
-      .sort(
-        (a, b) =>
-          new Date(
-            b.occurred_at,
-          ).getTime() -
-          new Date(
-            a.occurred_at,
-          ).getTime(),
-      )[0];
+      .catch(() => {
+        if (!cancelled) { setApprovedSummary(null); setLatestApprovedSuggestion(null); }
+      });
+    return () => { cancelled = true; };
+  }, [caseItem.id, caseItem.updated_at]);
 
-  const approvedSummaryDevelopment =
-    cleanAIText(approvedSummary?.latest_development) || null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const deadline = caseItem.primary_deadline ? new Date(`${caseItem.primary_deadline}T00:00:00`) : null;
+  const deadlineOverdue = Boolean(deadline && deadline < today && caseItem.status !== "Completed");
+  const openTasks = tasks.filter((task) => task.status !== "Completed");
+  const overdueTasks = openTasks.filter((task) => task.due_date && new Date(`${task.due_date}T00:00:00`) < today);
 
-  const approvedDocumentDevelopment =
-    cleanAIText(latestApprovedSuggestion?.suggested_latest_development) || null;
+  const latestTimeline = useMemo(() => [...timeline]
+    .filter((event) => !event.is_future && !["milestone", "task deadline"].includes(event.event_type.trim().toLowerCase()))
+    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())[0], [timeline]);
 
-  const approvedSummaryNextAction =
-    cleanAIText(approvedSummary?.next_required_action) || null;
+  const latestDevelopment = compact(
+    latestApprovedSuggestion?.suggested_latest_development || approvedSummary?.latest_development || latestTimeline?.description || latestTimeline?.title,
+    360,
+  );
+  const nextAction = compact(
+    latestApprovedSuggestion?.suggested_next_action || approvedSummary?.next_required_action || caseItem.next_action,
+    260,
+  );
+  const riskReason = compact(caseItem.risk_reason || caseItem.suggested_risk_reason, 240);
+  const missingOwner = caseItem.status !== "Completed" && !caseItem.responsible_person?.trim();
+  const missingAction = caseItem.status !== "Completed" && !nextAction;
+  const isCritical = caseItem.risk === "High" || caseItem.status === "Critical" || deadlineOverdue || overdueTasks.length > 0;
 
-  const approvedDocumentNextAction =
-    cleanAIText(latestApprovedSuggestion?.suggested_next_action) || null;
-
-  // A confirmed document analysis is the freshest evidence for these two
-  // operational fields. Management summaries are consolidated fallbacks and
-  // may have been approved later even though they describe older evidence.
-  const confirmedLatestDevelopment =
-    approvedDocumentDevelopment || approvedSummaryDevelopment;
-
-  const confirmedNextAction =
-    approvedDocumentNextAction ||
-    approvedSummaryNextAction ||
-    cleanedCaseNextAction;
-
-  const overviewNextAction =
-    compactOverviewText(confirmedNextAction, 600);
-
-  const missingNextAction =
-    needsActiveAttention && !confirmedNextAction;
-
-  const cleanedManagementSummary =
-    cleanAIText(
-      caseItem.management_summary,
-    );
-
-  const cleanedDescription =
-    cleanAIText(
-      caseItem.description,
-    );
-
-  const cleanedRiskReason =
-    cleanAIText(
-      caseItem.risk_reason,
-    );
-
-  const overviewRiskReason =
-    compactOverviewText(
-      cleanedRiskReason,
-      420,
-    );
-
-  const overviewLatestDevelopment =
-    compactOverviewText(
-      confirmedLatestDevelopment,
-      550,
-    );
-
-  const cleanedSuggestedRiskReason =
-    cleanAIText(
-      caseItem.suggested_risk_reason,
-    );
-
-  const relevantDocuments =
-    [...documents]
-      .sort(
-        (a, b) =>
-          new Date(
-            b.uploaded_at,
-          ).getTime() -
-          new Date(
-            a.uploaded_at,
-          ).getTime(),
-      )
-      .slice(
-        0,
-        3,
-      );
-
-  const riskMismatch =
-    Boolean(
-      caseItem.suggested_risk,
-    ) &&
-    caseItem.suggested_risk !==
-      caseItem.risk;
-
-  async function confirmSuggestedRisk(): Promise<void> {
+  async function confirmSuggestedRisk() {
     try {
-      setConfirmingRisk(
-        true,
-      );
-
-      setRiskError(
-        "",
-      );
-
-      const response =
-        await api.post<CaseItem>(
-          `/cases/${caseItem.id}/confirm-risk`,
-        );
-
-      onRiskConfirmed(
-        response.data,
-      );
-    } catch (requestError) {
-      console.error(
-        "Risikoeinschätzung konnte nicht übernommen werden:",
-        requestError,
-      );
-
-      setRiskError(
-        "Die Risikoeinschätzung konnte nicht übernommen werden.",
-      );
-    } finally {
-      setConfirmingRisk(
-        false,
-      );
-    }
+      setConfirmingRisk(true); setRiskError("");
+      const response = await api.post<CaseItem>(`/cases/${caseItem.id}/confirm-risk`);
+      onRiskConfirmed(response.data);
+    } catch {
+      setRiskError("Die Risikoeinschätzung konnte nicht übernommen werden.");
+    } finally { setConfirmingRisk(false); }
   }
 
-  return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Management-Zusammenfassung
-            </p>
-
-            <h2 className="mt-2 text-xl font-semibold text-slate-950">
-              Aktuelle Situation
-            </h2>
-          </div>
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={
-                onEditCase
-              }
-              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Informationen bearbeiten
-            </button>
-          )}
+  return <div className="space-y-6">
+    <section className={`rounded-2xl border p-6 shadow-sm ${isCritical ? "border-red-200 bg-red-50" : "border-slate-200 bg-white"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Management-Blick</p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">Was braucht jetzt Aufmerksamkeit?</h2>
         </div>
+        {canEdit && <button type="button" onClick={onEditCase} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Fall bearbeiten</button>}
+      </div>
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <SignalCard label="Was ist kritisch?" value={<><RiskBadge value={caseItem.risk} /> <span className="ml-2"><StatusBadge value={caseItem.status} /></span></>} detail={riskReason || (isCritical ? "Aktiver Handlungsbedarf erkannt." : "Kein akutes Warnsignal.")} alert={isCritical} />
+        <SignalCard label="Was ist neu?" value={latestDevelopment || "Keine neue bestätigte Entwicklung"} detail={latestTimeline ? formatDateTime(latestTimeline.occurred_at) : undefined} />
+        <SignalCard label="Nächste Maßnahme" value={caseItem.status === "Completed" ? "Fall abgeschlossen" : nextAction || "Nicht definiert"} alert={missingAction} />
+        <SignalCard label="Verantwortlich" value={caseItem.responsible_person?.trim() || "Nicht zugewiesen"} alert={missingOwner} />
+        <SignalCard label="Relevante Frist" value={caseItem.status === "Completed" ? "Keine offene Frist" : caseItem.primary_deadline || "Keine klare Frist"} detail={deadlineOverdue ? "Frist ist überfällig." : undefined} alert={deadlineOverdue} />
+      </div>
+    </section>
 
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-          {cleanedManagementSummary ||
-            cleanedDescription ||
-            "Noch keine Management-Zusammenfassung vorhanden."}
-        </p>
-      </section>
+    {(deadlineOverdue || overdueTasks.length > 0 || missingOwner || missingAction) && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+      <h3 className="font-semibold text-amber-950">Offener Handlungsbedarf</h3>
+      <div className="mt-3 flex flex-wrap gap-2 text-sm text-amber-950">
+        {deadlineOverdue && <span className="rounded-lg bg-white px-3 py-2">Hauptfrist überfällig</span>}
+        {overdueTasks.length > 0 && <span className="rounded-lg bg-white px-3 py-2">{overdueTasks.length} Aufgabe(n) überfällig</span>}
+        {missingOwner && <span className="rounded-lg bg-white px-3 py-2">Verantwortung offen</span>}
+        {missingAction && <span className="rounded-lg bg-white px-3 py-2">Nächste Maßnahme offen</span>}
+      </div>
+    </section>}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <ManagementCard
-          label="Status"
-          value={
-            <StatusBadge
-              value={
-                caseItem.status
-              }
-            />
-          }
-        />
-
-        <ManagementCard
-          label="Bestätigtes Risiko"
-          value={
-            <RiskBadge
-              value={
-                caseItem.risk
-              }
-            />
-          }
-          detail={
-            overviewRiskReason ||
-            "Keine Risikobegründung vorhanden."
-          }
-        />
-
-        <ManagementCard
-          label="Nächste Maßnahme"
-          value={
-            isClosed
-              ? "Keine – Fall abgeschlossen"
-              : overviewNextAction || "Nicht definiert"
-          }
-          warning={
-            missingNextAction
-          }
-        />
-
-        <ManagementCard
-          label="Nächste Frist"
-          value={
-            isClosed
-              ? "Keine"
-              : caseItem.primary_deadline ?? "Nicht definiert"
-          }
-          detail={
-            deadlineIsOverdue
-              ? "Die Frist ist überschritten."
-              : undefined
-          }
-          warning={
-            deadlineIsOverdue
-          }
-        />
-      </section>
-
-      {(deadlineIsOverdue ||
-        missingNextAction ||
-        missingOwner ||
-        overdueTasks.length >
-          0) && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="text-lg font-semibold text-amber-950">
-            Handlungsbedarf
-          </h2>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {deadlineIsOverdue && (
-              <WarningItem>
-                Die Hauptfrist ist
-                überschritten.
-              </WarningItem>
-            )}
-
-            {missingNextAction && (
-              <WarningItem>
-                Es wurde keine
-                nächste Maßnahme
-                definiert.
-              </WarningItem>
-            )}
-
-            {missingOwner && (
-              <WarningItem>
-                Es wurde keine
-                verantwortliche
-                Person zugewiesen.
-              </WarningItem>
-            )}
-
-            {overdueTasks.length >
-              0 && (
-              <WarningItem>
-                {
-                  overdueTasks.length
-                }{" "}
-                offene Aufgabe(n)
-                sind überfällig.
-              </WarningItem>
-            )}
-          </div>
-        </section>
-      )}
-
-      {caseItem.suggested_risk && (
-        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                Automatische Empfehlung
-              </p>
-
-              <h2 className="mt-2 text-lg font-semibold text-blue-950">
-                Systemvorschlag zur
-                Risikobewertung
-              </h2>
-
-              <div className="mt-3">
-                <RiskBadge
-                  value={
-                    caseItem.suggested_risk
-                  }
-                />
-              </div>
-
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-blue-900">
-                {cleanedSuggestedRiskReason ||
-                  "Keine Risikobegründung vorhanden."}
-              </p>
-
-              <p className="mt-2 text-xs text-blue-700">
-                Der Vorschlag
-                verändert das
-                bestätigte Risiko
-                nicht automatisch.
-              </p>
-
-              {riskMismatch &&
-                caseItem.suggested_risk && (
-                  <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
-                    <p className="font-semibold text-amber-950">
-                      Abweichende
-                      Risikobewertung
-                    </p>
-
-                    <p className="mt-1 text-sm leading-6 text-amber-900">
-                      Das bestätigte
-                      Risiko ist{" "}
-                      <strong>
-                        {getRiskLabel(
-                          caseItem.risk,
-                        )}
-                      </strong>
-                      , während das
-                      System{" "}
-                      <strong>
-                        {getRiskLabel(
-                          caseItem.suggested_risk,
-                        )}
-                      </strong>{" "}
-                      empfiehlt.
-                    </p>
-
-                    <p className="mt-2 text-xs text-amber-800">
-                      Bitte prüfen Sie
-                      die manuelle
-                      Risikobegründung
-                      und den
-                      Systemvorschlag.
-                    </p>
-                  </div>
-                )}
-            </div>
-
-            {isManager &&
-              caseItem.suggested_risk !==
-                caseItem.risk && (
-                <button
-                  type="button"
-                  onClick={
-                    confirmSuggestedRisk
-                  }
-                  disabled={
-                    confirmingRisk
-                  }
-                  className="rounded-xl bg-blue-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {confirmingRisk
-                    ? "Wird übernommen..."
-                    : "Vorschlag übernehmen"}
-                </button>
-              )}
-          </div>
-
-          {riskError && (
-            <p className="mt-4 text-sm font-medium text-red-700">
-              {riskError}
-            </p>
-          )}
-        </section>
-      )}
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">
-            Verantwortung und letzte
-            Entwicklung
-          </h2>
-
-          <dl className="mt-5 space-y-4 text-sm">
-            <div>
-              <dt className="font-medium text-slate-500">
-                Verantwortliche
-                Person
-              </dt>
-
-              <dd className="mt-1 text-slate-900">
-                {caseItem.responsible_person ??
-                  "Nicht zugewiesen"}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="font-medium text-slate-500">
-                Letzte Entwicklung
-              </dt>
-
-              {overviewLatestDevelopment ? (
-                <>
-                  <dd className="mt-1 whitespace-pre-wrap leading-6 text-slate-900">
-                    {
-                      overviewLatestDevelopment
-                    }
-                  </dd>
-
-                </>
-              ) : (
-                <>
-                  <dd className="mt-1 text-slate-900">
-                    {latestEvent
-                      ? latestEvent.title
-                      : "Kein bestätigter Verlaufseintrag vorhanden"}
-                  </dd>
-
-                  {latestEvent?.description && (
-                    <dd className="mt-2 whitespace-pre-wrap leading-6 text-slate-600">
-                      {cleanAIText(
-                        latestEvent.description,
-                      )}
-                    </dd>
-                  )}
-
-                  {latestEvent && (
-                    <dd className="mt-2 text-xs text-slate-400">
-                      {formatDateTime(
-                        latestEvent.occurred_at,
-                      )}
-                    </dd>
-                  )}
-                </>
-              )}
-            </div>
-          </dl>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">
-            Relevante Dokumente
-          </h2>
-
-          <div className="mt-4 space-y-3">
-            {relevantDocuments.length >
-            0 ? (
-              relevantDocuments.map(
-                (document) => (
-                  <div
-                    key={
-                      document.id
-                    }
-                    className="rounded-xl border border-slate-200 p-3"
-                  >
-                    <p className="text-sm font-medium text-slate-900">
-                      {
-                        document.file_name
-                      }
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-400">
-                      {formatDateTime(
-                        document.uploaded_at,
-                      )}
-                    </p>
-                  </div>
-                ),
-              )
-            ) : (
-              <p className="text-sm text-slate-500">
-                Keine Dokumente
-                vorhanden.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">
-          Falldetails
-        </h2>
-
-        <dl className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Kategorie
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {
-                caseItem.category
-              }
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Unternehmen
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {
-                caseItem.company ?? "Nicht angegeben"
-              }
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Abteilung
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {caseItem.department ??
-                "Nicht angegeben"}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Externer Kontakt
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {caseItem.external_contact ??
-                "Nicht angegeben"}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Nächste Prüfung am
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {isClosed
-                ? "Keine"
-                : caseItem.follow_up_date ?? "Nicht definiert"}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Finanzieller Betrag
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {caseItem.financial_amount !=
-              null
-                ? `${caseItem.financial_amount.toLocaleString(
-                    "de-DE",
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    },
-                  )} EUR`
-                : "Nicht angegeben"}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Zuletzt aktualisiert
-            </dt>
-
-            <dd className="mt-2 text-sm text-slate-800">
-              {formatDateTime(
-                caseItem.updated_at,
-              )}
-            </dd>
-          </div>
+    <section className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Kurzkontext</p>
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{compact(caseItem.management_summary || caseItem.description, 700) || "Noch keine bestätigte Zusammenfassung vorhanden."}</p>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Arbeitsstand</p>
+        <dl className="mt-3 space-y-3 text-sm">
+          <div className="flex justify-between gap-4"><dt className="text-slate-500">Offene Aufgaben</dt><dd className="font-semibold">{openTasks.length}</dd></div>
+          <div className="flex justify-between gap-4"><dt className="text-slate-500">Dokumente</dt><dd className="font-semibold">{documents.length}</dd></div>
+          <div className="flex justify-between gap-4"><dt className="text-slate-500">Verlaufseinträge</dt><dd className="font-semibold">{timeline.length}</dd></div>
         </dl>
+      </div>
+    </section>
 
-        <div className="mt-6 border-t border-slate-100 pt-6">
-          <h3 className="text-sm font-semibold text-slate-950">
-            Beschreibung
-          </h3>
-
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-            {cleanedDescription ||
-              "Keine Beschreibung vorhanden."}
-          </p>
-        </div>
-      </section>
-    </div>
-  );
+    {caseItem.suggested_risk && caseItem.suggested_risk !== caseItem.risk && <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div><p className="text-xs font-semibold uppercase text-blue-600">KI-Vorschlag zur Risikobewertung</p><div className="mt-2"><RiskBadge value={caseItem.suggested_risk} /></div><p className="mt-2 text-sm text-blue-900">{compact(caseItem.suggested_risk_reason, 320) || "Keine Begründung vorhanden."}</p></div>
+        {isManager && <button disabled={confirmingRisk} onClick={() => void confirmSuggestedRisk()} className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{confirmingRisk ? "Wird übernommen…" : "Risiko übernehmen"}</button>}
+      </div>
+      {riskError && <p className="mt-3 text-sm text-red-700">{riskError}</p>}
+    </section>}
+  </div>;
 }

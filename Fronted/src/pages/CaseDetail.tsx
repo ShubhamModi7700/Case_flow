@@ -338,15 +338,15 @@ export default function CaseDetail() {
           />
 
           <TabButton
-            label={`Aufgaben (${tasks.length})`}
-            active={activeTab === "tasks"}
-            onClick={() => setActiveTab("tasks")}
-          />
-
-          <TabButton
             label={`Dokumente (${documents.length})`}
             active={activeTab === "documents"}
             onClick={() => setActiveTab("documents")}
+          />
+
+          <TabButton
+            label={`Aufgaben (${tasks.length})`}
+            active={activeTab === "tasks"}
+            onClick={() => setActiveTab("tasks")}
           />
 
           <TabButton

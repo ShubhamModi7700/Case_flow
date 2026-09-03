@@ -79,6 +79,10 @@ export default function DocumentsPage() {
   const [notice, setNotice] = useState("");
   const [routeSuggestion, setRouteSuggestion] = useState<DocumentCaseRouteSuggestion | null>(null);
   const [routeCaseId, setRouteCaseId] = useState("");
+  const [workflowCaseId, setWorkflowCaseId] = useState<number | null>(null);
+  const [workflowStage, setWorkflowStage] = useState<
+    "idle" | "uploaded" | "routing" | "route-review" | "analyzing" | "review-ready"
+  >("idle");
 
   async function loadData(): Promise<void> {
     try {
@@ -111,6 +115,41 @@ export default function DocumentsPage() {
     void loadData();
   }, []);
 
+  async function startAIWorkflow(document: DocumentItem): Promise<void> {
+    setBusyDocumentId(document.id);
+    setWorkflowCaseId(document.case_id ?? null);
+    setRouteSuggestion(null);
+    setRouteCaseId("");
+    setNotice("");
+
+    try {
+      if (!document.case_id) {
+        setWorkflowStage("routing");
+        const suggestion = await suggestDocumentCase(document.id);
+        setRouteSuggestion(suggestion);
+        setRouteCaseId(suggestion.suggested_case_id ? String(suggestion.suggested_case_id) : "");
+        setWorkflowStage("route-review");
+        setNotice("Die KI hat die Fallzuordnung vorbereitet. Bitte bestätigen Sie den passenden Fall, bevor weitere Ergebnisse übernommen werden.");
+        return;
+      }
+
+      setWorkflowStage("analyzing");
+      if (document.embedding_status !== "Ready") {
+        await processDocument(document.id);
+      }
+      await analyzeDocument(document.id);
+      setWorkflowCaseId(document.case_id);
+      setWorkflowStage("review-ready");
+      setNotice("Die KI hat Fakten, Frist und nächste Maßnahme als Vorschläge vorbereitet. Prüfen und bestätigen Sie diese jetzt im Fall.");
+      await loadData();
+    } catch (requestError) {
+      setWorkflowStage("idle");
+      throw requestError;
+    } finally {
+      setBusyDocumentId(null);
+    }
+  }
+
   async function uploadDocument(
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> {
@@ -136,13 +175,16 @@ export default function DocumentsPage() {
         formData.append("case_id", selectedCaseId);
       }
 
-      await api.post("/documents", formData);
+      const response = await api.post<DocumentItem>("/documents", formData);
 
       setFile(null);
       setDescription("");
       setSelectedCaseId("");
+      setWorkflowStage("uploaded");
+      setNotice("Dokument hochgeladen. Die KI bereitet jetzt die Fallzuordnung und Handlungsvorschläge vor.");
 
       await loadData();
+      await startAIWorkflow(response.data);
     } catch (requestError) {
       console.error("Document upload failed:", requestError);
       setError(
@@ -214,36 +256,8 @@ export default function DocumentsPage() {
 
   async function analyzeWithAI(document: DocumentItem): Promise<void> {
     try {
-      setBusyDocumentId(document.id);
       setError("");
-      setNotice("");
-      setRouteSuggestion(null);
-      setRouteCaseId("");
-
-      if (document.embedding_status !== "Ready") {
-        await processDocument(document.id);
-      }
-
-      if (!document.case_id) {
-        const suggestion = await suggestDocumentCase(document.id);
-        setRouteSuggestion(suggestion);
-        setRouteCaseId(
-          suggestion.suggested_case_id
-            ? String(suggestion.suggested_case_id)
-            : "",
-        );
-        setNotice(
-          "Die KI hat einen Fallvorschlag erstellt. Bitte prüfen und bestätigen Sie die Zuordnung.",
-        );
-        return;
-      }
-
-      await analyzeDocument(document.id);
-      setNotice(
-        `Die KI-Analyse für „${document.file_name}“ wurde erstellt. ` +
-          "Öffnen Sie den zugeordneten Fall und prüfen Sie dort die KI-Vorschläge.",
-      );
-      await loadData();
+      await startAIWorkflow(document);
     } catch (requestError) {
       setError(
         getErrorMessage(
@@ -251,8 +265,6 @@ export default function DocumentsPage() {
           "Das Dokument konnte nicht mit KI analysiert werden.",
         ),
       );
-    } finally {
-      setBusyDocumentId(null);
     }
   }
 
@@ -269,12 +281,13 @@ export default function DocumentsPage() {
         action: "assign_existing",
         case_id: Number(routeCaseId),
       });
+      setWorkflowStage("analyzing");
       await analyzeDocument(routeSuggestion.document_id);
+      setWorkflowCaseId(result.case_id);
+      setWorkflowStage("review-ready");
       setRouteSuggestion(null);
       setRouteCaseId("");
-      setNotice(
-        `${result.message} Die Dokumentanalyse wurde anschließend erstellt.`,
-      );
+      setNotice(`${result.message} Die KI-Vorschläge sind jetzt zur fachlichen Prüfung bereit.`);
       await loadData();
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Die Fallzuordnung konnte nicht bestätigt werden."));
@@ -296,12 +309,13 @@ export default function DocumentsPage() {
         action: "create_new",
         new_case: routeSuggestion.new_case,
       });
+      setWorkflowStage("analyzing");
       await analyzeDocument(routeSuggestion.document_id);
+      setWorkflowCaseId(result.case_id);
+      setWorkflowStage("review-ready");
       setRouteSuggestion(null);
       setRouteCaseId("");
-      setNotice(
-        `${result.message} Die Dokumentanalyse wurde anschließend erstellt.`,
-      );
+      setNotice(`${result.message} Die KI-Vorschläge sind jetzt zur fachlichen Prüfung bereit.`);
       await loadData();
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Der neue Fall konnte nicht angelegt werden."));
@@ -344,9 +358,42 @@ export default function DocumentsPage() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Dokumente hochladen und verwalten.
+          Dokument hochladen → Fall zuordnen → KI-Vorschläge prüfen → durch Benutzer freigeben.
         </p>
       </header>
+
+      {workflowStage !== "idle" && (
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Dokument-Workflow</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-950">Vom Dokument zur bestätigten Maßnahme</h2>
+            </div>
+            {workflowStage === "review-ready" && workflowCaseId && (
+              <Link to={`/cases/${workflowCaseId}`} className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-600">
+                KI-Vorschläge im Fall prüfen
+              </Link>
+            )}
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-5">
+            {[
+              ["uploaded", "1. Upload"],
+              ["routing", "2. Fall erkennen"],
+              ["route-review", "3. Zuordnung bestätigen"],
+              ["analyzing", "4. Frist & Maßnahme"],
+              ["review-ready", "5. Freigabe durch Benutzer"],
+            ].map(([stage, label]) => {
+              const order = ["uploaded", "routing", "route-review", "analyzing", "review-ready"];
+              const current = order.indexOf(workflowStage);
+              const item = order.indexOf(stage);
+              const done = item < current || (workflowStage === "review-ready" && item === current);
+              const active = item === current;
+              return <div key={stage} className={`rounded-xl border px-3 py-3 text-sm font-medium ${active ? "border-violet-300 bg-violet-50 text-violet-900" : done ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-400"}`}>{label}</div>;
+            })}
+          </div>
+          <p className="mt-3 text-xs text-slate-500">KI-Ergebnisse bleiben Vorschläge. Falldaten werden erst nach ausdrücklicher Benutzerbestätigung übernommen.</p>
+        </section>
+      )}
 
       {error && (
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
