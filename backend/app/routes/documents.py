@@ -246,6 +246,16 @@ async def upload_independent_document(
     current_user: models.User = Depends(require_editor),
 ):
     """Upload a document independently, optionally linking it to a case."""
+    if case_id is not None:
+        require_case_edit(db, current_user, case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Dokumente ohne Fallzuordnung dürfen nur von globalen Rollen "
+                "hochgeladen werden."
+            ),
+        )
     return await _store_document(
         file=file,
         description=description,
@@ -392,7 +402,7 @@ def process_document(
 def suggest_case_for_document(
     document_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_editor),
+    current_user: models.User = Depends(require_editor),
 ):
     """Suggest an existing case or a new case without changing case assignment.
 
@@ -401,6 +411,10 @@ def suggest_case_for_document(
     must confirm the final assignment or new-case creation separately.
     """
     document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_edit(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
 
     if document.embedding_status != "Ready":
         try:
@@ -422,7 +436,12 @@ def suggest_case_for_document(
 
     document_text = "\n\n".join(chunk.content for chunk in chunks)
     query_vector = create_query_embedding(document_text[:24000])
-    vector_candidates = match_cases(db=db, query_embedding=query_vector, limit=5)
+    vector_candidates = match_cases(
+        db=db,
+        user=current_user,
+        query_embedding=query_vector,
+        limit=5,
+    )
 
     candidates: list[CaseCandidate] = []
     for item in vector_candidates:
