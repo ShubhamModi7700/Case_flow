@@ -253,7 +253,7 @@ export default function KITab({
         status_reason: summaryForm.status_reason || null,
         relevant_document_ids: pendingSummary.relevant_document_ids,
       });
-      setNotice("Die Management-Zusammenfassung wurde bestätigt.");
+      setNotice("Der KI-Entwurf wurde bestätigt. Die freigegebene Handlungsempfehlung ist jetzt im Tab „Handlungsempfehlung“ verfügbar.");
       await Promise.all([loadAIData(), onCaseChanged()]);
     } catch (requestError) {
       setError(
@@ -474,8 +474,8 @@ export default function KITab({
             )}
 
           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Handlungsempfehlung</p>
-            <p className="mt-1 text-sm text-slate-600">Fakten, Einordnung und Handlung werden bewusst getrennt. Änderungen werden erst nach Ihrer Bestätigung in die offiziellen Falldaten übernommen.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Entwurf der Handlungsempfehlung</p>
+            <p className="mt-1 text-sm text-slate-600">Hier prüfen und bearbeiten Sie den noch nicht freigegebenen KI-Entwurf. Erst nach Ihrer Bestätigung erscheint die freigegebene Fassung im separaten Tab „Handlungsempfehlung“.</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <label className="lg:col-span-2"><span className="text-sm font-semibold text-slate-700">1. Fakten aus den Dokumenten</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.document_facts} onChange={(e) => setSummaryForm((c) => ({...c, document_facts:e.target.value}))} placeholder="Ein belegter Fakt pro Zeile" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
               <label><span className="text-sm font-semibold text-slate-700">2. Einordnung / Interpretation</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.interpretation} onChange={(e) => setSummaryForm((c) => ({...c, interpretation:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
