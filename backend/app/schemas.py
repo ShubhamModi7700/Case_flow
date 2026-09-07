@@ -557,6 +557,39 @@ class UserUpdate(BaseModel):
             raise ValueError("Role must be Manager, Shareholder, User or Viewer")
 
         return normalized_role
+class CaseAssistantQueryRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=5000)
+
+
+class AssistantEvidenceStatement(BaseModel):
+    text: str
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantSource(BaseModel):
+    source_id: str
+    chunk_id: int
+    document_id: int
+    filename: str
+    document_date: str | None = None
+    sender: str | None = None
+    page_number: int | None = None
+    sheet_name: str | None = None
+    email_section: str | None = None
+
+
+class CaseAssistantModelAnswer(BaseModel):
+    answer: str
+    claims: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    contradictions: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    missing_information: list[str] = Field(default_factory=list)
+    unsupported_statements: list[str] = Field(default_factory=list)
+
+
+class CaseAssistantResponse(CaseAssistantModelAnswer):
+    sources: list[AssistantSource] = Field(default_factory=list)
+
+
 class DocumentProcessingResponse(BaseModel):
     document_id: int
     processing_status: str

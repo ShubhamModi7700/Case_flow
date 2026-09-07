@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import CaseAssistant from "./assistant/CaseAssistant";
 import {
   analyzeDocument as requestDocumentAnalysis,
   approveAISuggestion,
@@ -372,6 +373,7 @@ export default function KITab({
 
   return (
     <div className="space-y-6">
+      <CaseAssistant caseId={caseItem.id} />
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}

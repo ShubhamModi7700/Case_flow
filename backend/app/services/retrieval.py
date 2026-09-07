@@ -84,10 +84,12 @@ def retrieve_chunks(
             dc.id as chunk_id,
             dc.document_id as document_id,
             d.case_id as case_id,
+            d.file_name as file_name,
             dc.content as content,
             dc.source_type as source_type,
             dc.page_number as page_number,
             dc.sheet_name as sheet_name,
+            dc.email_section as email_section,
             dc.metadata as metadata,
             (1 - (dc.embedding <=> cast(:query_embedding as extensions.vector)))::float
                 as similarity

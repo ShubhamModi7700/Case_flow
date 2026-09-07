@@ -243,3 +243,41 @@ export async function confirmDocumentCaseRoute(
 
   return data;
 }
+export type AssistantEvidenceStatement = {
+  text: string;
+  source_ids: string[];
+};
+
+export type AssistantSource = {
+  source_id: string;
+  chunk_id: number;
+  document_id: number;
+  filename: string;
+  document_date: string | null;
+  sender: string | null;
+  page_number: number | null;
+  sheet_name: string | null;
+  email_section: string | null;
+};
+
+export type CaseAssistantResponse = {
+  answer: string;
+  claims: AssistantEvidenceStatement[];
+  contradictions: AssistantEvidenceStatement[];
+  missing_information: string[];
+  unsupported_statements: string[];
+  sources: AssistantSource[];
+};
+
+export async function queryCaseAssistant(
+  caseId: number,
+  question: string,
+): Promise<CaseAssistantResponse> {
+  const { data } = await api.post<CaseAssistantResponse>(
+    `/cases/${caseId}/assistant/query`,
+    { question },
+    { timeout: AI_TIMEOUT_MS },
+  );
+
+  return data;
+}
