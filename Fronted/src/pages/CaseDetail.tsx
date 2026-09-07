@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { RiskBadge, StatusBadge } from "../components/case-detail/Badges";
 import DeleteCaseModal from "../components/case-detail/DeleteCaseModal";
+import CaseAssistant from "../components/case-detail/assistant/CaseAssistant";
 import DocumentsTab from "../components/case-detail/DocumentsTab";
 import EditCaseModal from "../components/case-detail/EditCaseModal";
 import KITab from "../components/case-detail/KITab";
@@ -356,6 +357,12 @@ export default function CaseDetail() {
           />
 
           <TabButton
+            label="KI-Assistent"
+            active={activeTab === "assistant"}
+            onClick={() => setActiveTab("assistant")}
+          />
+
+          <TabButton
             label="KI-Vorschläge prüfen"
             active={activeTab === "KI"}
             onClick={() => setActiveTab("KI")}
@@ -425,6 +432,10 @@ export default function CaseDetail() {
               ])
             }
           />
+        )}
+
+        {activeTab === "assistant" && (
+          <CaseAssistant caseId={caseItem.id} />
         )}
 
         {activeTab === "KI" && (

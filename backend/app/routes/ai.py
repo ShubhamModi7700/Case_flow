@@ -921,6 +921,21 @@ def _create_management_summary_record(
             )
         )[:5]
 
+    # A management action must not be presented as evidence-grounded when the
+    # model did not identify any validated supporting chunk/document. Keep the
+    # generated text for human review, but make the lack of evidence explicit.
+    if result.next_required_action and not supporting_chunk_ids:
+        note = (
+            "Für die vorgeschlagene nächste Maßnahme wurde keine konkrete "
+            "bestätigte Dokumentstelle als Beleg zugeordnet. Der Vorschlag ist "
+            "daher nur ein Prüfhinweis und darf nicht als belastbare "
+            "Handlungsempfehlung übernommen werden."
+        )
+        if note not in result.uncertainty_notes:
+            result.uncertainty_notes.append(note)
+        result.action_justification = None
+        relevant_document_ids = []
+
     # A deadline is allowed only when it is already represented by confirmed
     # case/task/document evidence. This prevents an unsupported date from
     # becoming a management proposal merely because the model inferred it.
@@ -995,7 +1010,7 @@ def _create_management_summary_record(
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-action-v10-evidence-separated",
+        prompt_version="management-action-v11-evidence-gated",
         generated_by=generated_by,
     )
     db.add(summary)

@@ -168,6 +168,11 @@ Qualitätsregeln:
   Unsicherheit in uncertainty_notes.
 - Priorisiere Verständlichkeit und Substanz vor künstlicher Kürze.
 - Die Ausgabe bleibt ein KI-Vorschlag und muss vom Benutzer bestätigt werden.
+- Eine konkrete Handlungsempfehlung gilt nur dann als evidenzgestützt, wenn
+  supporting_chunk_ids konkrete bereitgestellte Dokumentstellen enthalten.
+- Wenn keine konkrete Dokumentstelle die vorgeschlagene Maßnahme trägt, darf
+  action_justification keine scheinbar belegte Begründung enthalten. Nenne
+  stattdessen die fehlende Evidenz ausdrücklich in uncertainty_notes.
 """.strip()
 
 _TECHNICAL_SUMMARY_SUFFIX = re.compile(

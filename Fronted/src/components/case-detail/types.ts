@@ -6,6 +6,7 @@ export type TabName =
   | "tasks"
   | "documents"
   | "timeline"
+  | "assistant"
   | "KI";
 
 /**

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 
-import CaseAssistant from "./assistant/CaseAssistant";
 import {
   analyzeDocument as requestDocumentAnalysis,
   approveAISuggestion,
@@ -373,7 +372,6 @@ export default function KITab({
 
   return (
     <div className="space-y-6">
-      <CaseAssistant caseId={caseItem.id} />
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
@@ -476,7 +474,7 @@ export default function KITab({
             )}
 
           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Handlungsempfehlung · Phase 2</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Handlungsempfehlung</p>
             <p className="mt-1 text-sm text-slate-600">Fakten, Einordnung und Handlung werden bewusst getrennt. Änderungen werden erst nach Ihrer Bestätigung in die offiziellen Falldaten übernommen.</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <label className="lg:col-span-2"><span className="text-sm font-semibold text-slate-700">1. Fakten aus den Dokumenten</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.document_facts} onChange={(e) => setSummaryForm((c) => ({...c, document_facts:e.target.value}))} placeholder="Ein belegter Fakt pro Zeile" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
