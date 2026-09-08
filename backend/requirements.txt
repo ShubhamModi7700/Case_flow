@@ -16,3 +16,4 @@ python-docx
 openpyxl
 extract-msg
 tiktoken
+pytest

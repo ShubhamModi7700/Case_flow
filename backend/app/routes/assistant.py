@@ -38,9 +38,14 @@ def query_case_assistant(
             user=current_user,
             case_id=case_id,
             question=payload.question,
+            task_type=payload.task_type,
         )
         sources = build_sources(chunks)
-        result = answer_case_question(question=payload.question, sources=sources)
+        result = answer_case_question(
+            question=payload.question,
+            sources=sources,
+            task_type=payload.task_type,
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -51,5 +56,6 @@ def query_case_assistant(
 
     return schemas.CaseAssistantResponse(
         **result.model_dump(),
+        task_type=payload.task_type,
         sources=public_sources(sources),
     )

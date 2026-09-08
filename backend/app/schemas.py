@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import (
     BaseModel,
@@ -559,10 +560,31 @@ class UserUpdate(BaseModel):
         return normalized_role
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
+    task_type: Literal["question", "chronology", "evidence", "entities"] = "question"
 
 
 class AssistantEvidenceStatement(BaseModel):
     text: str
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantChronologyEvent(BaseModel):
+    date: str | None = None
+    event: str
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantEvidenceLink(BaseModel):
+    claim: str
+    relevance: str | None = None
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantEntity(BaseModel):
+    name: str
+    entity_type: Literal["Person", "Unternehmen", "Organisation", "Unbekannt"] = "Unbekannt"
+    role: str | None = None
+    role_is_explicit: bool = False
     source_ids: list[str] = Field(default_factory=list)
 
 
@@ -584,9 +606,13 @@ class CaseAssistantModelAnswer(BaseModel):
     contradictions: list[AssistantEvidenceStatement] = Field(default_factory=list)
     missing_information: list[str] = Field(default_factory=list)
     unsupported_statements: list[str] = Field(default_factory=list)
+    chronology: list[AssistantChronologyEvent] = Field(default_factory=list)
+    evidence: list[AssistantEvidenceLink] = Field(default_factory=list)
+    entities: list[AssistantEntity] = Field(default_factory=list)
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
+    task_type: Literal["question", "chronology", "evidence", "entities"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 

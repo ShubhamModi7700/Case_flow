@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
@@ -11,18 +11,20 @@ from app.services.openai_client import analysis_model, get_openai_client
 from app.services.retrieval import retrieve_chunks
 
 
-SYSTEM_PROMPT = """
+TaskType = Literal["question", "chronology", "evidence", "entities"]
+
+BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
 
-Beantworte ausschließlich die konkrete Frage zum ausgewählten Vorgang.
-Dir werden nur bereits durch Case Flow freigegebene Evidenzblöcke übergeben.
+Dir werden ausschließlich bereits durch Case Flow freigegebene Evidenzblöcke
+für den ausgewählten Vorgang übergeben.
 
 VERBINDLICHE REGELN:
 1. Verwende ausschließlich die bereitgestellte Evidenz. Erfinde keine Tatsachen.
-2. Jede Tatsachenbehauptung in `claims` muss mindestens eine gültige Quellen-ID
-   wie S1 oder S2 enthalten.
+2. Jede Tatsachenbehauptung muss mindestens eine gültige Quellen-ID wie S1 oder
+   S2 enthalten.
 3. Nutze ausschließlich die gelieferten Quellen-IDs. Erfinde keine IDs,
-   Dateinamen, Daten, Absender, Seiten oder Abschnitte.
+   Dateinamen, Daten, Absender, Seiten, Rollen oder Abschnitte.
 4. Die Freitextantwort soll die wichtigsten Quellen direkt als [S1], [S2] usw.
    nennen.
 5. Widersprechen sich Quellen, erfasse den Widerspruch ausdrücklich unter
@@ -35,6 +37,72 @@ VERBINDLICHE REGELN:
 9. Antworte auf Deutsch.
 """.strip()
 
+TASK_PROMPTS: dict[TaskType, str] = {
+    "question": """
+AUFGABE: FALLFRAGE
+Beantworte ausschließlich die konkrete Frage zum ausgewählten Vorgang.
+Nutze `claims` für die wichtigsten belegten Tatsachenbehauptungen.
+""".strip(),
+    "chronology": """
+AUFGABE: CHRONOLOGIE
+Erstelle aus der Evidenz eine belastbare Chronologie der für die Anfrage
+relevanten Ereignisse.
+
+Zusätzliche Regeln:
+- Nutze `chronology` für einzelne Ereignisse.
+- `date` darf nur gesetzt werden, wenn das Datum aus der bereitgestellten
+  Evidenz oder den gelieferten Quellenmetadaten hervorgeht.
+- Ist nur ein ungefährer Zeitraum belegt, formuliere ihn vorsichtig als Text.
+- Jedes Chronologie-Ereignis benötigt mindestens eine gültige Quellen-ID.
+- Sortiere Ereignisse möglichst chronologisch. Ereignisse ohne belastbares
+  Datum dürfen am Ende stehen.
+- Vermische keine Interpretation mit einem dokumentierten Ereignis.
+""".strip(),
+    "evidence": """
+AUFGABE: BEWEISMITTELÜBERSICHT
+Ordne die vorhandenen Belege der angefragten Behauptung oder Fragestellung zu.
+
+Zusätzliche Regeln:
+- Nutze `evidence` für einzelne Belegzuordnungen.
+- `claim` beschreibt nur die Behauptung, die durch die referenzierten Quellen
+  tatsächlich gestützt wird.
+- `relevance` erklärt knapp, warum der Beleg relevant ist.
+- Jede Belegzuordnung benötigt mindestens eine gültige Quellen-ID.
+- Gegenbelege oder widersprüchliche Belege gehören zusätzlich unter
+  `contradictions`.
+- Nicht belegbare Teile gehören in `missing_information` oder
+  `unsupported_statements`.
+""".strip(),
+    "entities": """
+AUFGABE: PERSONEN, UNTERNEHMEN UND ROLLEN
+Identifiziere aus der Evidenz Personen, Unternehmen und Organisationen sowie
+ihre belegten Rollen im Vorgang.
+
+Zusätzliche Regeln:
+- Nutze `entities` für jede identifizierte Person/Organisation.
+- `role_is_explicit=true` nur wenn die Rolle ausdrücklich aus der Evidenz
+  hervorgeht.
+- Wenn eine Rolle nur vermutet werden könnte, erfinde sie nicht. Setze `role`
+  auf null oder kennzeichne sie mit `role_is_explicit=false` und erläutere die
+  Unsicherheit in `missing_information`.
+- Jede Entität benötigt mindestens eine gültige Quellen-ID.
+- Doppelte Entitäten möglichst zusammenführen.
+""".strip(),
+}
+
+
+def retrieval_question(question: str, task_type: TaskType) -> str:
+    if task_type == "chronology":
+        return (
+            f"{question}\n\nChronologie, Datum, Ereignis, Entwicklung, "
+            "Korrespondenz, Übergabe, Frist, Handlung"
+        )
+    if task_type == "evidence":
+        return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
+    if task_type == "entities":
+        return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
+    return question
+
 
 def retrieve_case_evidence(
     *,
@@ -42,16 +110,19 @@ def retrieve_case_evidence(
     user: models.User,
     case_id: int,
     question: str,
-    limit: int = 15,
+    task_type: TaskType = "question",
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    query_embedding = create_query_embedding(question)
+    query_embedding = create_query_embedding(retrieval_question(question, task_type))
+    task_limit = limit if limit is not None else (30 if task_type == "chronology" else 20)
+    task_threshold = 0.30 if task_type == "chronology" else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
         query_embedding=query_embedding,
         case_id=case_id,
-        threshold=0.45,
-        limit=limit,
+        threshold=task_threshold,
+        limit=task_limit,
     )
 
 
@@ -107,6 +178,10 @@ def _remove_invalid_inline_citations(text: str, valid_ids: set[str]) -> str:
     return re.sub(r"\[(S\d+)\]", replace, text).strip()
 
 
+def _valid_source_ids(source_ids: list[str], valid_ids: set[str]) -> list[str]:
+    return list(dict.fromkeys(source_id for source_id in source_ids if source_id in valid_ids))
+
+
 def validate_answer_sources(
     result: schemas.CaseAssistantModelAnswer,
     sources: list[dict[str, Any]],
@@ -116,7 +191,7 @@ def validate_answer_sources(
 
     valid_claims: list[schemas.AssistantEvidenceStatement] = []
     for claim in result.claims:
-        claim.source_ids = [source_id for source_id in claim.source_ids if source_id in valid_ids]
+        claim.source_ids = _valid_source_ids(claim.source_ids, valid_ids)
         if claim.source_ids:
             valid_claims.append(claim)
         else:
@@ -125,19 +200,52 @@ def validate_answer_sources(
 
     valid_contradictions: list[schemas.AssistantEvidenceStatement] = []
     for contradiction in result.contradictions:
-        contradiction.source_ids = [
-            source_id for source_id in contradiction.source_ids if source_id in valid_ids
-        ]
+        contradiction.source_ids = _valid_source_ids(contradiction.source_ids, valid_ids)
         if contradiction.source_ids:
             valid_contradictions.append(contradiction)
         else:
             unsupported.append(contradiction.text)
     result.contradictions = valid_contradictions
 
+    valid_chronology: list[schemas.AssistantChronologyEvent] = []
+    for event in result.chronology:
+        event.source_ids = _valid_source_ids(event.source_ids, valid_ids)
+        if event.source_ids:
+            valid_chronology.append(event)
+        else:
+            unsupported.append(event.event)
+    result.chronology = valid_chronology
+
+    valid_evidence: list[schemas.AssistantEvidenceLink] = []
+    for item in result.evidence:
+        item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+        if item.source_ids:
+            valid_evidence.append(item)
+        else:
+            unsupported.append(item.claim)
+    result.evidence = valid_evidence
+
+    valid_entities: list[schemas.AssistantEntity] = []
+    for entity in result.entities:
+        entity.source_ids = _valid_source_ids(entity.source_ids, valid_ids)
+        if entity.source_ids:
+            valid_entities.append(entity)
+        else:
+            unsupported.append(
+                f"Entität ohne gültigen Beleg: {entity.name}"
+            )
+    result.entities = valid_entities
+
     result.answer = _remove_invalid_inline_citations(result.answer, valid_ids)
-    result.unsupported_statements = list(dict.fromkeys(item.strip() for item in unsupported if item and item.strip()))
+    result.unsupported_statements = list(
+        dict.fromkeys(item.strip() for item in unsupported if item and item.strip())
+    )
     result.missing_information = list(
-        dict.fromkeys(item.strip() for item in result.missing_information if item and item.strip())
+        dict.fromkeys(
+            item.strip()
+            for item in result.missing_information
+            if item and item.strip()
+        )
     )
     return result
 
@@ -146,12 +254,13 @@ def answer_case_question(
     *,
     question: str,
     sources: list[dict[str, Any]],
+    task_type: TaskType = "question",
 ) -> schemas.CaseAssistantModelAnswer:
     if not sources:
         return schemas.CaseAssistantModelAnswer(
             answer=(
                 "In den aktuell durchsuchbaren Dokumenten wurden keine ausreichend "
-                "relevanten Belege für diese Frage gefunden."
+                "relevanten Belege für diese Anfrage gefunden."
             ),
             missing_information=[
                 "Es wurden keine passenden Evidenzstellen aus dem freigegebenen Vorgang abgerufen."
@@ -159,14 +268,16 @@ def answer_case_question(
         )
 
     evidence_context = build_evidence_context(sources)
+    system_prompt = f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}"
     response = get_openai_client().responses.parse(
         model=analysis_model(),
         input=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
                 "content": (
-                    "FRAGE\n=====\n"
+                    f"AUFGABENTYP\n===========\n{task_type}\n\n"
+                    "ANFRAGE\n=======\n"
                     f"{question.strip()}\n\n"
                     "FREIGEGEBENE EVIDENZ\n====================\n"
                     f"{evidence_context}"

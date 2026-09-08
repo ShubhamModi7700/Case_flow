@@ -53,5 +53,57 @@ class CaseQATests(unittest.TestCase):
         self.assertNotIn("S99", validated.answer)
 
 
+class Phase5CStructuredAnalysisTests(unittest.TestCase):
+    def test_invalid_specialized_source_ids_are_removed(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Chronologie [S1] und erfunden [S99].",
+            chronology=[
+                schemas.AssistantChronologyEvent(
+                    date="18.09.2025",
+                    event="Unterlagen wurden übermittelt.",
+                    source_ids=["S1"],
+                ),
+                schemas.AssistantChronologyEvent(
+                    date="19.09.2025",
+                    event="Unbelegtes Ereignis.",
+                    source_ids=["S99"],
+                ),
+            ],
+            evidence=[
+                schemas.AssistantEvidenceLink(
+                    claim="Übergabe belegt",
+                    relevance="Bestätigt die Übersendung.",
+                    source_ids=["S1"],
+                )
+            ],
+            entities=[
+                schemas.AssistantEntity(
+                    name="Max Mustermann",
+                    entity_type="Person",
+                    role="Absender",
+                    role_is_explicit=True,
+                    source_ids=["S1"],
+                )
+            ],
+        )
+        validated = validate_answer_sources(
+            result,
+            [
+                {
+                    "source_id": "S1",
+                    "chunk_id": 1,
+                    "document_id": 1,
+                    "filename": "mail.eml",
+                    "content": "x",
+                }
+            ],
+        )
+        self.assertEqual(len(validated.chronology), 1)
+        self.assertEqual(len(validated.evidence), 1)
+        self.assertEqual(len(validated.entities), 1)
+        self.assertIn("Unbelegtes Ereignis.", validated.unsupported_statements)
+        self.assertNotIn("S99", validated.answer)
+
+
 if __name__ == "__main__":
     unittest.main()

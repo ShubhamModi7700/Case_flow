@@ -243,8 +243,30 @@ export async function confirmDocumentCaseRoute(
 
   return data;
 }
+export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities";
+
 export type AssistantEvidenceStatement = {
   text: string;
+  source_ids: string[];
+};
+
+export type AssistantChronologyEvent = {
+  date: string | null;
+  event: string;
+  source_ids: string[];
+};
+
+export type AssistantEvidenceLink = {
+  claim: string;
+  relevance: string | null;
+  source_ids: string[];
+};
+
+export type AssistantEntity = {
+  name: string;
+  entity_type: "Person" | "Unternehmen" | "Organisation" | "Unbekannt";
+  role: string | null;
+  role_is_explicit: boolean;
   source_ids: string[];
 };
 
@@ -261,21 +283,26 @@ export type AssistantSource = {
 };
 
 export type CaseAssistantResponse = {
+  task_type: AssistantTaskType;
   answer: string;
   claims: AssistantEvidenceStatement[];
   contradictions: AssistantEvidenceStatement[];
   missing_information: string[];
   unsupported_statements: string[];
+  chronology: AssistantChronologyEvent[];
+  evidence: AssistantEvidenceLink[];
+  entities: AssistantEntity[];
   sources: AssistantSource[];
 };
 
 export async function queryCaseAssistant(
   caseId: number,
   question: string,
+  taskType: AssistantTaskType = "question",
 ): Promise<CaseAssistantResponse> {
   const { data } = await api.post<CaseAssistantResponse>(
     `/cases/${caseId}/assistant/query`,
-    { question },
+    { question, task_type: taskType },
     { timeout: AI_TIMEOUT_MS },
   );
 
