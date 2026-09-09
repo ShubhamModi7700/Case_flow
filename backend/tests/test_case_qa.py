@@ -2,6 +2,7 @@ import unittest
 
 from app import schemas
 from app.services.case_qa import build_sources, validate_answer_sources
+from app.services.ai_audit import referenced_source_ids
 
 
 class CaseQATests(unittest.TestCase):
@@ -103,6 +104,25 @@ class Phase5CStructuredAnalysisTests(unittest.TestCase):
         self.assertEqual(len(validated.entities), 1)
         self.assertIn("Unbelegtes Ereignis.", validated.unsupported_statements)
         self.assertNotIn("S99", validated.answer)
+
+
+class Phase5DAuditTests(unittest.TestCase):
+    def test_referenced_source_ids_collects_only_sources_present_in_validated_output(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Antwort [S1].",
+            claims=[
+                schemas.AssistantEvidenceStatement(text="Belegt", source_ids=["S2"]),
+            ],
+            chronology=[
+                schemas.AssistantChronologyEvent(
+                    date="18.09.2025",
+                    event="Übergabe",
+                    source_ids=["S3"],
+                )
+            ],
+        )
+
+        self.assertEqual(referenced_source_ids(result), {"S1", "S2", "S3"})
 
 
 if __name__ == "__main__":

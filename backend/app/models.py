@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Float,
     Numeric,
     String,
     Text,
@@ -310,6 +311,97 @@ class DocumentChunk(Base):
     embedding_version = Column(String(30), nullable=False, default="v1")
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class AIQueryLog(Base):
+    """Audit record for every Case Assistant request.
+
+    The request is persisted before semantic retrieval starts. This makes it
+    possible to prove who asked what, for which case, with which task/model,
+    even when retrieval or the OpenAI request later fails.
+    """
+
+    __tablename__ = "ai_queries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    case_id = Column(
+        Integer,
+        ForeignKey("cases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    task_type = Column(String(40), nullable=False)
+    question = Column(Text, nullable=False)
+    provider = Column(String(40), nullable=False, default="openai")
+    model_name = Column(String(100), nullable=True)
+    prompt_version = Column(String(80), nullable=False)
+    status = Column(String(30), nullable=False, default="Started", index=True)
+    source_count = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text, nullable=True)
+    output_json = Column(JSONB, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    sources = relationship(
+        "AIQuerySourceLog",
+        back_populates="query",
+        cascade="all, delete-orphan",
+    )
+
+
+class AIQuerySourceLog(Base):
+    """Snapshot of every evidence chunk supplied to the model for a query.
+
+    Snapshot fields intentionally remain even if a source document/chunk is
+    later deleted, while the foreign-key IDs are cleared with SET NULL.
+    """
+
+    __tablename__ = "ai_query_sources"
+    __table_args__ = (
+        UniqueConstraint(
+            "ai_query_id",
+            "chunk_id",
+            name="uq_ai_query_sources_query_chunk",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    ai_query_id = Column(
+        Integer,
+        ForeignKey("ai_queries.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_id = Column(
+        Integer,
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    chunk_id = Column(
+        Integer,
+        ForeignKey("document_chunks.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_id = Column(String(20), nullable=False)
+    filename = Column(String(500), nullable=False)
+    document_date = Column(String(100), nullable=True)
+    sender = Column(String(500), nullable=True)
+    page_number = Column(Integer, nullable=True)
+    sheet_name = Column(String(255), nullable=True)
+    email_section = Column(String(100), nullable=True)
+    similarity = Column(Float, nullable=True)
+    used_in_output = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    query = relationship("AIQueryLog", back_populates="sources")
 
 
 class CaseEmbedding(Base):

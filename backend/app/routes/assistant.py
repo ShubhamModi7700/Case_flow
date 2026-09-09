@@ -5,7 +5,15 @@ from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
 from app.services.case_access import require_case_view
+from app.services.ai_audit import (
+    create_ai_query_log,
+    mark_ai_query_completed,
+    mark_ai_query_failed,
+    record_ai_query_sources,
+)
+from app.services.openai_client import analysis_model
 from app.services.case_qa import (
+    CASE_ASSISTANT_PROMPT_VERSION,
     answer_case_question,
     build_sources,
     public_sources,
@@ -32,6 +40,27 @@ def query_case_assistant(
     if case_exists is None:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
 
+    # Manager requirement: every AI request must be auditable. Persist the
+    # request before retrieval starts. If this fails, do not continue to RAG or
+    # OpenAI, otherwise an unlogged AI request could occur.
+    try:
+        audit_query = create_ai_query_log(
+            db=db,
+            user_id=current_user.id,
+            case_id=case_id,
+            task_type=payload.task_type,
+            question=payload.question,
+            model_name=analysis_model(),
+            prompt_version=CASE_ASSISTANT_PROMPT_VERSION,
+        )
+        audit_query_id = audit_query.id
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Die KI-Anfrage konnte nicht revisionssicher protokolliert werden.",
+        ) from exc
+
     try:
         chunks = retrieve_case_evidence(
             db=db,
@@ -41,14 +70,35 @@ def query_case_assistant(
             task_type=payload.task_type,
         )
         sources = build_sources(chunks)
+
+        # These are exactly the authorized evidence chunks that are about to be
+        # supplied to the model. Commit them before the OpenAI call.
+        record_ai_query_sources(
+            db=db,
+            query=audit_query,
+            chunks=chunks,
+            sources=sources,
+        )
+
         result = answer_case_question(
             question=payload.question,
             sources=sources,
             task_type=payload.task_type,
         )
-    except HTTPException:
+        mark_ai_query_completed(db=db, query_id=audit_query_id, result=result)
+    except HTTPException as exc:
+        db.rollback()
+        try:
+            mark_ai_query_failed(db=db, query_id=audit_query_id, error=exc.detail)
+        except Exception:
+            db.rollback()
         raise
     except Exception as exc:
+        db.rollback()
+        try:
+            mark_ai_query_failed(db=db, query_id=audit_query_id, error=exc)
+        except Exception:
+            db.rollback()
         raise HTTPException(
             status_code=502,
             detail=f"Die KI-Anfrage konnte nicht verarbeitet werden: {exc}",

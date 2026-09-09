@@ -1,3 +1,4 @@
+from app import models  
 from app.database import Base, engine
 from app.migrations import (
     migrate_case_company_fields,
@@ -9,6 +10,7 @@ from app.migrations import (
     migrate_task_assignment_fields,
     migrate_ai_summary_status_fields,
     migrate_management_action_fields,
+    migrate_ai_audit_fields,
 )
 
 
@@ -26,6 +28,7 @@ def main() -> None:
     migrate_task_assignment_fields(engine)
     migrate_ai_summary_status_fields(engine)
     migrate_management_action_fields(engine)
+    migrate_ai_audit_fields(engine)
 
     print("Database migration completed successfully.")
 

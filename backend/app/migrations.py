@@ -455,3 +455,27 @@ def migrate_management_action_fields(engine: Engine) -> None:
         for column_name, statement in statements.items():
             if column_name not in columns:
                 connection.execute(text(statement))
+
+
+def migrate_ai_audit_fields(engine: Engine) -> None:
+    """Backfill Step 6 audit columns if an earlier audit table already exists."""
+    query_columns = _column_map(engine, "ai_queries")
+    if query_columns:
+        statements = {
+            "provider": "ALTER TABLE ai_queries ADD COLUMN provider VARCHAR(40) NOT NULL DEFAULT 'openai'",
+            "output_json": "ALTER TABLE ai_queries ADD COLUMN output_json JSONB",
+        }
+        with engine.begin() as connection:
+            for column_name, statement in statements.items():
+                if column_name not in query_columns:
+                    connection.execute(text(statement))
+
+    source_columns = _column_map(engine, "ai_query_sources")
+    if source_columns and "used_in_output" not in source_columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE ai_query_sources "
+                    "ADD COLUMN used_in_output BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )

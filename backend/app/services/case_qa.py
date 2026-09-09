@@ -13,6 +13,8 @@ from app.services.retrieval import retrieve_chunks
 
 TaskType = Literal["question", "chronology", "evidence", "entities"]
 
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5d-audited"
+
 BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
 
