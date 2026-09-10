@@ -280,6 +280,10 @@ export type AssistantSource = {
   page_number: number | null;
   sheet_name: string | null;
   email_section: string | null;
+  is_attachment: boolean;
+  parent_filename: string | null;
+  root_email_filename: string | null;
+  attachment_depth: number;
 };
 
 export type CaseAssistantResponse = {

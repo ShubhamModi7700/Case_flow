@@ -137,12 +137,16 @@ def build_sources(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "source_id": f"S{index}",
                 "chunk_id": int(chunk["chunk_id"]),
                 "document_id": int(chunk["document_id"]),
-                "filename": chunk.get("file_name") or f"Dokument {chunk['document_id']}",
+                "filename": metadata.get("source_filename") or chunk.get("file_name") or f"Dokument {chunk['document_id']}",
                 "document_date": metadata.get("document_date"),
                 "sender": metadata.get("sender"),
                 "page_number": chunk.get("page_number"),
                 "sheet_name": chunk.get("sheet_name"),
                 "email_section": chunk.get("email_section"),
+                "is_attachment": bool(metadata.get("is_attachment")),
+                "parent_filename": metadata.get("parent_filename"),
+                "root_email_filename": metadata.get("root_email_filename"),
+                "attachment_depth": int(metadata.get("attachment_depth") or 0),
                 "content": chunk["content"],
             }
         )
@@ -164,6 +168,11 @@ def _source_context(source: dict[str, Any]) -> str:
         lines.append(f"Tabellenblatt: {source['sheet_name']}")
     if source.get("email_section"):
         lines.append(f"Abschnitt: {source['email_section']}")
+    if source.get("is_attachment"):
+        if source.get("parent_filename"):
+            lines.append(f"Anhang aus: {source['parent_filename']}")
+        if source.get("root_email_filename") and source.get("root_email_filename") != source.get("parent_filename"):
+            lines.append(f"Ursprüngliche E-Mail: {source['root_email_filename']}")
     lines.extend(["", "Inhalt:", source["content"]])
     return "\n".join(lines)
 

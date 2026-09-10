@@ -598,6 +598,10 @@ class AssistantSource(BaseModel):
     page_number: int | None = None
     sheet_name: str | None = None
     email_section: str | None = None
+    is_attachment: bool = False
+    parent_filename: str | None = None
+    root_email_filename: str | None = None
+    attachment_depth: int = 0
 
 
 class CaseAssistantModelAnswer(BaseModel):

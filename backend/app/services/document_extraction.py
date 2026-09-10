@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
@@ -23,10 +25,25 @@ class ExtractedSection:
 
 
 @dataclass
+class ExtractedAttachment:
+    """Raw email attachment that can be recursively extracted/indexed.
+
+    Attachments remain part of the immutable parent email document in storage.
+    The indexing pipeline extracts supported attachment contents into dedicated
+    document chunks and preserves the parent/attachment provenance in metadata.
+    """
+
+    file_name: str
+    content: bytes
+    content_type: str | None = None
+
+
+@dataclass
 class ExtractedDocument:
     source_type: str
     sections: list[ExtractedSection]
     metadata: dict[str, Any] = field(default_factory=dict)
+    attachments: list[ExtractedAttachment] = field(default_factory=list)
 
 
 def extract_pdf(
@@ -126,6 +143,22 @@ def extract_xlsx(content: bytes) -> ExtractedDocument:
     return ExtractedDocument("xlsx", sections, {"sheet_count": len(workbook.sheetnames)})
 
 
+def _decode_text_attachment(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+        try:
+            return content.decode(encoding).strip()
+        except UnicodeDecodeError:
+            continue
+    return content.decode("utf-8", errors="replace").strip()
+
+
+def extract_text(content: bytes, *, source_type: str = "text") -> ExtractedDocument:
+    text = _decode_text_attachment(content)
+    if not text:
+        raise ValueError("Die Textdatei enthält keinen extrahierbaren Inhalt.")
+    return ExtractedDocument(source_type, [ExtractedSection(text)])
+
+
 def extract_eml(content: bytes) -> ExtractedDocument:
     message = BytesParser(policy=policy.default).parsebytes(content)
     body_parts: list[str] = []
@@ -146,40 +179,135 @@ def extract_eml(content: bytes) -> ExtractedDocument:
         except Exception:
             pass
 
+    sender = str(message.get("From", "") or "").strip() or None
+    recipient = str(message.get("To", "") or "").strip() or None
+    subject = str(message.get("Subject", "") or "").strip() or None
+    document_date = str(message.get("Date", "") or "").strip() or None
+
     header = "\n".join(
         [
-            f"Von: {message.get('From', '')}",
-            f"An: {message.get('To', '')}",
-            f"Betreff: {message.get('Subject', '')}",
-            f"Datum: {message.get('Date', '')}",
+            f"Von: {sender or ''}",
+            f"An: {recipient or ''}",
+            f"Betreff: {subject or ''}",
+            f"Datum: {document_date or ''}",
         ]
     )
-    attachments = [part.get_filename() for part in message.iter_attachments() if part.get_filename()]
+
+    attachments: list[ExtractedAttachment] = []
+    attachment_names: list[str] = []
+    for index, part in enumerate(message.iter_attachments(), start=1):
+        file_name = Path(part.get_filename() or f"attachment-{index}").name
+        try:
+            payload = part.get_payload(decode=True)
+        except Exception:
+            payload = None
+        if not isinstance(payload, (bytes, bytearray)):
+            continue
+        attachment_names.append(file_name)
+        attachments.append(
+            ExtractedAttachment(
+                file_name=file_name,
+                content=bytes(payload),
+                content_type=part.get_content_type(),
+            )
+        )
+
     text = f"{header}\n\n" + "\n\n".join(body_parts)
-    if attachments:
-        text += "\n\nAnhänge: " + ", ".join(attachments)
+    if attachment_names:
+        text += "\n\nAnhänge: " + ", ".join(attachment_names)
+
     return ExtractedDocument(
         "eml",
         [ExtractedSection(text.strip(), email_section="message")],
-        {"attachments": attachments},
+        {
+            "attachments": attachment_names,
+            "attachment_count": len(attachment_names),
+            "sender": sender,
+            "recipient": recipient,
+            "subject": subject,
+            "document_date": document_date,
+        },
+        attachments,
     )
+
+
+def _msg_attachment_bytes(attachment: Any) -> bytes | None:
+    """Best-effort byte extraction for extract-msg attachment variants."""
+    try:
+        data = getattr(attachment, "data", None)
+        if callable(data):
+            data = data()
+        if isinstance(data, bytearray):
+            return bytes(data)
+        if isinstance(data, bytes):
+            return data
+    except Exception:
+        return None
+    return None
 
 
 def extract_msg_document(content: bytes) -> ExtractedDocument:
     message = extract_msg.Message(BytesIO(content))
-    text = "\n".join(
-        [
-            f"Von: {message.sender or ''}",
-            f"An: {message.to or ''}",
-            f"Betreff: {message.subject or ''}",
-            f"Datum: {message.date or ''}",
-            "",
-            message.body or "",
-        ]
-    ).strip()
-    if not text:
-        raise ValueError("Die MSG-Datei enthält keinen extrahierbaren Inhalt.")
-    return ExtractedDocument("msg", [ExtractedSection(text, email_section="message")])
+    try:
+        sender = str(message.sender or "").strip() or None
+        recipient = str(message.to or "").strip() or None
+        subject = str(message.subject or "").strip() or None
+        document_date = str(message.date or "").strip() or None
+        text = "\n".join(
+            [
+                f"Von: {sender or ''}",
+                f"An: {recipient or ''}",
+                f"Betreff: {subject or ''}",
+                f"Datum: {document_date or ''}",
+                "",
+                message.body or "",
+            ]
+        ).strip()
+        if not text:
+            raise ValueError("Die MSG-Datei enthält keinen extrahierbaren Inhalt.")
+
+        attachments: list[ExtractedAttachment] = []
+        attachment_names: list[str] = []
+        for index, attachment in enumerate(getattr(message, "attachments", []) or [], start=1):
+            file_name = (
+                getattr(attachment, "longFilename", None)
+                or getattr(attachment, "shortFilename", None)
+                or f"attachment-{index}"
+            )
+            file_name = Path(str(file_name)).name
+            payload = _msg_attachment_bytes(attachment)
+            if payload is None:
+                continue
+            attachment_names.append(file_name)
+            attachments.append(
+                ExtractedAttachment(
+                    file_name=file_name,
+                    content=payload,
+                    content_type=getattr(attachment, "mimetype", None),
+                )
+            )
+
+        if attachment_names:
+            text += "\n\nAnhänge: " + ", ".join(attachment_names)
+
+        return ExtractedDocument(
+            "msg",
+            [ExtractedSection(text, email_section="message")],
+            {
+                "attachments": attachment_names,
+                "attachment_count": len(attachment_names),
+                "sender": sender,
+                "recipient": recipient,
+                "subject": subject,
+                "document_date": document_date,
+            },
+            attachments,
+        )
+    finally:
+        try:
+            message.close()
+        except Exception:
+            pass
 
 
 def extract_document(*, file_name: str, content: bytes) -> ExtractedDocument:
@@ -194,6 +322,10 @@ def extract_document(*, file_name: str, content: bytes) -> ExtractedDocument:
         return extract_eml(content)
     if extension == ".msg":
         return extract_msg_document(content)
+    if extension == ".txt":
+        return extract_text(content, source_type="txt")
+    if extension == ".csv":
+        return extract_text(content, source_type="csv")
     if extension in {".doc", ".xls"}:
         raise ValueError(
             "Legacy-DOC/XLS muss vor der KI-Verarbeitung in DOCX/XLSX umgewandelt werden."

@@ -318,6 +318,12 @@ export default function CaseAssistant({ caseId }: Props) {
                     <div className="font-semibold text-slate-900">[{source.source_id}] {source.filename}</div>
                     {source.document_date && <div className="mt-1 text-slate-600">Datum: {source.document_date}</div>}
                     {source.sender && <div className="text-slate-600">Absender: {source.sender}</div>}
+                    {source.is_attachment && source.parent_filename && (
+                      <div className="text-slate-600">Anhang aus: {source.parent_filename}</div>
+                    )}
+                    {source.is_attachment && source.root_email_filename && source.root_email_filename !== source.parent_filename && (
+                      <div className="text-slate-600">Ursprüngliche E-Mail: {source.root_email_filename}</div>
+                    )}
                     {sourceLocation(source) && <div className="text-slate-600">{sourceLocation(source)}</div>}
                   </div>
                 ))}
