@@ -90,6 +90,17 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
     for item in result.entities:
         ids.update(item.source_ids)
 
+    package = result.brief_evidence_package
+    if package is not None:
+        for item in package.established_facts:
+            ids.update(item.source_ids)
+        for item in package.key_evidence:
+            ids.update(item.source_ids)
+        for item in package.relevant_events:
+            ids.update(item.source_ids)
+        for item in package.relevant_entities:
+            ids.update(item.source_ids)
+
     return ids
 
 

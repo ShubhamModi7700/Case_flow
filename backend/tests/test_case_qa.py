@@ -1,7 +1,7 @@
 import unittest
 
 from app import schemas
-from app.services.case_qa import build_sources, validate_answer_sources
+from app.services.case_qa import build_sources, build_task_request_text, validate_answer_sources
 from app.services.ai_audit import referenced_source_ids
 
 
@@ -123,6 +123,64 @@ class Phase5DAuditTests(unittest.TestCase):
         )
 
         self.assertEqual(referenced_source_ids(result), {"S1", "S2", "S3"})
+
+
+class Phase5FBriefEvidenceTests(unittest.TestCase):
+    def test_brief_context_is_included_in_task_request(self):
+        context = schemas.AssistantBriefContext(
+            client="MVI Proplant Nord GmbH",
+            role="Mandantin",
+            recipient="Amtsgericht Wolfsburg",
+            document_type="Schriftsatz",
+            objective="Fehlenden Erkenntnisgewinn der Zeugenvernehmung darstellen",
+            additional_instructions="Nur freigegebene Belege verwenden.",
+        )
+        text = build_task_request_text(
+            question="Stelle ein Beweispaket zusammen.",
+            task_type="brief_evidence",
+            brief_context=context,
+        )
+        self.assertIn("MVI Proplant Nord GmbH", text)
+        self.assertIn("Amtsgericht Wolfsburg", text)
+        self.assertIn("Fehlenden Erkenntnisgewinn", text)
+
+    def test_invalid_brief_package_sources_are_removed(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Beweispaket [S1].",
+            brief_evidence_package=schemas.AssistantBriefEvidencePackage(
+                task_summary="Test",
+                established_facts=[
+                    schemas.AssistantEvidenceStatement(text="Belegt", source_ids=["S1"]),
+                    schemas.AssistantEvidenceStatement(text="Erfunden", source_ids=["S99"]),
+                ],
+                key_evidence=[
+                    schemas.AssistantEvidenceLink(claim="Beleg", relevance="Relevant", source_ids=["S1"])
+                ],
+            ),
+        )
+        validated = validate_answer_sources(
+            result,
+            [{"source_id": "S1", "chunk_id": 1, "document_id": 1, "filename": "a.pdf", "content": "x"}],
+        )
+        self.assertEqual(
+            [item.text for item in validated.brief_evidence_package.established_facts],
+            ["Belegt"],
+        )
+        self.assertIn("Erfunden", validated.unsupported_statements)
+
+    def test_audit_collects_brief_package_source_ids(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="",
+            brief_evidence_package=schemas.AssistantBriefEvidencePackage(
+                established_facts=[
+                    schemas.AssistantEvidenceStatement(text="Belegt", source_ids=["S4"])
+                ],
+                key_evidence=[
+                    schemas.AssistantEvidenceLink(claim="Beleg", source_ids=["S5"])
+                ],
+            ),
+        )
+        self.assertEqual(referenced_source_ids(result), {"S4", "S5"})
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 
 import {
   queryCaseAssistant,
+  type AssistantBriefContext,
+  type AssistantBriefEvidencePackage,
   type AssistantChronologyEvent,
   type AssistantEntity,
   type AssistantEvidenceLink,
@@ -205,12 +207,68 @@ function EntitiesView({
   );
 }
 
+function BriefEvidenceView({
+  item,
+  sourcesById,
+}: {
+  item: AssistantBriefEvidencePackage;
+  sourcesById: Map<string, AssistantSource>;
+}) {
+  return (
+    <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50 p-4">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-violet-700">Schriftsatzvorbereitung</div>
+        <h3 className="mt-1 text-base font-semibold text-slate-900">Aufgabenbezogenes Beweispaket</h3>
+        {item.task_summary && <p className="mt-2 text-sm leading-6 text-slate-700">{item.task_summary}</p>}
+        <p className="mt-2 text-xs text-slate-600">Noch kein Schriftsatzentwurf. Dieses Paket dient als geprüfte Tatsachen- und Beweisgrundlage.</p>
+      </div>
+
+      {item.established_facts.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-sm font-semibold text-slate-900">Maßgebliche belegte Tatsachen</h4>
+          <EvidenceList items={item.established_facts} sourcesById={sourcesById} />
+        </div>
+      )}
+
+      {item.key_evidence.length > 0 && (
+        <EvidenceOverview items={item.key_evidence} sourcesById={sourcesById} />
+      )}
+
+      {item.relevant_events.length > 0 && (
+        <ChronologyView items={item.relevant_events} sourcesById={sourcesById} />
+      )}
+
+      {item.relevant_entities.length > 0 && (
+        <EntitiesView items={item.relevant_entities} sourcesById={sourcesById} />
+      )}
+
+      {item.open_issues.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <h4 className="text-sm font-semibold text-amber-900">Vor einem Entwurf zu klären</h4>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+            {item.open_issues.map((issue, index) => <li key={`${issue}-${index}`}>{issue}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CaseAssistant({ caseId }: Props) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTask, setActiveTask] = useState<AssistantTaskType>("question");
+  const [showBriefForm, setShowBriefForm] = useState(false);
+  const [briefContext, setBriefContext] = useState<AssistantBriefContext>({
+    client: "",
+    role: null,
+    recipient: null,
+    document_type: "Schriftsatz",
+    objective: "",
+    additional_instructions: null,
+  });
 
   const sourcesById = useMemo(
     () => new Map((result?.sources ?? []).map((source) => [source.source_id, source])),
@@ -220,6 +278,7 @@ export default function CaseAssistant({ caseId }: Props) {
   async function submit(
     taskType: AssistantTaskType = "question",
     explicitQuestion?: string,
+    explicitBriefContext?: AssistantBriefContext,
   ): Promise<void> {
     const trimmed = (explicitQuestion ?? question).trim();
     if (trimmed.length < 2 || loading) return;
@@ -228,13 +287,30 @@ export default function CaseAssistant({ caseId }: Props) {
       setLoading(true);
       setError("");
       setActiveTask(taskType);
-      const response = await queryCaseAssistant(caseId, trimmed, taskType);
+      const response = await queryCaseAssistant(caseId, trimmed, taskType, explicitBriefContext);
       setResult(response);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function submitBriefEvidence(): Promise<void> {
+    const client = briefContext.client.trim();
+    const objective = briefContext.objective.trim();
+    if (!client || objective.length < 2 || loading) return;
+
+    const normalized: AssistantBriefContext = {
+      client,
+      role: briefContext.role?.trim() || null,
+      recipient: briefContext.recipient?.trim() || null,
+      document_type: briefContext.document_type.trim() || "Schriftsatz",
+      objective,
+      additional_instructions: briefContext.additional_instructions?.trim() || null,
+    };
+    const request = `Stelle ein aufgabenbezogenes Beweispaket für die Vorbereitung von ${normalized.document_type} zusammen. Ziel: ${normalized.objective}`;
+    await submit("brief_evidence", request, normalized);
   }
 
   return (
@@ -263,7 +339,39 @@ export default function CaseAssistant({ caseId }: Props) {
             {action.label}
           </button>
         ))}
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => setShowBriefForm((value) => !value)}
+          className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+            showBriefForm ? "border-violet-700 bg-violet-700 text-white" : "border-violet-300 bg-white text-violet-800 hover:border-violet-500"
+          }`}
+        >
+          Schriftsatz vorbereiten
+        </button>
       </div>
+
+      {showBriefForm && (
+        <div className="mb-4 rounded-xl border border-violet-200 bg-white p-4">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">Auftrag für das Beweispaket</h3>
+            <p className="mt-1 text-xs text-slate-600">Case Flow erstellt zunächst nur die Tatsachen- und Beweisgrundlage. Der eigentliche Schriftsatz folgt in einem späteren Schritt.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Mandant / Partei *" value={briefContext.client} onChange={(e) => setBriefContext((v) => ({...v, client: e.target.value}))} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Rolle, z. B. Antragstellerin" value={briefContext.role ?? ""} onChange={(e) => setBriefContext((v) => ({...v, role: e.target.value}))} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Adressat, z. B. Amtsgericht Wolfsburg" value={briefContext.recipient ?? ""} onChange={(e) => setBriefContext((v) => ({...v, recipient: e.target.value}))} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Dokumentart" value={briefContext.document_type} onChange={(e) => setBriefContext((v) => ({...v, document_type: e.target.value}))} />
+          </div>
+          <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={3} placeholder="Ziel des Schriftsatzes / konkrete Aufgabe *" value={briefContext.objective} onChange={(e) => setBriefContext((v) => ({...v, objective: e.target.value}))} />
+          <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={2} placeholder="Zusätzliche Hinweise (optional)" value={briefContext.additional_instructions ?? ""} onChange={(e) => setBriefContext((v) => ({...v, additional_instructions: e.target.value}))} />
+          <div className="mt-3 flex justify-end">
+            <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {loading && activeTask === "brief_evidence" ? "Beweispaket wird erstellt..." : "Beweispaket erstellen"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <textarea
         value={question}
@@ -295,6 +403,10 @@ export default function CaseAssistant({ caseId }: Props) {
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Antwort</h3>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-900">{result.answer}</p>
           </div>
+
+          {result.brief_evidence_package && (
+            <BriefEvidenceView item={result.brief_evidence_package} sourcesById={sourcesById} />
+          )}
 
           <ChronologyView items={result.chronology} sourcesById={sourcesById} />
           <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />

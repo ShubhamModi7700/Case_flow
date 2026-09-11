@@ -18,6 +18,7 @@ from app.services.case_qa import (
     build_sources,
     public_sources,
     retrieve_case_evidence,
+    build_task_request_text,
 )
 
 
@@ -40,6 +41,18 @@ def query_case_assistant(
     if case_exists is None:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
 
+    if payload.task_type == "brief_evidence" and payload.brief_context is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Für die Schriftsatzvorbereitung werden Mandant/Partei und Ziel benötigt.",
+        )
+
+    audit_request_text = build_task_request_text(
+        question=payload.question,
+        task_type=payload.task_type,
+        brief_context=payload.brief_context,
+    )
+
     # Manager requirement: every AI request must be auditable. Persist the
     # request before retrieval starts. If this fails, do not continue to RAG or
     # OpenAI, otherwise an unlogged AI request could occur.
@@ -49,7 +62,7 @@ def query_case_assistant(
             user_id=current_user.id,
             case_id=case_id,
             task_type=payload.task_type,
-            question=payload.question,
+            question=audit_request_text,
             model_name=analysis_model(),
             prompt_version=CASE_ASSISTANT_PROMPT_VERSION,
         )
@@ -66,7 +79,7 @@ def query_case_assistant(
             db=db,
             user=current_user,
             case_id=case_id,
-            question=payload.question,
+            question=audit_request_text,
             task_type=payload.task_type,
         )
         sources = build_sources(chunks)
@@ -84,6 +97,7 @@ def query_case_assistant(
             question=payload.question,
             sources=sources,
             task_type=payload.task_type,
+            brief_context=payload.brief_context,
         )
         mark_ai_query_completed(db=db, query_id=audit_query_id, result=result)
     except HTTPException as exc:

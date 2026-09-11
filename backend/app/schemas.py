@@ -558,9 +558,19 @@ class UserUpdate(BaseModel):
             raise ValueError("Role must be Manager, Shareholder, User or Viewer")
 
         return normalized_role
+class AssistantBriefContext(BaseModel):
+    client: str = Field(min_length=1, max_length=500)
+    role: str | None = Field(default=None, max_length=500)
+    recipient: str | None = Field(default=None, max_length=500)
+    document_type: str = Field(default="Schriftsatz", min_length=1, max_length=200)
+    objective: str = Field(min_length=2, max_length=3000)
+    additional_instructions: str | None = Field(default=None, max_length=3000)
+
+
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
-    task_type: Literal["question", "chronology", "evidence", "entities"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence"] = "question"
+    brief_context: AssistantBriefContext | None = None
 
 
 class AssistantEvidenceStatement(BaseModel):
@@ -588,6 +598,15 @@ class AssistantEntity(BaseModel):
     source_ids: list[str] = Field(default_factory=list)
 
 
+class AssistantBriefEvidencePackage(BaseModel):
+    task_summary: str | None = None
+    established_facts: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    key_evidence: list[AssistantEvidenceLink] = Field(default_factory=list)
+    relevant_events: list[AssistantChronologyEvent] = Field(default_factory=list)
+    relevant_entities: list[AssistantEntity] = Field(default_factory=list)
+    open_issues: list[str] = Field(default_factory=list)
+
+
 class AssistantSource(BaseModel):
     source_id: str
     chunk_id: int
@@ -613,10 +632,11 @@ class CaseAssistantModelAnswer(BaseModel):
     chronology: list[AssistantChronologyEvent] = Field(default_factory=list)
     evidence: list[AssistantEvidenceLink] = Field(default_factory=list)
     entities: list[AssistantEntity] = Field(default_factory=list)
+    brief_evidence_package: AssistantBriefEvidencePackage | None = None
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
-    task_type: Literal["question", "chronology", "evidence", "entities"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 

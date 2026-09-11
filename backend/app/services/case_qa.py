@@ -11,9 +11,9 @@ from app.services.openai_client import analysis_model, get_openai_client
 from app.services.retrieval import retrieve_chunks
 
 
-TaskType = Literal["question", "chronology", "evidence", "entities"]
+TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence"]
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5d-audited"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5f-brief-evidence"
 
 BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
@@ -90,6 +90,22 @@ Zusätzliche Regeln:
 - Jede Entität benötigt mindestens eine gültige Quellen-ID.
 - Doppelte Entitäten möglichst zusammenführen.
 """.strip(),
+    "brief_evidence": """
+AUFGABE: AUFGABENBEZOGENES BEWEISPAKET FÜR EINE SCHRIFTSATZVORBEREITUNG
+Erstelle noch KEINEN Schriftsatz und KEINE fertige Gliederung. Stelle zuerst
+ein belastbares, auf den konkreten Auftrag zugeschnittenes Beweispaket zusammen.
+
+Zusätzliche Regeln:
+- Fülle `brief_evidence_package`.
+- `task_summary` fasst Ziel, Partei/Rolle, Adressat und Dokumentart knapp zusammen.
+- `established_facts` enthält nur Tatsachen, die durch mindestens eine Quelle belegt sind.
+- `key_evidence` ordnet die wichtigsten Belege dem Auftragsziel zu.
+- `relevant_events` enthält nur Ereignisse, die für den Auftrag erkennbar relevant sind.
+- `relevant_entities` enthält nur Beteiligte/Rollen, die für den Auftrag relevant sind.
+- `open_issues` nennt ungeklärte Tatsachenfragen oder Punkte, die vor einem Entwurf geprüft werden sollten.
+- Erstelle ausdrücklich noch keine Anträge, keine rechtliche Schlussfolgerung und keinen ausformulierten Schriftsatz.
+- Jede Tatsache, jedes Ereignis und jede Rollenangabe muss gültige Quellen-IDs tragen.
+""".strip(),
 }
 
 
@@ -103,6 +119,11 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
         return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
+    if task_type == "brief_evidence":
+        return (
+            f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
+            "Beweismittel, Korrespondenz, Übergabe, Beteiligte, Widerspruch, offene Frage"
+        )
     return question
 
 
@@ -116,8 +137,8 @@ def retrieve_case_evidence(
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
-    task_limit = limit if limit is not None else (30 if task_type == "chronology" else 20)
-    task_threshold = 0.30 if task_type == "chronology" else 0.40
+    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence"} else 20)
+    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence"} else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
@@ -247,6 +268,48 @@ def validate_answer_sources(
             )
     result.entities = valid_entities
 
+    package = result.brief_evidence_package
+    if package is not None:
+        valid_facts: list[schemas.AssistantEvidenceStatement] = []
+        for fact in package.established_facts:
+            fact.source_ids = _valid_source_ids(fact.source_ids, valid_ids)
+            if fact.source_ids:
+                valid_facts.append(fact)
+            else:
+                unsupported.append(fact.text)
+        package.established_facts = valid_facts
+
+        valid_package_evidence: list[schemas.AssistantEvidenceLink] = []
+        for item in package.key_evidence:
+            item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+            if item.source_ids:
+                valid_package_evidence.append(item)
+            else:
+                unsupported.append(item.claim)
+        package.key_evidence = valid_package_evidence
+
+        valid_package_events: list[schemas.AssistantChronologyEvent] = []
+        for event in package.relevant_events:
+            event.source_ids = _valid_source_ids(event.source_ids, valid_ids)
+            if event.source_ids:
+                valid_package_events.append(event)
+            else:
+                unsupported.append(event.event)
+        package.relevant_events = valid_package_events
+
+        valid_package_entities: list[schemas.AssistantEntity] = []
+        for entity in package.relevant_entities:
+            entity.source_ids = _valid_source_ids(entity.source_ids, valid_ids)
+            if entity.source_ids:
+                valid_package_entities.append(entity)
+            else:
+                unsupported.append(f"Entität ohne gültigen Beleg: {entity.name}")
+        package.relevant_entities = valid_package_entities
+        package.open_issues = list(
+            dict.fromkeys(item.strip() for item in package.open_issues if item and item.strip())
+        )
+        result.brief_evidence_package = package
+
     result.answer = _remove_invalid_inline_citations(result.answer, valid_ids)
     result.unsupported_statements = list(
         dict.fromkeys(item.strip() for item in unsupported if item and item.strip())
@@ -261,11 +324,40 @@ def validate_answer_sources(
     return result
 
 
+def build_brief_context_text(brief_context: schemas.AssistantBriefContext | None) -> str:
+    if brief_context is None:
+        return ""
+    lines = [
+        f"Mandant/Partei: {brief_context.client}",
+        f"Dokumentart: {brief_context.document_type}",
+        f"Ziel: {brief_context.objective}",
+    ]
+    if brief_context.role:
+        lines.append(f"Rolle: {brief_context.role}")
+    if brief_context.recipient:
+        lines.append(f"Adressat: {brief_context.recipient}")
+    if brief_context.additional_instructions:
+        lines.append(f"Zusätzliche Hinweise: {brief_context.additional_instructions}")
+    return "\n".join(lines)
+
+
+def build_task_request_text(
+    *,
+    question: str,
+    task_type: TaskType,
+    brief_context: schemas.AssistantBriefContext | None = None,
+) -> str:
+    if task_type != "brief_evidence" or brief_context is None:
+        return question.strip()
+    return f"{question.strip()}\n\nAUFTRAGSKONTEXT\n{build_brief_context_text(brief_context)}"
+
+
 def answer_case_question(
     *,
     question: str,
     sources: list[dict[str, Any]],
     task_type: TaskType = "question",
+    brief_context: schemas.AssistantBriefContext | None = None,
 ) -> schemas.CaseAssistantModelAnswer:
     if not sources:
         return schemas.CaseAssistantModelAnswer(
@@ -279,6 +371,11 @@ def answer_case_question(
         )
 
     evidence_context = build_evidence_context(sources)
+    request_text = build_task_request_text(
+        question=question,
+        task_type=task_type,
+        brief_context=brief_context,
+    )
     system_prompt = f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}"
     response = get_openai_client().responses.parse(
         model=analysis_model(),
@@ -289,7 +386,7 @@ def answer_case_question(
                 "content": (
                     f"AUFGABENTYP\n===========\n{task_type}\n\n"
                     "ANFRAGE\n=======\n"
-                    f"{question.strip()}\n\n"
+                    f"{request_text}\n\n"
                     "FREIGEGEBENE EVIDENZ\n====================\n"
                     f"{evidence_context}"
                 ),
