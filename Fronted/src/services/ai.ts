@@ -243,7 +243,7 @@ export async function confirmDocumentCaseRoute(
 
   return data;
 }
-export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence";
+export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline";
 
 export type AssistantBriefContext = {
   client: string;
@@ -288,6 +288,21 @@ export type AssistantBriefEvidencePackage = {
   open_issues: string[];
 };
 
+export type AssistantBriefOutlineSection = {
+  heading: string;
+  purpose: string | null;
+  factual_basis: AssistantEvidenceStatement[];
+  evidence_notes: AssistantEvidenceLink[];
+};
+
+export type AssistantBriefOutline = {
+  title: string;
+  objective: string | null;
+  sections: AssistantBriefOutlineSection[];
+  open_issues: string[];
+  drafting_notes: string[];
+};
+
 export type AssistantSource = {
   source_id: string;
   chunk_id: number;
@@ -315,6 +330,7 @@ export type CaseAssistantResponse = {
   evidence: AssistantEvidenceLink[];
   entities: AssistantEntity[];
   brief_evidence_package: AssistantBriefEvidencePackage | null;
+  brief_outline: AssistantBriefOutline | null;
   sources: AssistantSource[];
 };
 

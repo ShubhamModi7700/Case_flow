@@ -11,9 +11,9 @@ from app.services.openai_client import analysis_model, get_openai_client
 from app.services.retrieval import retrieve_chunks
 
 
-TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence"]
+TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline"]
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5f-brief-evidence"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5g-brief-outline"
 
 BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
@@ -106,6 +106,26 @@ Zusätzliche Regeln:
 - Erstelle ausdrücklich noch keine Anträge, keine rechtliche Schlussfolgerung und keinen ausformulierten Schriftsatz.
 - Jede Tatsache, jedes Ereignis und jede Rollenangabe muss gültige Quellen-IDs tragen.
 """.strip(),
+    "brief_outline": """
+AUFGABE: GLIEDERUNG FÜR EINEN SCHRIFTSATZ ODER EIN ANDERES SCHREIBEN
+Erstelle auf Basis des konkreten Auftrags und der freigegebenen Evidenz eine
+strukturierte Gliederung. Erstelle noch KEINEN ausformulierten Schriftsatz.
+
+Zusätzliche Regeln:
+- Fülle `brief_outline`.
+- `title` bezeichnet die vorgeschlagene Gliederung.
+- `objective` beschreibt knapp das Ziel des Schreibens.
+- `sections` enthält die sinnvolle Reihenfolge der Abschnitte.
+- `purpose` erklärt nur die Funktion des Abschnitts, nicht fertige Schriftsatzprosa.
+- `factual_basis` enthält ausschließlich belegte Tatsachen für den jeweiligen Abschnitt.
+- `evidence_notes` ordnet die wichtigsten Belege dem Abschnitt zu.
+- Jede Tatsachen- und Belegangabe benötigt mindestens eine gültige Quellen-ID.
+- Rechtliche Wertungen, Anträge oder Argumente, die nicht aus der Evidenz ableitbar sind,
+  dürfen nicht als feststehend dargestellt werden.
+- `open_issues` nennt Punkte, die vor dem Ausformulieren geklärt werden müssen.
+- `drafting_notes` darf Hinweise für den späteren Entwurf enthalten, aber keine
+  ausformulierten Schriftsatzpassagen.
+""".strip(),
 }
 
 
@@ -119,7 +139,7 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
         return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
-    if task_type == "brief_evidence":
+    if task_type in {"brief_evidence", "brief_outline"}:
         return (
             f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
             "Beweismittel, Korrespondenz, Übergabe, Beteiligte, Widerspruch, offene Frage"
@@ -137,8 +157,8 @@ def retrieve_case_evidence(
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
-    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence"} else 20)
-    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence"} else 0.40
+    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence", "brief_outline"} else 20)
+    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline"} else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
@@ -310,6 +330,33 @@ def validate_answer_sources(
         )
         result.brief_evidence_package = package
 
+    outline = result.brief_outline
+    if outline is not None:
+        valid_sections: list[schemas.AssistantBriefOutlineSection] = []
+        for section in outline.sections:
+            valid_facts: list[schemas.AssistantEvidenceStatement] = []
+            for fact in section.factual_basis:
+                fact.source_ids = _valid_source_ids(fact.source_ids, valid_ids)
+                if fact.source_ids:
+                    valid_facts.append(fact)
+                else:
+                    unsupported.append(fact.text)
+            section.factual_basis = valid_facts
+
+            valid_notes: list[schemas.AssistantEvidenceLink] = []
+            for note in section.evidence_notes:
+                note.source_ids = _valid_source_ids(note.source_ids, valid_ids)
+                if note.source_ids:
+                    valid_notes.append(note)
+                else:
+                    unsupported.append(note.claim)
+            section.evidence_notes = valid_notes
+            valid_sections.append(section)
+        outline.sections = valid_sections
+        outline.open_issues = list(dict.fromkeys(x.strip() for x in outline.open_issues if x and x.strip()))
+        outline.drafting_notes = list(dict.fromkeys(x.strip() for x in outline.drafting_notes if x and x.strip()))
+        result.brief_outline = outline
+
     result.answer = _remove_invalid_inline_citations(result.answer, valid_ids)
     result.unsupported_statements = list(
         dict.fromkeys(item.strip() for item in unsupported if item and item.strip())
@@ -347,7 +394,7 @@ def build_task_request_text(
     task_type: TaskType,
     brief_context: schemas.AssistantBriefContext | None = None,
 ) -> str:
-    if task_type != "brief_evidence" or brief_context is None:
+    if task_type not in {"brief_evidence", "brief_outline"} or brief_context is None:
         return question.strip()
     return f"{question.strip()}\n\nAUFTRAGSKONTEXT\n{build_brief_context_text(brief_context)}"
 

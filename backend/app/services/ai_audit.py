@@ -101,6 +101,14 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
         for item in package.relevant_entities:
             ids.update(item.source_ids)
 
+    outline = result.brief_outline
+    if outline is not None:
+        for section in outline.sections:
+            for item in section.factual_basis:
+                ids.update(item.source_ids)
+            for item in section.evidence_notes:
+                ids.update(item.source_ids)
+
     return ids
 
 

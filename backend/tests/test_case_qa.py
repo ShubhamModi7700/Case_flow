@@ -183,5 +183,64 @@ class Phase5FBriefEvidenceTests(unittest.TestCase):
         self.assertEqual(referenced_source_ids(result), {"S4", "S5"})
 
 
+class Phase5GBriefOutlineTests(unittest.TestCase):
+    def test_brief_outline_context_is_included_in_task_request(self):
+        context = schemas.AssistantBriefContext(
+            client="MVI Proplant Nord GmbH",
+            recipient="Amtsgericht Wolfsburg",
+            objective="Übergabe der Buchhaltungsunterlagen darstellen",
+        )
+        text = build_task_request_text(
+            question="Erstelle eine Gliederung.",
+            task_type="brief_outline",
+            brief_context=context,
+        )
+        self.assertIn("MVI Proplant Nord GmbH", text)
+        self.assertIn("Amtsgericht Wolfsburg", text)
+
+    def test_invalid_outline_sources_are_removed(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Gliederung [S1].",
+            brief_outline=schemas.AssistantBriefOutline(
+                title="Schriftsatzgliederung",
+                sections=[
+                    schemas.AssistantBriefOutlineSection(
+                        heading="Sachverhalt",
+                        factual_basis=[
+                            schemas.AssistantEvidenceStatement(text="Belegt", source_ids=["S1"]),
+                            schemas.AssistantEvidenceStatement(text="Erfunden", source_ids=["S99"]),
+                        ],
+                        evidence_notes=[
+                            schemas.AssistantEvidenceLink(claim="Nachweis", source_ids=["S1"])
+                        ],
+                    )
+                ],
+            ),
+        )
+        validated = validate_answer_sources(
+            result,
+            [{"source_id": "S1", "chunk_id": 1, "document_id": 1, "filename": "a.pdf", "content": "x"}],
+        )
+        section = validated.brief_outline.sections[0]
+        self.assertEqual([item.text for item in section.factual_basis], ["Belegt"])
+        self.assertIn("Erfunden", validated.unsupported_statements)
+
+    def test_audit_collects_outline_source_ids(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="",
+            brief_outline=schemas.AssistantBriefOutline(
+                title="Gliederung",
+                sections=[
+                    schemas.AssistantBriefOutlineSection(
+                        heading="Sachverhalt",
+                        factual_basis=[schemas.AssistantEvidenceStatement(text="Fakt", source_ids=["S6"])],
+                        evidence_notes=[schemas.AssistantEvidenceLink(claim="Beleg", source_ids=["S7"])],
+                    )
+                ],
+            ),
+        )
+        self.assertEqual(referenced_source_ids(result), {"S6", "S7"})
+
+
 if __name__ == "__main__":
     unittest.main()

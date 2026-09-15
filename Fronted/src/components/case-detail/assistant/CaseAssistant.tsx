@@ -4,6 +4,7 @@ import {
   queryCaseAssistant,
   type AssistantBriefContext,
   type AssistantBriefEvidencePackage,
+  type AssistantBriefOutline,
   type AssistantChronologyEvent,
   type AssistantEntity,
   type AssistantEvidenceLink,
@@ -254,6 +255,57 @@ function BriefEvidenceView({
   );
 }
 
+function BriefOutlineView({
+  item,
+  sourcesById,
+}: {
+  item: AssistantBriefOutline;
+  sourcesById: Map<string, AssistantSource>;
+}) {
+  return (
+    <div className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Step 9 · Gliederung</div>
+        <h3 className="mt-1 text-base font-semibold text-slate-900">{item.title}</h3>
+        {item.objective && <p className="mt-2 text-sm leading-6 text-slate-700">{item.objective}</p>}
+        <p className="mt-2 text-xs text-slate-600">Noch kein ausformulierter Schriftsatz. Tatsachengrundlagen bleiben mit den freigegebenen Quellen verknüpft.</p>
+      </div>
+      <ol className="space-y-3">
+        {item.sections.map((section, index) => (
+          <li key={`${section.heading}-${index}`} className="rounded-lg border border-indigo-100 bg-white p-4">
+            <h4 className="font-semibold text-slate-900">{index + 1}. {section.heading}</h4>
+            {section.purpose && <p className="mt-1 text-sm text-slate-600">{section.purpose}</p>}
+            {section.factual_basis.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tatsachengrundlage</div>
+                <EvidenceList items={section.factual_basis} sourcesById={sourcesById} />
+              </div>
+            )}
+            {section.evidence_notes.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Beweismittel</div>
+                <EvidenceOverview items={section.evidence_notes} sourcesById={sourcesById} />
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+      {item.open_issues.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <h4 className="text-sm font-semibold text-amber-900">Vor dem Ausformulieren zu klären</h4>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">{item.open_issues.map((x, i) => <li key={`${x}-${i}`}>{x}</li>)}</ul>
+        </div>
+      )}
+      {item.drafting_notes.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <h4 className="text-sm font-semibold text-slate-900">Hinweise für den späteren Entwurf</h4>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{item.drafting_notes.map((x, i) => <li key={`${x}-${i}`}>{x}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CaseAssistant({ caseId }: Props) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
@@ -313,6 +365,22 @@ export default function CaseAssistant({ caseId }: Props) {
     await submit("brief_evidence", request, normalized);
   }
 
+  async function submitBriefOutline(): Promise<void> {
+    const client = briefContext.client.trim();
+    const objective = briefContext.objective.trim();
+    if (!client || objective.length < 2 || loading) return;
+    const normalized: AssistantBriefContext = {
+      client,
+      role: briefContext.role?.trim() || null,
+      recipient: briefContext.recipient?.trim() || null,
+      document_type: briefContext.document_type.trim() || "Schriftsatz",
+      objective,
+      additional_instructions: briefContext.additional_instructions?.trim() || null,
+    };
+    const request = `Erstelle eine beleggestützte Gliederung für ${normalized.document_type}. Ziel: ${normalized.objective}`;
+    await submit("brief_outline", request, normalized);
+  }
+
   return (
     <section className="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
       <div className="mb-4">
@@ -369,6 +437,9 @@ export default function CaseAssistant({ caseId }: Props) {
             <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
               {loading && activeTask === "brief_evidence" ? "Beweispaket wird erstellt..." : "Beweispaket erstellen"}
             </button>
+            <button type="button" onClick={() => void submitBriefOutline()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {loading && activeTask === "brief_outline" ? "Gliederung wird erstellt..." : "Gliederung erstellen"}
+            </button>
           </div>
         </div>
       )}
@@ -406,6 +477,10 @@ export default function CaseAssistant({ caseId }: Props) {
 
           {result.brief_evidence_package && (
             <BriefEvidenceView item={result.brief_evidence_package} sourcesById={sourcesById} />
+          )}
+
+          {result.brief_outline && (
+            <BriefOutlineView item={result.brief_outline} sourcesById={sourcesById} />
           )}
 
           <ChronologyView items={result.chronology} sourcesById={sourcesById} />

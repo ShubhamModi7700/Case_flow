@@ -569,7 +569,7 @@ class AssistantBriefContext(BaseModel):
 
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline"] = "question"
     brief_context: AssistantBriefContext | None = None
 
 
@@ -607,6 +607,21 @@ class AssistantBriefEvidencePackage(BaseModel):
     open_issues: list[str] = Field(default_factory=list)
 
 
+class AssistantBriefOutlineSection(BaseModel):
+    heading: str
+    purpose: str | None = None
+    factual_basis: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    evidence_notes: list[AssistantEvidenceLink] = Field(default_factory=list)
+
+
+class AssistantBriefOutline(BaseModel):
+    title: str
+    objective: str | None = None
+    sections: list[AssistantBriefOutlineSection] = Field(default_factory=list)
+    open_issues: list[str] = Field(default_factory=list)
+    drafting_notes: list[str] = Field(default_factory=list)
+
+
 class AssistantSource(BaseModel):
     source_id: str
     chunk_id: int
@@ -633,10 +648,11 @@ class CaseAssistantModelAnswer(BaseModel):
     evidence: list[AssistantEvidenceLink] = Field(default_factory=list)
     entities: list[AssistantEntity] = Field(default_factory=list)
     brief_evidence_package: AssistantBriefEvidencePackage | None = None
+    brief_outline: AssistantBriefOutline | None = None
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 
