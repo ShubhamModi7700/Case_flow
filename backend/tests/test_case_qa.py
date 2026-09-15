@@ -242,5 +242,61 @@ class Phase5GBriefOutlineTests(unittest.TestCase):
         self.assertEqual(referenced_source_ids(result), {"S6", "S7"})
 
 
+class Phase5HBriefDraftTests(unittest.TestCase):
+    def test_brief_draft_context_is_included_in_task_request(self):
+        context = schemas.AssistantBriefContext(
+            client="MVI Proplant Nord GmbH",
+            recipient="Amtsgericht Wolfsburg",
+            objective="Übergabe der Buchhaltungsunterlagen darstellen",
+        )
+        text = build_task_request_text(
+            question="Erstelle einen KI-Entwurf.",
+            task_type="brief_draft",
+            brief_context=context,
+        )
+        self.assertIn("MVI Proplant Nord GmbH", text)
+        self.assertIn("Amtsgericht Wolfsburg", text)
+
+    def test_invalid_draft_sources_are_removed(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Entwurf erstellt [S1].",
+            brief_draft=schemas.AssistantBriefDraft(
+                title="KI-Entwurf",
+                introduction=[schemas.AssistantEvidenceStatement(text="Belegt", source_ids=["S1"])],
+                sections=[
+                    schemas.AssistantBriefDraftSection(
+                        heading="Sachverhalt",
+                        paragraphs=[
+                            schemas.AssistantEvidenceStatement(text="Erfunden", source_ids=["S99"]),
+                            schemas.AssistantEvidenceStatement(text="Belegt 2", source_ids=["S1"]),
+                        ],
+                    )
+                ],
+            ),
+        )
+        validated = validate_answer_sources(
+            result,
+            [{"source_id": "S1", "chunk_id": 1, "document_id": 1, "filename": "a.pdf", "content": "x"}],
+        )
+        self.assertEqual(validated.brief_draft.draft_label, "KI-ENTWURF")
+        self.assertEqual([x.text for x in validated.brief_draft.sections[0].paragraphs], ["Belegt 2"])
+        self.assertIn("Erfunden", validated.unsupported_statements)
+
+    def test_audit_collects_draft_source_ids(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="",
+            brief_draft=schemas.AssistantBriefDraft(
+                title="Entwurf",
+                introduction=[schemas.AssistantEvidenceStatement(text="Intro", source_ids=["S8"])],
+                sections=[schemas.AssistantBriefDraftSection(
+                    heading="Sachverhalt",
+                    paragraphs=[schemas.AssistantEvidenceStatement(text="Absatz", source_ids=["S9"])],
+                )],
+                conclusion=[schemas.AssistantEvidenceStatement(text="Schluss", source_ids=["S10"])],
+            ),
+        )
+        self.assertEqual(referenced_source_ids(result), {"S8", "S9", "S10"})
+
+
 if __name__ == "__main__":
     unittest.main()

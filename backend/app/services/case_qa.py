@@ -11,9 +11,9 @@ from app.services.openai_client import analysis_model, get_openai_client
 from app.services.retrieval import retrieve_chunks
 
 
-TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline"]
+TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft"]
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5g-brief-outline"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5h-brief-draft"
 
 BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
@@ -126,6 +126,26 @@ Zusätzliche Regeln:
 - `drafting_notes` darf Hinweise für den späteren Entwurf enthalten, aber keine
   ausformulierten Schriftsatzpassagen.
 """.strip(),
+    "brief_draft": """
+AUFGABE: AUSFORMULIERTER KI-ENTWURF EINES SCHRIFTSATZES ODER SCHREIBENS
+Erstelle auf Basis des konkreten Auftrags und ausschließlich der freigegebenen
+Evidenz einen ausformulierten Entwurf. Der Text ist ausdrücklich ein
+prüfpflichtiger KI-ENTWURF und keine freigegebene Endfassung.
+
+Zusätzliche Regeln:
+- Fülle `brief_draft`.
+- `draft_label` muss `KI-ENTWURF` lauten.
+- `introduction`, `sections[].paragraphs` und `conclusion` enthalten die
+  ausformulierten Passagen.
+- Jede Passage mit einer Tatsachenbehauptung benötigt mindestens eine gültige Quellen-ID.
+- Verwende keine erfundenen Tatsachen, Daten, Rollen, Beweismittel, Anträge oder Rechtsfolgen.
+- Formuliere rechtliche Bewertungen nur vorsichtig und nur soweit sie aus Auftrag und Evidenz
+  sinnvoll hergeleitet werden können; fehlende rechtliche Grundlagen sind als Prüfpunkt zu nennen.
+- Unsichere oder nicht belegte Punkte dürfen nicht in Tatsachenprosa versteckt werden; nenne sie
+  unter `open_issues` oder `review_notes`.
+- Keine Behauptung darf allein deshalb als wahr gelten, weil sie im Nutzerauftrag steht.
+- Der Entwurf muss vor Verwendung durch einen Menschen fachlich geprüft und freigegeben werden.
+""".strip(),
 }
 
 
@@ -139,7 +159,7 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
         return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
-    if task_type in {"brief_evidence", "brief_outline"}:
+    if task_type in {"brief_evidence", "brief_outline", "brief_draft"}:
         return (
             f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
             "Beweismittel, Korrespondenz, Übergabe, Beteiligte, Widerspruch, offene Frage"
@@ -157,8 +177,8 @@ def retrieve_case_evidence(
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
-    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence", "brief_outline"} else 20)
-    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline"} else 0.40
+    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft"} else 20)
+    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft"} else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
@@ -357,6 +377,27 @@ def validate_answer_sources(
         outline.drafting_notes = list(dict.fromkeys(x.strip() for x in outline.drafting_notes if x and x.strip()))
         result.brief_outline = outline
 
+    draft = result.brief_draft
+    if draft is not None:
+        def validate_draft_statements(items: list[schemas.AssistantEvidenceStatement]) -> list[schemas.AssistantEvidenceStatement]:
+            valid_items: list[schemas.AssistantEvidenceStatement] = []
+            for item in items:
+                item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+                if item.source_ids:
+                    valid_items.append(item)
+                else:
+                    unsupported.append(item.text)
+            return valid_items
+
+        draft.draft_label = "KI-ENTWURF"
+        draft.introduction = validate_draft_statements(draft.introduction)
+        for section in draft.sections:
+            section.paragraphs = validate_draft_statements(section.paragraphs)
+        draft.conclusion = validate_draft_statements(draft.conclusion)
+        draft.open_issues = list(dict.fromkeys(x.strip() for x in draft.open_issues if x and x.strip()))
+        draft.review_notes = list(dict.fromkeys(x.strip() for x in draft.review_notes if x and x.strip()))
+        result.brief_draft = draft
+
     result.answer = _remove_invalid_inline_citations(result.answer, valid_ids)
     result.unsupported_statements = list(
         dict.fromkeys(item.strip() for item in unsupported if item and item.strip())
@@ -394,7 +435,7 @@ def build_task_request_text(
     task_type: TaskType,
     brief_context: schemas.AssistantBriefContext | None = None,
 ) -> str:
-    if task_type not in {"brief_evidence", "brief_outline"} or brief_context is None:
+    if task_type not in {"brief_evidence", "brief_outline", "brief_draft"} or brief_context is None:
         return question.strip()
     return f"{question.strip()}\n\nAUFTRAGSKONTEXT\n{build_brief_context_text(brief_context)}"
 

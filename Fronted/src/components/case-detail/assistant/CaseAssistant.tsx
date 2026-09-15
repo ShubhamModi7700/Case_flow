@@ -5,6 +5,7 @@ import {
   type AssistantBriefContext,
   type AssistantBriefEvidencePackage,
   type AssistantBriefOutline,
+  type AssistantBriefDraft,
   type AssistantChronologyEvent,
   type AssistantEntity,
   type AssistantEvidenceLink,
@@ -306,6 +307,37 @@ function BriefOutlineView({
   );
 }
 
+function BriefDraftView({ item, sourcesById }: { item: AssistantBriefDraft; sourcesById: Map<string, AssistantSource> }) {
+  const renderStatements = (items: AssistantEvidenceStatement[]) => (
+    <div className="space-y-3">{items.map((statement, index) => (
+      <div key={`${statement.text}-${index}`} className="text-sm leading-7 text-slate-800">
+        <p className="whitespace-pre-wrap">{statement.text}</p>
+        <SourceBadges sourceIds={statement.source_ids} sourcesById={sourcesById} />
+      </div>
+    ))}</div>
+  );
+  return (
+    <div className="space-y-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
+      <div>
+        <span className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">{item.draft_label || "KI-ENTWURF"}</span>
+        <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Step 10 · Schriftsatzentwurf</div>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">{item.title}</h3>
+        <p className="mt-2 text-xs text-slate-600">Nicht freigegebene KI-Fassung. Vor Verwendung fachlich prüfen, bearbeiten und freigeben.</p>
+      </div>
+      {item.introduction.length > 0 && <div className="rounded-lg bg-white p-4">{renderStatements(item.introduction)}</div>}
+      {item.sections.map((section, index) => (
+        <div key={`${section.heading}-${index}`} className="rounded-lg border border-emerald-100 bg-white p-4">
+          <h4 className="mb-3 font-semibold text-slate-900">{index + 1}. {section.heading}</h4>
+          {renderStatements(section.paragraphs)}
+        </div>
+      ))}
+      {item.conclusion.length > 0 && <div className="rounded-lg bg-white p-4"><h4 className="mb-3 font-semibold">Schluss</h4>{renderStatements(item.conclusion)}</div>}
+      {item.open_issues.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="font-semibold text-amber-900">Offene Punkte</h4><ul className="mt-2 list-disc pl-5 text-sm text-amber-900">{item.open_issues.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      {item.review_notes.length > 0 && <div className="rounded-lg border border-slate-200 bg-white p-4"><h4 className="font-semibold">Prüfhinweise</h4><ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{item.review_notes.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+    </div>
+  );
+}
+
 export default function CaseAssistant({ caseId }: Props) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
@@ -381,6 +413,22 @@ export default function CaseAssistant({ caseId }: Props) {
     await submit("brief_outline", request, normalized);
   }
 
+  async function submitBriefDraft(): Promise<void> {
+    const client = briefContext.client.trim();
+    const objective = briefContext.objective.trim();
+    if (!client || objective.length < 2 || loading) return;
+    const normalized: AssistantBriefContext = {
+      client,
+      role: briefContext.role?.trim() || null,
+      recipient: briefContext.recipient?.trim() || null,
+      document_type: briefContext.document_type.trim() || "Schriftsatz",
+      objective,
+      additional_instructions: briefContext.additional_instructions?.trim() || null,
+    };
+    const request = `Erstelle einen beleggestützten KI-Entwurf für ${normalized.document_type}. Ziel: ${normalized.objective}`;
+    await submit("brief_draft", request, normalized);
+  }
+
   return (
     <section className="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
       <div className="mb-4">
@@ -440,6 +488,9 @@ export default function CaseAssistant({ caseId }: Props) {
             <button type="button" onClick={() => void submitBriefOutline()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
               {loading && activeTask === "brief_outline" ? "Gliederung wird erstellt..." : "Gliederung erstellen"}
             </button>
+            <button type="button" onClick={() => void submitBriefDraft()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {loading && activeTask === "brief_draft" ? "Entwurf wird erstellt..." : "KI-Entwurf erstellen"}
+            </button>
           </div>
         </div>
       )}
@@ -481,6 +532,10 @@ export default function CaseAssistant({ caseId }: Props) {
 
           {result.brief_outline && (
             <BriefOutlineView item={result.brief_outline} sourcesById={sourcesById} />
+          )}
+
+          {result.brief_draft && (
+            <BriefDraftView item={result.brief_draft} sourcesById={sourcesById} />
           )}
 
           <ChronologyView items={result.chronology} sourcesById={sourcesById} />

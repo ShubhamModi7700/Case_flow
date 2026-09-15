@@ -109,6 +109,16 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
             for item in section.evidence_notes:
                 ids.update(item.source_ids)
 
+    draft = result.brief_draft
+    if draft is not None:
+        for item in draft.introduction:
+            ids.update(item.source_ids)
+        for section in draft.sections:
+            for item in section.paragraphs:
+                ids.update(item.source_ids)
+        for item in draft.conclusion:
+            ids.update(item.source_ids)
+
     return ids
 
 

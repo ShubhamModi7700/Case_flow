@@ -41,7 +41,7 @@ def query_case_assistant(
     if case_exists is None:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
 
-    if payload.task_type in {"brief_evidence", "brief_outline"} and payload.brief_context is None:
+    if payload.task_type in {"brief_evidence", "brief_outline", "brief_draft"} and payload.brief_context is None:
         raise HTTPException(
             status_code=422,
             detail="Für die Schriftsatzvorbereitung werden Mandant/Partei und Ziel benötigt.",

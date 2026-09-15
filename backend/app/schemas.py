@@ -569,7 +569,7 @@ class AssistantBriefContext(BaseModel):
 
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft"] = "question"
     brief_context: AssistantBriefContext | None = None
 
 
@@ -622,6 +622,21 @@ class AssistantBriefOutline(BaseModel):
     drafting_notes: list[str] = Field(default_factory=list)
 
 
+class AssistantBriefDraftSection(BaseModel):
+    heading: str
+    paragraphs: list[AssistantEvidenceStatement] = Field(default_factory=list)
+
+
+class AssistantBriefDraft(BaseModel):
+    title: str
+    draft_label: str = "KI-ENTWURF"
+    introduction: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    sections: list[AssistantBriefDraftSection] = Field(default_factory=list)
+    conclusion: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    open_issues: list[str] = Field(default_factory=list)
+    review_notes: list[str] = Field(default_factory=list)
+
+
 class AssistantSource(BaseModel):
     source_id: str
     chunk_id: int
@@ -649,10 +664,11 @@ class CaseAssistantModelAnswer(BaseModel):
     entities: list[AssistantEntity] = Field(default_factory=list)
     brief_evidence_package: AssistantBriefEvidencePackage | None = None
     brief_outline: AssistantBriefOutline | None = None
+    brief_draft: AssistantBriefDraft | None = None
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 
