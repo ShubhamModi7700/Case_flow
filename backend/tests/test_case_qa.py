@@ -298,5 +298,41 @@ class Phase5HBriefDraftTests(unittest.TestCase):
         self.assertEqual(referenced_source_ids(result), {"S8", "S9", "S10"})
 
 
+
+class Phase5IRedReviewTests(unittest.TestCase):
+    def test_red_review_context_is_included_in_task_request(self):
+        context = schemas.AssistantBriefContext(client="MVI Proplant Nord GmbH", objective="Übergabe der Unterlagen argumentieren")
+        text = build_task_request_text(question="Red Review", task_type="brief_review", brief_context=context)
+        self.assertIn("MVI Proplant Nord GmbH", text)
+        self.assertIn("Übergabe der Unterlagen", text)
+
+    def test_invalid_red_review_sources_are_removed(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Review [S1] [S99].",
+            brief_review=schemas.AssistantBriefReview(
+                counterarguments=[
+                    schemas.AssistantBriefCounterargument(argument="Belegt", source_ids=["S1"]),
+                    schemas.AssistantBriefCounterargument(argument="Erfunden", source_ids=["S99"]),
+                ],
+                factual_risks=[schemas.AssistantBriefRisk(risk="Risiko", source_ids=["S1"])],
+            ),
+        )
+        validated = validate_answer_sources(result, [{"source_id":"S1","chunk_id":1,"document_id":1,"filename":"a.pdf","content":"x"}])
+        self.assertEqual(len(validated.brief_review.counterarguments), 1)
+        self.assertEqual(len(validated.brief_review.factual_risks), 1)
+        self.assertIn("Erfunden", validated.unsupported_statements)
+        self.assertNotIn("S99", validated.answer)
+
+    def test_red_review_sources_are_audited(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Review.",
+            brief_review=schemas.AssistantBriefReview(
+                counterarguments=[schemas.AssistantBriefCounterargument(argument="Gegenargument", source_ids=["S2"])],
+                factual_risks=[schemas.AssistantBriefRisk(risk="Risiko", source_ids=["S3"])],
+                contradictions=[schemas.AssistantEvidenceStatement(text="Widerspruch", source_ids=["S4"])],
+            ),
+        )
+        self.assertEqual(referenced_source_ids(result), {"S2", "S3", "S4"})
+
 if __name__ == "__main__":
     unittest.main()

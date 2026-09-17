@@ -119,6 +119,15 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
         for item in draft.conclusion:
             ids.update(item.source_ids)
 
+    review = result.brief_review
+    if review is not None:
+        for item in review.counterarguments:
+            ids.update(item.source_ids)
+        for item in review.factual_risks:
+            ids.update(item.source_ids)
+        for item in review.contradictions:
+            ids.update(item.source_ids)
+
     return ids
 
 

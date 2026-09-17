@@ -569,7 +569,7 @@ class AssistantBriefContext(BaseModel):
 
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review"] = "question"
     brief_context: AssistantBriefContext | None = None
 
 
@@ -637,6 +637,29 @@ class AssistantBriefDraft(BaseModel):
     review_notes: list[str] = Field(default_factory=list)
 
 
+class AssistantBriefCounterargument(BaseModel):
+    argument: str
+    response_option: str | None = None
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantBriefRisk(BaseModel):
+    risk: str
+    impact: Literal["Niedrig", "Mittel", "Hoch", "Unklar"] = "Unklar"
+    mitigation: str | None = None
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantBriefReview(BaseModel):
+    review_label: str = "KI-RED-REVIEW"
+    counterarguments: list[AssistantBriefCounterargument] = Field(default_factory=list)
+    factual_risks: list[AssistantBriefRisk] = Field(default_factory=list)
+    contradictions: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    evidence_gaps: list[str] = Field(default_factory=list)
+    legal_review_points: list[str] = Field(default_factory=list)
+    recommended_checks: list[str] = Field(default_factory=list)
+
+
 class AssistantSource(BaseModel):
     source_id: str
     chunk_id: int
@@ -665,10 +688,11 @@ class CaseAssistantModelAnswer(BaseModel):
     brief_evidence_package: AssistantBriefEvidencePackage | None = None
     brief_outline: AssistantBriefOutline | None = None
     brief_draft: AssistantBriefDraft | None = None
+    brief_review: AssistantBriefReview | None = None
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 

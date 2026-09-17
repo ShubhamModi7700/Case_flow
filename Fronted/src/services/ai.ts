@@ -243,7 +243,7 @@ export async function confirmDocumentCaseRoute(
 
   return data;
 }
-export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline" | "brief_draft";
+export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline" | "brief_draft" | "brief_review";
 
 export type AssistantBriefContext = {
   client: string;
@@ -318,6 +318,29 @@ export type AssistantBriefDraft = {
   review_notes: string[];
 };
 
+export type AssistantBriefCounterargument = {
+  argument: string;
+  response_option: string | null;
+  source_ids: string[];
+};
+
+export type AssistantBriefRisk = {
+  risk: string;
+  impact: "Niedrig" | "Mittel" | "Hoch" | "Unklar";
+  mitigation: string | null;
+  source_ids: string[];
+};
+
+export type AssistantBriefReview = {
+  review_label: string;
+  counterarguments: AssistantBriefCounterargument[];
+  factual_risks: AssistantBriefRisk[];
+  contradictions: AssistantEvidenceStatement[];
+  evidence_gaps: string[];
+  legal_review_points: string[];
+  recommended_checks: string[];
+};
+
 export type AssistantSource = {
   source_id: string;
   chunk_id: number;
@@ -347,6 +370,7 @@ export type CaseAssistantResponse = {
   brief_evidence_package: AssistantBriefEvidencePackage | null;
   brief_outline: AssistantBriefOutline | null;
   brief_draft: AssistantBriefDraft | null;
+  brief_review: AssistantBriefReview | null;
   sources: AssistantSource[];
 };
 

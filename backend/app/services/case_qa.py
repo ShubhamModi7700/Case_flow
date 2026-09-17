@@ -11,9 +11,9 @@ from app.services.openai_client import analysis_model, get_openai_client
 from app.services.retrieval import retrieve_chunks
 
 
-TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft"]
+TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review"]
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5h-brief-draft"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5i-red-review"
 
 BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
@@ -146,6 +146,22 @@ Zusätzliche Regeln:
 - Keine Behauptung darf allein deshalb als wahr gelten, weil sie im Nutzerauftrag steht.
 - Der Entwurf muss vor Verwendung durch einen Menschen fachlich geprüft und freigegeben werden.
 """.strip(),
+    "brief_review": """
+AUFGABE: GEGENARGUMENTE, RISIKEN UND RED REVIEW
+Prüfe den konkreten Schriftsatzauftrag aus einer kritischen Gegenperspektive.
+Erstelle keinen neuen Schriftsatz und entscheide keine Rechtsfrage abschließend.
+
+Zusätzliche Regeln:
+- Fülle `brief_review`; `review_label` muss `KI-RED-REVIEW` lauten.
+- `counterarguments` enthält plausible, evidenzbezogene Gegenargumente. Jedes benötigt Quellen-IDs.
+- `response_option` nennt eine mögliche sachliche Reaktion ohne neue Tatsachen zu erfinden.
+- `factual_risks` enthält fallbezogene Tatsachen-/Beweisrisiken, Auswirkung und mögliche Gegenmaßnahme; jedes benötigt Quellen-IDs.
+- `contradictions` enthält konkrete Widersprüche zwischen Belegen und benötigt Quellen-IDs.
+- `evidence_gaps` nennt fehlende Belege oder ungeklärte Tatsachen.
+- `legal_review_points` nennt Rechtsfragen für menschliche Prüfung; erfinde keine Rechtslage oder Fundstellen.
+- `recommended_checks` nennt konkrete Prüfhandlungen vor Freigabe.
+- Stelle Gegenargumente und Risiken nicht als feststehende Tatsachen dar.
+""".strip(),
 }
 
 
@@ -159,7 +175,7 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
         return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
-    if task_type in {"brief_evidence", "brief_outline", "brief_draft"}:
+    if task_type in {"brief_evidence", "brief_outline", "brief_draft", "brief_review"}:
         return (
             f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
             "Beweismittel, Korrespondenz, Übergabe, Beteiligte, Widerspruch, offene Frage"
@@ -177,8 +193,8 @@ def retrieve_case_evidence(
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
-    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft"} else 20)
-    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft"} else 0.40
+    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20)
+    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
@@ -398,6 +414,48 @@ def validate_answer_sources(
         draft.review_notes = list(dict.fromkeys(x.strip() for x in draft.review_notes if x and x.strip()))
         result.brief_draft = draft
 
+    review = result.brief_review
+    if review is not None:
+        review.review_label = "KI-RED-REVIEW"
+
+        valid_counterarguments: list[schemas.AssistantBriefCounterargument] = []
+        for item in review.counterarguments:
+            item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+            if item.source_ids:
+                valid_counterarguments.append(item)
+            else:
+                unsupported.append(item.argument)
+        review.counterarguments = valid_counterarguments
+
+        valid_risks: list[schemas.AssistantBriefRisk] = []
+        for item in review.factual_risks:
+            item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+            if item.source_ids:
+                valid_risks.append(item)
+            else:
+                unsupported.append(item.risk)
+        review.factual_risks = valid_risks
+
+        valid_review_contradictions: list[schemas.AssistantEvidenceStatement] = []
+        for item in review.contradictions:
+            item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+            if item.source_ids:
+                valid_review_contradictions.append(item)
+            else:
+                unsupported.append(item.text)
+        review.contradictions = valid_review_contradictions
+
+        review.evidence_gaps = list(
+            dict.fromkeys(x.strip() for x in review.evidence_gaps if x and x.strip())
+        )
+        review.legal_review_points = list(
+            dict.fromkeys(x.strip() for x in review.legal_review_points if x and x.strip())
+        )
+        review.recommended_checks = list(
+            dict.fromkeys(x.strip() for x in review.recommended_checks if x and x.strip())
+        )
+        result.brief_review = review
+
     result.answer = _remove_invalid_inline_citations(result.answer, valid_ids)
     result.unsupported_statements = list(
         dict.fromkeys(item.strip() for item in unsupported if item and item.strip())
@@ -435,7 +493,7 @@ def build_task_request_text(
     task_type: TaskType,
     brief_context: schemas.AssistantBriefContext | None = None,
 ) -> str:
-    if task_type not in {"brief_evidence", "brief_outline", "brief_draft"} or brief_context is None:
+    if task_type not in {"brief_evidence", "brief_outline", "brief_draft", "brief_review"} or brief_context is None:
         return question.strip()
     return f"{question.strip()}\n\nAUFTRAGSKONTEXT\n{build_brief_context_text(brief_context)}"
 

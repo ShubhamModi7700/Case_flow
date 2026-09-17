@@ -6,6 +6,7 @@ import {
   type AssistantBriefEvidencePackage,
   type AssistantBriefOutline,
   type AssistantBriefDraft,
+  type AssistantBriefReview,
   type AssistantChronologyEvent,
   type AssistantEntity,
   type AssistantEvidenceLink,
@@ -338,6 +339,26 @@ function BriefDraftView({ item, sourcesById }: { item: AssistantBriefDraft; sour
   );
 }
 
+
+function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; sourcesById: Map<string, AssistantSource> }) {
+  return (
+    <div className="space-y-4 rounded-xl border-2 border-rose-200 bg-rose-50 p-4">
+      <div>
+        <span className="rounded bg-rose-100 px-2 py-1 text-xs font-bold text-rose-900">{item.review_label || "KI-RED-REVIEW"}</span>
+        <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Step 11 · Gegenargumente & Risiken</div>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">Kritische Gegenprüfung</h3>
+        <p className="mt-2 text-xs text-slate-600">Keine abschließende Rechtsbewertung. Gegenargumente, Risiken und Prüfpunkte müssen fachlich bewertet werden.</p>
+      </div>
+      {item.counterarguments.length > 0 && <div><h4 className="mb-2 font-semibold">Mögliche Gegenargumente</h4><div className="space-y-3">{item.counterarguments.map((x,i)=><div key={`${x.argument}-${i}`} className="rounded-lg bg-white p-4"><p className="text-sm font-semibold">{x.argument}</p>{x.response_option && <p className="mt-2 text-sm text-slate-700"><strong>Mögliche Reaktion:</strong> {x.response_option}</p>}<SourceBadges sourceIds={x.source_ids} sourcesById={sourcesById}/></div>)}</div></div>}
+      {item.factual_risks.length > 0 && <div><h4 className="mb-2 font-semibold">Tatsachen- und Beweisrisiken</h4><div className="space-y-3">{item.factual_risks.map((x,i)=><div key={`${x.risk}-${i}`} className="rounded-lg bg-white p-4"><div className="flex gap-2"><p className="text-sm font-semibold">{x.risk}</p><span className="rounded bg-amber-100 px-2 py-0.5 text-xs">{x.impact}</span></div>{x.mitigation && <p className="mt-2 text-sm text-slate-700"><strong>Gegenmaßnahme:</strong> {x.mitigation}</p>}<SourceBadges sourceIds={x.source_ids} sourcesById={sourcesById}/></div>)}</div></div>}
+      {item.contradictions.length > 0 && <div><h4 className="mb-2 font-semibold">Widersprüche</h4><EvidenceList items={item.contradictions} sourcesById={sourcesById}/></div>}
+      {item.evidence_gaps.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="font-semibold text-amber-900">Beweislücken</h4><ul className="mt-2 list-disc pl-5 text-sm text-amber-900">{item.evidence_gaps.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      {item.legal_review_points.length > 0 && <div className="rounded-lg bg-white p-4"><h4 className="font-semibold">Rechtlich zu prüfen</h4><ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{item.legal_review_points.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      {item.recommended_checks.length > 0 && <div className="rounded-lg bg-white p-4"><h4 className="font-semibold">Empfohlene Prüfungen vor Freigabe</h4><ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{item.recommended_checks.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+    </div>
+  );
+}
+
 export default function CaseAssistant({ caseId }: Props) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
@@ -429,6 +450,22 @@ export default function CaseAssistant({ caseId }: Props) {
     await submit("brief_draft", request, normalized);
   }
 
+  async function submitBriefReview(): Promise<void> {
+    const client = briefContext.client.trim();
+    const objective = briefContext.objective.trim();
+    if (!client || objective.length < 2 || loading) return;
+    const normalized: AssistantBriefContext = {
+      client,
+      role: briefContext.role?.trim() || null,
+      recipient: briefContext.recipient?.trim() || null,
+      document_type: briefContext.document_type.trim() || "Schriftsatz",
+      objective,
+      additional_instructions: briefContext.additional_instructions?.trim() || null,
+    };
+    const request = `Führe eine kritische Gegenprüfung mit Gegenargumenten und Risiken für ${normalized.document_type} durch. Ziel: ${normalized.objective}`;
+    await submit("brief_review", request, normalized);
+  }
+
   return (
     <section className="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
       <div className="mb-4">
@@ -470,8 +507,8 @@ export default function CaseAssistant({ caseId }: Props) {
       {showBriefForm && (
         <div className="mb-4 rounded-xl border border-violet-200 bg-white p-4">
           <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">Auftrag für das Beweispaket</h3>
-            <p className="mt-1 text-xs text-slate-600">Case Flow erstellt zunächst nur die Tatsachen- und Beweisgrundlage. Der eigentliche Schriftsatz folgt in einem späteren Schritt.</p>
+            <h3 className="font-semibold text-slate-900">Auftrag für die Schriftsatzvorbereitung</h3>
+            <p className="mt-1 text-xs text-slate-600">Beweispaket, Gliederung, KI-Entwurf und kritische Gegenprüfung verwenden denselben aufgabenbezogenen Kontext.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Mandant / Partei *" value={briefContext.client} onChange={(e) => setBriefContext((v) => ({...v, client: e.target.value}))} />
@@ -490,6 +527,9 @@ export default function CaseAssistant({ caseId }: Props) {
             </button>
             <button type="button" onClick={() => void submitBriefDraft()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
               {loading && activeTask === "brief_draft" ? "Entwurf wird erstellt..." : "KI-Entwurf erstellen"}
+            </button>
+            <button type="button" onClick={() => void submitBriefReview()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {loading && activeTask === "brief_review" ? "Red Review wird erstellt..." : "Gegenargumente & Risiken"}
             </button>
           </div>
         </div>
@@ -536,6 +576,10 @@ export default function CaseAssistant({ caseId }: Props) {
 
           {result.brief_draft && (
             <BriefDraftView item={result.brief_draft} sourcesById={sourcesById} />
+          )}
+
+          {result.brief_review && (
+            <BriefReviewView item={result.brief_review} sourcesById={sourcesById} />
           )}
 
           <ChronologyView items={result.chronology} sourcesById={sourcesById} />
