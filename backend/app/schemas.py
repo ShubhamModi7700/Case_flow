@@ -696,6 +696,36 @@ class CaseAssistantResponse(CaseAssistantModelAnswer):
     sources: list[AssistantSource] = Field(default_factory=list)
 
 
+class AssistantOpenTask(BaseModel):
+    id: int
+    title: str
+    description: str | None = None
+    category: str | None = None
+    responsible_person: str | None = None
+    due_date: date | None = None
+    priority: str
+    status: str
+    is_overdue: bool = False
+
+
+class AssistantOpenDecision(BaseModel):
+    task_id: int
+    title: str
+    description: str | None = None
+    responsible_person: str | None = None
+    due_date: date | None = None
+
+
+class AssistantCaseWorkStatus(BaseModel):
+    primary_deadline: date | None = None
+    primary_deadline_is_overdue: bool = False
+    follow_up_date: date | None = None
+    next_action: str | None = None
+    open_tasks: list[AssistantOpenTask] = Field(default_factory=list)
+    open_decisions: list[AssistantOpenDecision] = Field(default_factory=list)
+    note: str
+
+
 class DocumentProcessingResponse(BaseModel):
     document_id: int
     processing_status: str

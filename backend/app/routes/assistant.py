@@ -12,6 +12,7 @@ from app.services.ai_audit import (
     record_ai_query_sources,
 )
 from app.services.openai_client import analysis_model
+from app.services.case_work_status import build_case_work_status
 from app.services.case_qa import (
     CASE_ASSISTANT_PROMPT_VERSION,
     answer_case_question,
@@ -23,6 +24,32 @@ from app.services.case_qa import (
 
 
 router = APIRouter(tags=["Case Assistant"], dependencies=[Depends(get_current_user)])
+
+
+@router.get(
+    "/cases/{case_id}/assistant/work-status",
+    response_model=schemas.AssistantCaseWorkStatus,
+)
+def get_case_work_status(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # Step 12 is structured workflow data, not generative AI. Enforce the same
+    # case permission before reading the case or its tasks.
+    require_case_view(db, current_user, case_id)
+
+    case = db.query(models.Case).filter(models.Case.id == case_id).first()
+    if case is None:
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
+
+    tasks = (
+        db.query(models.Task)
+        .filter(models.Task.case_id == case_id)
+        .order_by(models.Task.due_date.asc(), models.Task.created_at.desc())
+        .all()
+    )
+    return build_case_work_status(case=case, tasks=tasks)
 
 
 @router.post(

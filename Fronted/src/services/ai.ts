@@ -341,6 +341,41 @@ export type AssistantBriefReview = {
   recommended_checks: string[];
 };
 
+export type AssistantOpenTask = {
+  id: number;
+  title: string;
+  description: string | null;
+  category: string | null;
+  responsible_person: string | null;
+  due_date: string | null;
+  priority: string;
+  status: string;
+  is_overdue: boolean;
+};
+
+export type AssistantOpenDecision = {
+  task_id: number;
+  title: string;
+  description: string | null;
+  responsible_person: string | null;
+  due_date: string | null;
+};
+
+export type AssistantCaseWorkStatus = {
+  primary_deadline: string | null;
+  primary_deadline_is_overdue: boolean;
+  follow_up_date: string | null;
+  next_action: string | null;
+  open_tasks: AssistantOpenTask[];
+  open_decisions: AssistantOpenDecision[];
+  note: string;
+};
+
+export async function getCaseAssistantWorkStatus(caseId: number): Promise<AssistantCaseWorkStatus> {
+  const { data } = await api.get<AssistantCaseWorkStatus>(`/cases/${caseId}/assistant/work-status`);
+  return data;
+}
+
 export type AssistantSource = {
   source_id: string;
   chunk_id: number;

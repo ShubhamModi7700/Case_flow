@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 
 import {
   queryCaseAssistant,
+  getCaseAssistantWorkStatus,
   type AssistantBriefContext,
   type AssistantBriefEvidencePackage,
   type AssistantBriefOutline,
   type AssistantBriefDraft,
   type AssistantBriefReview,
+  type AssistantCaseWorkStatus,
   type AssistantChronologyEvent,
   type AssistantEntity,
   type AssistantEvidenceLink,
@@ -359,6 +361,32 @@ function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; so
   );
 }
 
+function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
+  return (
+    <div className="space-y-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Step 12 · Fristen & offene Arbeit</div>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">Arbeitsstand aus Case Flow</h3>
+        <p className="mt-1 text-xs text-slate-600">Diese Angaben stammen direkt aus der Case-Flow-Datenbank und werden nicht von der KI erfunden.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-lg bg-white p-3"><div className="text-xs uppercase text-slate-500">Hauptfrist</div><div className={`mt-1 font-semibold ${item.primary_deadline_is_overdue ? "text-red-700" : "text-slate-900"}`}>{item.primary_deadline ?? "Keine hinterlegt"}</div>{item.primary_deadline_is_overdue && <div className="mt-1 text-xs text-red-700">Überfällig</div>}</div>
+        <div className="rounded-lg bg-white p-3"><div className="text-xs uppercase text-slate-500">Wiedervorlage</div><div className="mt-1 font-semibold text-slate-900">{item.follow_up_date ?? "Keine hinterlegt"}</div></div>
+        <div className="rounded-lg bg-white p-3"><div className="text-xs uppercase text-slate-500">Nächste Maßnahme</div><div className="mt-1 text-sm font-semibold text-slate-900">{item.next_action ?? "Keine hinterlegt"}</div></div>
+      </div>
+      <div>
+        <h4 className="font-semibold text-slate-900">Offene Aufgaben ({item.open_tasks.length})</h4>
+        {item.open_tasks.length === 0 ? <p className="mt-2 text-sm text-slate-600">Keine offenen Aufgaben.</p> : <div className="mt-2 space-y-2">{item.open_tasks.map((task) => <div key={task.id} className="rounded-lg bg-white p-3"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-slate-900">{task.title}</span>{task.is_overdue && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Überfällig</span>}<span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{task.priority}</span></div><div className="mt-1 text-xs text-slate-600">Frist: {task.due_date ?? "keine"} · Verantwortlich: {task.responsible_person ?? "nicht zugewiesen"}{task.category ? ` · Kategorie: ${task.category}` : ""}</div>{task.description && <p className="mt-2 text-sm text-slate-700">{task.description}</p>}</div>)}</div>}
+      </div>
+      <div>
+        <h4 className="font-semibold text-slate-900">Offene Entscheidungen ({item.open_decisions.length})</h4>
+        {item.open_decisions.length === 0 ? <p className="mt-2 text-sm text-slate-600">Keine ausdrücklich als Entscheidung/Freigabe kategorisierte offene Aufgabe.</p> : <div className="mt-2 space-y-2">{item.open_decisions.map((decision) => <div key={decision.task_id} className="rounded-lg bg-white p-3"><div className="font-semibold text-slate-900">{decision.title}</div><div className="mt-1 text-xs text-slate-600">Frist: {decision.due_date ?? "keine"} · Verantwortlich: {decision.responsible_person ?? "nicht zugewiesen"}</div>{decision.description && <p className="mt-2 text-sm text-slate-700">{decision.description}</p>}</div>)}</div>}
+      </div>
+      <p className="text-xs text-slate-500">{item.note}</p>
+    </div>
+  );
+}
+
 export default function CaseAssistant({ caseId }: Props) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
@@ -366,6 +394,8 @@ export default function CaseAssistant({ caseId }: Props) {
   const [error, setError] = useState("");
   const [activeTask, setActiveTask] = useState<AssistantTaskType>("question");
   const [showBriefForm, setShowBriefForm] = useState(false);
+  const [workStatus, setWorkStatus] = useState<AssistantCaseWorkStatus | null>(null);
+  const [workStatusLoading, setWorkStatusLoading] = useState(false);
   const [briefContext, setBriefContext] = useState<AssistantBriefContext>({
     client: "",
     role: null,
@@ -379,6 +409,21 @@ export default function CaseAssistant({ caseId }: Props) {
     () => new Map((result?.sources ?? []).map((source) => [source.source_id, source])),
     [result],
   );
+
+  async function loadWorkStatus(): Promise<void> {
+    if (workStatusLoading) return;
+    try {
+      setWorkStatusLoading(true);
+      setError("");
+      const data = await getCaseAssistantWorkStatus(caseId);
+      setWorkStatus(data);
+      setResult(null);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setWorkStatusLoading(false);
+    }
+  }
 
   async function submit(
     taskType: AssistantTaskType = "question",
@@ -494,6 +539,14 @@ export default function CaseAssistant({ caseId }: Props) {
         ))}
         <button
           type="button"
+          disabled={loading || workStatusLoading}
+          onClick={() => void loadWorkStatus()}
+          className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-500 disabled:opacity-50"
+        >
+          {workStatusLoading ? "Arbeitsstand wird geladen..." : "Fristen & Aufgaben"}
+        </button>
+        <button
+          type="button"
           disabled={loading}
           onClick={() => setShowBriefForm((value) => !value)}
           className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
@@ -556,6 +609,12 @@ export default function CaseAssistant({ caseId }: Props) {
       {error && (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {workStatus && (
+        <div className="mt-6">
+          <WorkStatusView item={workStatus} />
         </div>
       )}
 
