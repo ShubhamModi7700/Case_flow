@@ -243,7 +243,7 @@ export async function confirmDocumentCaseRoute(
 
   return data;
 }
-export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline" | "brief_draft" | "brief_review";
+export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline" | "brief_draft" | "brief_review" | "intelligence";
 
 export type AssistantBriefContext = {
   client: string;
@@ -341,6 +341,17 @@ export type AssistantBriefReview = {
   recommended_checks: string[];
 };
 
+export type AssistantCaseIntelligence = {
+  executive_summary: AssistantEvidenceStatement[];
+  key_facts: AssistantEvidenceStatement[];
+  key_events: AssistantChronologyEvent[];
+  key_entities: AssistantEntity[];
+  evidence_map: AssistantEvidenceLink[];
+  contradictions: AssistantEvidenceStatement[];
+  information_gaps: string[];
+  unresolved_issues: string[];
+};
+
 export type AssistantOpenTask = {
   id: number;
   title: string;
@@ -370,6 +381,21 @@ export type AssistantCaseWorkStatus = {
   open_decisions: AssistantOpenDecision[];
   note: string;
 };
+
+export type AssistantCaseIntelligenceResponse = {
+  intelligence: AssistantCaseIntelligence;
+  work_status: AssistantCaseWorkStatus;
+  sources: AssistantSource[];
+};
+
+export async function getCaseAssistantIntelligence(caseId: number): Promise<AssistantCaseIntelligenceResponse> {
+  const { data } = await api.post<AssistantCaseIntelligenceResponse>(
+    `/cases/${caseId}/assistant/intelligence`,
+    undefined,
+    { timeout: AI_TIMEOUT_MS },
+  );
+  return data;
+}
 
 export async function getCaseAssistantWorkStatus(caseId: number): Promise<AssistantCaseWorkStatus> {
   const { data } = await api.get<AssistantCaseWorkStatus>(`/cases/${caseId}/assistant/work-status`);

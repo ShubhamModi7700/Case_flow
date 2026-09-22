@@ -11,9 +11,9 @@ from app.services.openai_client import analysis_model, get_openai_client
 from app.services.retrieval import retrieve_chunks
 
 
-TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review"]
+TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"]
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5i-red-review"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v5j-case-intelligence"
 
 BASE_SYSTEM_PROMPT = """
 Du bist der KI-Assistent der Anwendung Case Flow.
@@ -146,6 +146,24 @@ Zusätzliche Regeln:
 - Keine Behauptung darf allein deshalb als wahr gelten, weil sie im Nutzerauftrag steht.
 - Der Entwurf muss vor Verwendung durch einen Menschen fachlich geprüft und freigegeben werden.
 """.strip(),
+    "intelligence": """
+AUFGABE: FALL-INTELLIGENCE
+Erstelle eine konsolidierte, evidenzbasierte Lageübersicht zum gesamten Vorgang.
+Fülle `intelligence`. Diese Ansicht soll die wichtigsten fallbezogenen Erkenntnisse
+aus den freigegebenen Dokumenten bündeln, ohne operative Workflow-Daten zu erfinden.
+
+Zusätzliche Regeln:
+- `executive_summary` ist eine knappe Orientierung und darf keine unbelegten Tatsachen enthalten.
+- `key_facts` enthält nur belegte Schlüsseltatsachen mit Quellen-IDs.
+- `key_events` enthält die wichtigsten belegten Ereignisse mit Quellen-IDs.
+- `key_entities` enthält wesentliche Personen/Unternehmen/Organisationen und belegte Rollen.
+- `evidence_map` verknüpft zentrale Behauptungen mit den wichtigsten Belegen.
+- `contradictions` nennt konkrete Widersprüche zwischen Quellen.
+- `information_gaps` nennt fehlende oder nicht belegte Informationen.
+- `unresolved_issues` nennt offene Tatsachen-/Prüffragen, aber keine erfundenen Entscheidungen.
+- Fristen, Aufgaben und offene Entscheidungen werden separat aus der Case-Flow-Datenbank ergänzt; erfinde sie hier nicht.
+- Jede Tatsache, jedes Ereignis, jede Entität und jede Belegzuordnung benötigt gültige Quellen-IDs.
+""".strip(),
     "brief_review": """
 AUFGABE: GEGENARGUMENTE, RISIKEN UND RED REVIEW
 Prüfe den konkreten Schriftsatzauftrag aus einer kritischen Gegenperspektive.
@@ -175,6 +193,9 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
         return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
+    if task_type == "intelligence":
+        return (f"{question}\n\nSchlüsseltatsachen, Chronologie, Beteiligte, Rollen, Beweismittel, "
+                "Widersprüche, Informationslücken, offene Fragen, aktueller Sachstand")
     if task_type in {"brief_evidence", "brief_outline", "brief_draft", "brief_review"}:
         return (
             f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
@@ -193,8 +214,8 @@ def retrieve_case_evidence(
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
-    task_limit = limit if limit is not None else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20)
-    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 0.40
+    task_limit = limit if limit is not None else (35 if task_type == "intelligence" else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20))
+    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"} else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
@@ -455,6 +476,52 @@ def validate_answer_sources(
             dict.fromkeys(x.strip() for x in review.recommended_checks if x and x.strip())
         )
         result.brief_review = review
+
+    intelligence = result.intelligence
+    if intelligence is not None:
+        def validate_intel_statements(items: list[schemas.AssistantEvidenceStatement]) -> list[schemas.AssistantEvidenceStatement]:
+            valid_items = []
+            for item in items:
+                item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+                if item.source_ids:
+                    valid_items.append(item)
+                else:
+                    unsupported.append(item.text)
+            return valid_items
+
+        intelligence.executive_summary = validate_intel_statements(intelligence.executive_summary)
+        intelligence.key_facts = validate_intel_statements(intelligence.key_facts)
+        intelligence.contradictions = validate_intel_statements(intelligence.contradictions)
+
+        valid_events = []
+        for event in intelligence.key_events:
+            event.source_ids = _valid_source_ids(event.source_ids, valid_ids)
+            if event.source_ids:
+                valid_events.append(event)
+            else:
+                unsupported.append(event.event)
+        intelligence.key_events = valid_events
+
+        valid_entities = []
+        for entity in intelligence.key_entities:
+            entity.source_ids = _valid_source_ids(entity.source_ids, valid_ids)
+            if entity.source_ids:
+                valid_entities.append(entity)
+            else:
+                unsupported.append(f"Entität ohne gültigen Beleg: {entity.name}")
+        intelligence.key_entities = valid_entities
+
+        valid_evidence = []
+        for item in intelligence.evidence_map:
+            item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+            if item.source_ids:
+                valid_evidence.append(item)
+            else:
+                unsupported.append(item.claim)
+        intelligence.evidence_map = valid_evidence
+        intelligence.information_gaps = list(dict.fromkeys(x.strip() for x in intelligence.information_gaps if x and x.strip()))
+        intelligence.unresolved_issues = list(dict.fromkeys(x.strip() for x in intelligence.unresolved_issues if x and x.strip()))
+        result.intelligence = intelligence
 
     result.answer = _remove_invalid_inline_citations(result.answer, valid_ids)
     result.unsupported_statements = list(

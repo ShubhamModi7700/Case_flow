@@ -128,6 +128,21 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
         for item in review.contradictions:
             ids.update(item.source_ids)
 
+    intelligence = result.intelligence
+    if intelligence is not None:
+        for item in intelligence.executive_summary:
+            ids.update(item.source_ids)
+        for item in intelligence.key_facts:
+            ids.update(item.source_ids)
+        for item in intelligence.key_events:
+            ids.update(item.source_ids)
+        for item in intelligence.key_entities:
+            ids.update(item.source_ids)
+        for item in intelligence.evidence_map:
+            ids.update(item.source_ids)
+        for item in intelligence.contradictions:
+            ids.update(item.source_ids)
+
     return ids
 
 

@@ -13,6 +13,7 @@ from app.services.ai_audit import (
 )
 from app.services.openai_client import analysis_model
 from app.services.case_work_status import build_case_work_status
+from app.services.case_intelligence import build_case_intelligence
 from app.services.case_qa import (
     CASE_ASSISTANT_PROMPT_VERSION,
     answer_case_question,
@@ -50,6 +51,26 @@ def get_case_work_status(
         .all()
     )
     return build_case_work_status(case=case, tasks=tasks)
+
+
+@router.post(
+    "/cases/{case_id}/assistant/intelligence",
+    response_model=schemas.AssistantCaseIntelligenceResponse,
+)
+def get_case_intelligence(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # ACL is enforced before any document/task retrieval or model call.
+    require_case_view(db, current_user, case_id)
+    case = db.query(models.Case).filter(models.Case.id == case_id).first()
+    if case is None:
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
+    try:
+        return build_case_intelligence(db=db, user=current_user, case=case)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Die Fall-Intelligence konnte nicht erstellt werden: {exc}") from exc
 
 
 @router.post(

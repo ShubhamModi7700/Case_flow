@@ -569,7 +569,7 @@ class AssistantBriefContext(BaseModel):
 
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"] = "question"
     brief_context: AssistantBriefContext | None = None
 
 
@@ -676,6 +676,17 @@ class AssistantSource(BaseModel):
     attachment_depth: int = 0
 
 
+class AssistantCaseIntelligence(BaseModel):
+    executive_summary: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    key_facts: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    key_events: list[AssistantChronologyEvent] = Field(default_factory=list)
+    key_entities: list[AssistantEntity] = Field(default_factory=list)
+    evidence_map: list[AssistantEvidenceLink] = Field(default_factory=list)
+    contradictions: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    information_gaps: list[str] = Field(default_factory=list)
+    unresolved_issues: list[str] = Field(default_factory=list)
+
+
 class CaseAssistantModelAnswer(BaseModel):
     answer: str
     claims: list[AssistantEvidenceStatement] = Field(default_factory=list)
@@ -689,10 +700,11 @@ class CaseAssistantModelAnswer(BaseModel):
     brief_outline: AssistantBriefOutline | None = None
     brief_draft: AssistantBriefDraft | None = None
     brief_review: AssistantBriefReview | None = None
+    intelligence: AssistantCaseIntelligence | None = None
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 
@@ -724,6 +736,12 @@ class AssistantCaseWorkStatus(BaseModel):
     open_tasks: list[AssistantOpenTask] = Field(default_factory=list)
     open_decisions: list[AssistantOpenDecision] = Field(default_factory=list)
     note: str
+
+
+class AssistantCaseIntelligenceResponse(BaseModel):
+    intelligence: AssistantCaseIntelligence
+    work_status: AssistantCaseWorkStatus
+    sources: list[AssistantSource] = Field(default_factory=list)
 
 
 class DocumentProcessingResponse(BaseModel):

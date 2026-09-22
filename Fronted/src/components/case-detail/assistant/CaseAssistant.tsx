@@ -3,12 +3,14 @@ import { useMemo, useState } from "react";
 import {
   queryCaseAssistant,
   getCaseAssistantWorkStatus,
+  getCaseAssistantIntelligence,
   type AssistantBriefContext,
   type AssistantBriefEvidencePackage,
   type AssistantBriefOutline,
   type AssistantBriefDraft,
   type AssistantBriefReview,
   type AssistantCaseWorkStatus,
+  type AssistantCaseIntelligenceResponse,
   type AssistantChronologyEvent,
   type AssistantEntity,
   type AssistantEvidenceLink,
@@ -361,7 +363,61 @@ function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; so
   );
 }
 
+function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceResponse }) {
+  const sourcesById = useMemo(
+    () => new Map(item.sources.map((source) => [source.source_id, source])),
+    [item.sources],
+  );
+  const intel = item.intelligence;
+  return (
+    <div className="space-y-5 rounded-xl border-2 border-cyan-200 bg-cyan-50 p-4">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Step 13 · Case-Intelligence</div>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">Konsolidierte Fallübersicht</h3>
+        <p className="mt-1 text-xs text-slate-600">Dokumentenbasierte Erkenntnisse sind quellengebunden; Fristen und Aufgaben stammen direkt aus Case Flow.</p>
+        {intel.executive_summary.length > 0 && <div className="mt-3"><EvidenceList items={intel.executive_summary} sourcesById={sourcesById} /></div>}
+      </div>
+      {intel.key_facts.length > 0 && <div><h4 className="mb-2 font-semibold">Schlüsseltatsachen</h4><EvidenceList items={intel.key_facts} sourcesById={sourcesById} /></div>}
+      {intel.key_events.length > 0 && <ChronologyView items={intel.key_events} sourcesById={sourcesById} />}
+      {intel.key_entities.length > 0 && <EntitiesView items={intel.key_entities} sourcesById={sourcesById} />}
+      {intel.evidence_map.length > 0 && <EvidenceOverview items={intel.evidence_map} sourcesById={sourcesById} />}
+      {intel.contradictions.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="mb-2 font-semibold text-amber-900">Widersprüche</h4><EvidenceList items={intel.contradictions} sourcesById={sourcesById} /></div>}
+      {intel.information_gaps.length > 0 && <div className="rounded-lg border border-slate-200 bg-white p-4"><h4 className="font-semibold">Informationslücken</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.information_gaps.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      {intel.unresolved_issues.length > 0 && <div className="rounded-lg border border-violet-200 bg-white p-4"><h4 className="font-semibold">Offene Prüf- und Tatsachenfragen</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.unresolved_issues.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      <WorkStatusView item={item.work_status} />
+      {item.sources.length > 0 && <div><h4 className="mb-2 font-semibold">Verwendbare Quellen ({item.sources.length})</h4><div className="grid gap-2 md:grid-cols-2">{item.sources.map((source)=><div key={source.source_id} className="rounded-lg bg-white p-3 text-sm"><div className="font-semibold">[{source.source_id}] {source.filename}</div>{source.document_date && <div className="text-xs text-slate-600">Datum: {source.document_date}</div>}{sourceLocation(source) && <div className="text-xs text-slate-600">{sourceLocation(source)}</div>}</div>)}</div></div>}
+    </div>
+  );
+}
+
 function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
+  const [showAllTasks, setShowAllTasks] = useState(false);
+
+  const sortedOpenTasks = useMemo(
+    () =>
+      [...item.open_tasks].sort((a, b) => {
+        // Overdue tasks first.
+        if (a.is_overdue !== b.is_overdue) return a.is_overdue ? -1 : 1;
+
+        // Then tasks with a deadline before tasks without a deadline.
+        if (a.due_date && !b.due_date) return -1;
+        if (!a.due_date && b.due_date) return 1;
+
+        // Within those groups, show the earliest deadline first.
+        if (a.due_date && b.due_date) {
+          const byDate = a.due_date.localeCompare(b.due_date);
+          if (byDate !== 0) return byDate;
+        }
+
+        // Stable, readable fallback for tasks without/equal deadlines.
+        return a.title.localeCompare(b.title, "de");
+      }),
+    [item.open_tasks],
+  );
+
+  const visibleOpenTasks = showAllTasks ? sortedOpenTasks : sortedOpenTasks.slice(0, 5);
+  const hiddenTaskCount = Math.max(sortedOpenTasks.length - visibleOpenTasks.length, 0);
+
   return (
     <div className="space-y-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
       <div>
@@ -375,8 +431,42 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
         <div className="rounded-lg bg-white p-3"><div className="text-xs uppercase text-slate-500">Nächste Maßnahme</div><div className="mt-1 text-sm font-semibold text-slate-900">{item.next_action ?? "Keine hinterlegt"}</div></div>
       </div>
       <div>
-        <h4 className="font-semibold text-slate-900">Offene Aufgaben ({item.open_tasks.length})</h4>
-        {item.open_tasks.length === 0 ? <p className="mt-2 text-sm text-slate-600">Keine offenen Aufgaben.</p> : <div className="mt-2 space-y-2">{item.open_tasks.map((task) => <div key={task.id} className="rounded-lg bg-white p-3"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-slate-900">{task.title}</span>{task.is_overdue && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Überfällig</span>}<span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{task.priority}</span></div><div className="mt-1 text-xs text-slate-600">Frist: {task.due_date ?? "keine"} · Verantwortlich: {task.responsible_person ?? "nicht zugewiesen"}{task.category ? ` · Kategorie: ${task.category}` : ""}</div>{task.description && <p className="mt-2 text-sm text-slate-700">{task.description}</p>}</div>)}</div>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-semibold text-slate-900">Offene Aufgaben ({item.open_tasks.length})</h4>
+          {item.open_tasks.length > 5 && (
+            <span className="text-xs text-slate-500">Überfällige und frühe Fristen zuerst</span>
+          )}
+        </div>
+        {item.open_tasks.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-600">Keine offenen Aufgaben.</p>
+        ) : (
+          <>
+            <div className="mt-2 space-y-2">
+              {visibleOpenTasks.map((task) => (
+                <div key={task.id} className="rounded-lg bg-white p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-slate-900">{task.title}</span>
+                    {task.is_overdue && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Überfällig</span>}
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{task.priority}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-600">Frist: {task.due_date ?? "keine"} · Verantwortlich: {task.responsible_person ?? "nicht zugewiesen"}{task.category ? ` · Kategorie: ${task.category}` : ""}</div>
+                  {task.description && <p className="mt-2 text-sm text-slate-700">{task.description}</p>}
+                </div>
+              ))}
+            </div>
+            {sortedOpenTasks.length > 5 && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAllTasks((current) => !current)}
+                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-500"
+                >
+                  {showAllTasks ? "Weniger anzeigen" : `Weitere ${hiddenTaskCount} Aufgaben anzeigen`}
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
       <div>
         <h4 className="font-semibold text-slate-900">Offene Entscheidungen ({item.open_decisions.length})</h4>
@@ -396,6 +486,8 @@ export default function CaseAssistant({ caseId }: Props) {
   const [showBriefForm, setShowBriefForm] = useState(false);
   const [workStatus, setWorkStatus] = useState<AssistantCaseWorkStatus | null>(null);
   const [workStatusLoading, setWorkStatusLoading] = useState(false);
+  const [intelligence, setIntelligence] = useState<AssistantCaseIntelligenceResponse | null>(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
   const [briefContext, setBriefContext] = useState<AssistantBriefContext>({
     client: "",
     role: null,
@@ -409,6 +501,22 @@ export default function CaseAssistant({ caseId }: Props) {
     () => new Map((result?.sources ?? []).map((source) => [source.source_id, source])),
     [result],
   );
+
+  async function loadIntelligence(): Promise<void> {
+    if (intelligenceLoading) return;
+    try {
+      setIntelligenceLoading(true);
+      setError("");
+      const data = await getCaseAssistantIntelligence(caseId);
+      setIntelligence(data);
+      setWorkStatus(null);
+      setResult(null);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setIntelligenceLoading(false);
+    }
+  }
 
   async function loadWorkStatus(): Promise<void> {
     if (workStatusLoading) return;
@@ -539,6 +647,14 @@ export default function CaseAssistant({ caseId }: Props) {
         ))}
         <button
           type="button"
+          disabled={loading || intelligenceLoading}
+          onClick={() => void loadIntelligence()}
+          className="rounded-lg border border-cyan-300 bg-white px-3 py-2 text-sm font-medium text-cyan-800 transition hover:border-cyan-500 disabled:opacity-50"
+        >
+          {intelligenceLoading ? "Fall-Intelligence wird erstellt..." : "Fall-Intelligence"}
+        </button>
+        <button
+          type="button"
           disabled={loading || workStatusLoading}
           onClick={() => void loadWorkStatus()}
           className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-500 disabled:opacity-50"
@@ -609,6 +725,12 @@ export default function CaseAssistant({ caseId }: Props) {
       {error && (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {intelligence && (
+        <div className="mt-6">
+          <CaseIntelligenceView item={intelligence} />
         </div>
       )}
 
