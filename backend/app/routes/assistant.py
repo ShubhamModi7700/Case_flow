@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -59,6 +59,7 @@ def get_case_work_status(
 )
 def get_case_intelligence(
     case_id: int,
+    refresh: bool = Query(False, description="Generate and persist a fresh Case-Intelligence snapshot"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -68,7 +69,7 @@ def get_case_intelligence(
     if case is None:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     try:
-        return build_case_intelligence(db=db, user=current_user, case=case)
+        return build_case_intelligence(db=db, user=current_user, case=case, force_refresh=refresh)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Die Fall-Intelligence konnte nicht erstellt werden: {exc}") from exc
 

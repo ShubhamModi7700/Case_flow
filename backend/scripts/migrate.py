@@ -11,6 +11,7 @@ from app.migrations import (
     migrate_ai_summary_status_fields,
     migrate_management_action_fields,
     migrate_ai_audit_fields,
+    migrate_case_intelligence_snapshot_fields,
 )
 
 
@@ -29,6 +30,7 @@ def main() -> None:
     migrate_ai_summary_status_fields(engine)
     migrate_management_action_fields(engine)
     migrate_ai_audit_fields(engine)
+    migrate_case_intelligence_snapshot_fields(engine)
 
     print("Database migration completed successfully.")
 

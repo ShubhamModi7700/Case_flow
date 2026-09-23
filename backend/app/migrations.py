@@ -479,3 +479,24 @@ def migrate_ai_audit_fields(engine: Engine) -> None:
                     "ADD COLUMN used_in_output BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
+
+
+def migrate_case_intelligence_snapshot_fields(engine: Engine) -> None:
+    """Step 14: repair snapshot columns if the table was created by an older build."""
+    columns = _column_map(engine, "case_intelligence_snapshots")
+    if not columns:
+        return
+    statements = {
+        "generated_by": "ALTER TABLE case_intelligence_snapshots ADD COLUMN generated_by INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ai_query_id": "ALTER TABLE case_intelligence_snapshots ADD COLUMN ai_query_id INTEGER REFERENCES ai_queries(id) ON DELETE SET NULL",
+        "input_fingerprint": "ALTER TABLE case_intelligence_snapshots ADD COLUMN input_fingerprint VARCHAR(64)",
+        "intelligence_json": "ALTER TABLE case_intelligence_snapshots ADD COLUMN intelligence_json JSONB",
+        "work_status_json": "ALTER TABLE case_intelligence_snapshots ADD COLUMN work_status_json JSONB",
+        "sources_json": "ALTER TABLE case_intelligence_snapshots ADD COLUMN sources_json JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "source_document_ids": "ALTER TABLE case_intelligence_snapshots ADD COLUMN source_document_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "generated_at": "ALTER TABLE case_intelligence_snapshots ADD COLUMN generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    }
+    with engine.begin() as connection:
+        for column_name, statement in statements.items():
+            if column_name not in columns:
+                connection.execute(text(statement))

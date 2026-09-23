@@ -738,10 +738,19 @@ class AssistantCaseWorkStatus(BaseModel):
     note: str
 
 
+class AssistantCaseIntelligenceFreshness(BaseModel):
+    snapshot_id: int | None = None
+    status: Literal["current", "outdated"] = "current"
+    generated_at: datetime | None = None
+    generated_by: int | None = None
+    can_refresh: bool = True
+
+
 class AssistantCaseIntelligenceResponse(BaseModel):
     intelligence: AssistantCaseIntelligence
     work_status: AssistantCaseWorkStatus
     sources: list[AssistantSource] = Field(default_factory=list)
+    freshness: AssistantCaseIntelligenceFreshness | None = None
 
 
 class DocumentProcessingResponse(BaseModel):

@@ -375,6 +375,13 @@ function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceRespons
         <div className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Step 13 · Case-Intelligence</div>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">Konsolidierte Fallübersicht</h3>
         <p className="mt-1 text-xs text-slate-600">Dokumentenbasierte Erkenntnisse sind quellengebunden; Fristen und Aufgaben stammen direkt aus Case Flow.</p>
+        {item.freshness && (
+          <div className={`mt-3 rounded-lg border p-3 text-sm ${item.freshness.status === "outdated" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+            <strong>{item.freshness.status === "outdated" ? "Veraltet" : "Aktuell"}</strong>
+            {item.freshness.generated_at && <> · erstellt am {new Date(item.freshness.generated_at).toLocaleString("de-DE")}</>}
+            {item.freshness.status === "outdated" && <div className="mt-1 text-xs">Dokumente, Falldaten oder Aufgaben haben sich seit der Erstellung geändert. Bitte Fall-Intelligence aktualisieren.</div>}
+          </div>
+        )}
         {intel.executive_summary.length > 0 && <div className="mt-3"><EvidenceList items={intel.executive_summary} sourcesById={sourcesById} /></div>}
       </div>
       {intel.key_facts.length > 0 && <div><h4 className="mb-2 font-semibold">Schlüsseltatsachen</h4><EvidenceList items={intel.key_facts} sourcesById={sourcesById} /></div>}
@@ -502,12 +509,12 @@ export default function CaseAssistant({ caseId }: Props) {
     [result],
   );
 
-  async function loadIntelligence(): Promise<void> {
+  async function loadIntelligence(forceRefresh = false): Promise<void> {
     if (intelligenceLoading) return;
     try {
       setIntelligenceLoading(true);
       setError("");
-      const data = await getCaseAssistantIntelligence(caseId);
+      const data = await getCaseAssistantIntelligence(caseId, forceRefresh);
       setIntelligence(data);
       setWorkStatus(null);
       setResult(null);
@@ -648,10 +655,14 @@ export default function CaseAssistant({ caseId }: Props) {
         <button
           type="button"
           disabled={loading || intelligenceLoading}
-          onClick={() => void loadIntelligence()}
+          onClick={() => void loadIntelligence(intelligence?.freshness?.status === "outdated")}
           className="rounded-lg border border-cyan-300 bg-white px-3 py-2 text-sm font-medium text-cyan-800 transition hover:border-cyan-500 disabled:opacity-50"
         >
-          {intelligenceLoading ? "Fall-Intelligence wird erstellt..." : "Fall-Intelligence"}
+          {intelligenceLoading
+            ? "Fall-Intelligence wird erstellt..."
+            : intelligence?.freshness?.status === "outdated"
+              ? "Fall-Intelligence aktualisieren"
+              : "Fall-Intelligence"}
         </button>
         <button
           type="button"

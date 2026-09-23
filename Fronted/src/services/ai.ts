@@ -382,17 +382,26 @@ export type AssistantCaseWorkStatus = {
   note: string;
 };
 
+export type AssistantCaseIntelligenceFreshness = {
+  snapshot_id: number | null;
+  status: "current" | "outdated";
+  generated_at: string | null;
+  generated_by: number | null;
+  can_refresh: boolean;
+};
+
 export type AssistantCaseIntelligenceResponse = {
   intelligence: AssistantCaseIntelligence;
   work_status: AssistantCaseWorkStatus;
   sources: AssistantSource[];
+  freshness: AssistantCaseIntelligenceFreshness | null;
 };
 
-export async function getCaseAssistantIntelligence(caseId: number): Promise<AssistantCaseIntelligenceResponse> {
+export async function getCaseAssistantIntelligence(caseId: number, refresh = false): Promise<AssistantCaseIntelligenceResponse> {
   const { data } = await api.post<AssistantCaseIntelligenceResponse>(
     `/cases/${caseId}/assistant/intelligence`,
     undefined,
-    { timeout: AI_TIMEOUT_MS },
+    { params: { refresh }, timeout: AI_TIMEOUT_MS },
   );
   return data;
 }

@@ -441,6 +441,28 @@ class AIDocumentSuggestion(Base):
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
 
+class CaseIntelligenceSnapshot(Base):
+    """Persisted Step 14 Case-Intelligence snapshot.
+
+    Freshness is determined from an input fingerprint of authoritative case,
+    task and processed-document state. Original documents remain untouched.
+    """
+
+    __tablename__ = "case_intelligence_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    generated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    ai_query_id = Column(Integer, ForeignKey("ai_queries.id", ondelete="SET NULL"), nullable=True)
+    input_fingerprint = Column(String(64), nullable=False, index=True)
+    intelligence_json = Column(JSONB, nullable=False)
+    work_status_json = Column(JSONB, nullable=False)
+    sources_json = Column(JSONB, nullable=False, default=list)
+    source_document_ids = Column(JSONB, nullable=False, default=list)
+    generated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+
 class CaseAISummary(Base):
     __tablename__ = "case_ai_summaries"
 
