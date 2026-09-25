@@ -115,8 +115,14 @@ def retrieve_chunks(
                     )
                 )
           )
-          and (:requested_case_id is null or d.case_id = :requested_case_id)
-          and (:requested_document_id is null or d.id = :requested_document_id)
+          and (
+                cast(:requested_case_id as integer) is null
+                or d.case_id = cast(:requested_case_id as integer)
+          )
+          and (
+                cast(:requested_document_id as integer) is null
+                or d.id = cast(:requested_document_id as integer)
+          )
           and (
               1 - (dc.embedding <=> cast(:query_embedding as extensions.vector))
           ) >= :match_threshold

@@ -142,3 +142,33 @@ def test_acceptance_rejects_invented_supporting_source():
     assert validated.claims == []
     assert "[S99]" not in validated.answer
     assert "Vollständiger Zugang ist bestätigt." in validated.unsupported_statements
+
+
+def test_acceptance_retrieval_query_is_not_date_spoon_fed():
+    """The acceptance prompt must require discovery, not reveal Sep/Oct dates."""
+    from scripts.run_insolvency_acceptance import DEFAULT_QUESTION
+
+    normalized = DEFAULT_QUESTION.casefold()
+    assert "september" not in normalized
+    assert "oktober" not in normalized
+    assert "2025-09" not in normalized
+    assert "2025-10" not in normalized
+    assert "buchhaltungsunterlagen" in normalized
+    assert "ermittle selbständig" in normalized
+
+
+def test_acceptance_month_detection_requires_accounting_context():
+    """A random September document must not satisfy the accounting handover gate."""
+    from scripts.run_insolvency_acceptance import (
+        ACCOUNTING_TERMS,
+        SEPTEMBER_PATTERNS,
+        _matches_any,
+    )
+
+    unrelated = "Besprechung am 26.09.2025 über eine allgemeine Frist".casefold()
+    accounting = "Am 26.09.2025 wurden Buchhaltungsunterlagen übergeben".casefold()
+
+    assert _matches_any(unrelated, SEPTEMBER_PATTERNS)
+    assert not any(term in unrelated for term in ACCOUNTING_TERMS)
+    assert _matches_any(accounting, SEPTEMBER_PATTERNS)
+    assert any(term in accounting for term in ACCOUNTING_TERMS)
