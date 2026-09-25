@@ -11,10 +11,7 @@ from openai import (
 )
 from pydantic import BaseModel, Field
 
-from app.services.openai_client import (
-    analysis_model,
-    get_openai_client,
-)
+from app.services.ai_provider import get_ai_provider
 
 logger = logging.getLogger(__name__)
 
@@ -88,10 +85,9 @@ def extract_scanned_pdf_with_openai(
 
         try:
 
-            response = get_openai_client().responses.parse(
+            response = get_ai_provider().structured_parse(
 
-                model=analysis_model(),
-
+                
                 input=[
                     {
                         "role": "system",
@@ -198,7 +194,7 @@ Für jede Seite:
             "file": file_name,
             "pages": len(result.pages),
             "characters": len(total_text),
-            "model": analysis_model(),
+            "model": get_ai_provider().analysis_model(),
         },
     )
 

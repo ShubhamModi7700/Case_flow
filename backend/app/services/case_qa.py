@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.services.embeddings import create_query_embedding
-from app.services.openai_client import analysis_model, get_openai_client
+from app.services.ai_provider import get_ai_provider
 from app.services.retrieval import retrieve_chunks
 
 
@@ -590,9 +590,8 @@ def answer_case_question(
         brief_context=brief_context,
     )
     system_prompt = f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}"
-    response = get_openai_client().responses.parse(
-        model=analysis_model(),
-        input=[
+    response = get_ai_provider().structured_parse(
+                input=[
             {"role": "system", "content": system_prompt},
             {
                 "role": "user",

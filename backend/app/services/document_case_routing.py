@@ -9,7 +9,7 @@ from openai import APIConnectionError, APIError, RateLimitError
 from pydantic import BaseModel, Field
 
 from app import schemas
-from app.services.openai_client import analysis_model, get_openai_client
+from app.services.ai_provider import get_ai_provider
 from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
 
 logger = logging.getLogger(__name__)
@@ -118,9 +118,8 @@ def _parse_structured(*, system_prompt: str, user_content: str, text_format):
     response = None
     for attempt in range(3):
         try:
-            response = get_openai_client().responses.parse(
-                model=analysis_model(),
-                input=[
+            response = get_ai_provider().structured_parse(
+                                input=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content},
                 ],
@@ -161,7 +160,7 @@ def create_document_case_draft(document_context: str) -> DocumentCaseDraft:
     logger.info(
         "Document case draft created",
         extra={
-            "model": analysis_model(),
+            "model": get_ai_provider().analysis_model(),
             "context_length": len(document_context),
             "category": draft.category.value,
         },

@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.services.ai_provider import configured_provider_name
 
 
 def _utc_now() -> datetime:
@@ -28,7 +29,7 @@ def create_ai_query_log(
         case_id=case_id,
         task_type=task_type,
         question=question.strip(),
-        provider="openai",
+        provider=configured_provider_name(),
         model_name=model_name,
         prompt_version=prompt_version,
         status="Started",

@@ -1,49 +1,18 @@
-import os
-from functools import lru_cache
+"""Legacy configuration helpers.
 
-from openai import OpenAI
-
-
-@lru_cache(maxsize=1)
-def get_openai_client() -> OpenAI:
-    api_key = os.getenv("OPENAI_API_KEY")
-
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not configured."
-        )
-
-    return OpenAI(api_key=api_key)
+New AI calls should go through app.services.ai_provider. These helpers remain so
+existing model-name metadata does not need to change all at once.
+"""
+from app.services.ai_provider import get_ai_provider
 
 
 def analysis_model() -> str:
-    model = os.getenv("OPENAI_ANALYSIS_MODEL")
-
-    if not model:
-        raise RuntimeError(
-            "OPENAI_ANALYSIS_MODEL is not configured."
-        )
-
-    return model
+    return get_ai_provider().analysis_model()
 
 
 def embedding_model() -> str:
-    model = os.getenv("OPENAI_EMBEDDING_MODEL")
-
-    if not model:
-        raise RuntimeError(
-            "OPENAI_EMBEDDING_MODEL is not configured."
-        )
-
-    return model
+    return get_ai_provider().embedding_model()
 
 
 def embedding_dimensions() -> int:
-    dimensions = os.getenv("OPENAI_EMBEDDING_DIMENSIONS")
-
-    if not dimensions:
-        raise RuntimeError(
-            "OPENAI_EMBEDDING_DIMENSIONS is not configured."
-        )
-
-    return int(dimensions)
+    return get_ai_provider().embedding_dimensions()

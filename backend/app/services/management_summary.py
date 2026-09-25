@@ -4,7 +4,7 @@ import re
 from difflib import SequenceMatcher
 
 from app import schemas
-from app.services.openai_client import analysis_model, get_openai_client
+from app.services.ai_provider import get_ai_provider
 from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
 
 SYSTEM_PROMPT = """
@@ -282,9 +282,8 @@ def _parse_management_summary(context: str, *, correction: str | None = None) ->
             + correction
         )
 
-    response = get_openai_client().responses.parse(
-        model=analysis_model(),
-        input=[
+    response = get_ai_provider().structured_parse(
+                input=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
         ],

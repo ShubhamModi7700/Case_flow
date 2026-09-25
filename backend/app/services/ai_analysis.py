@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 from openai import APIConnectionError, APIError, RateLimitError
 
 from app import schemas
-from app.services.openai_client import analysis_model, get_openai_client
+from app.services.ai_provider import get_ai_provider
 from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
 
 logger = logging.getLogger(__name__)
@@ -177,9 +177,8 @@ def _parse_document_analysis(
     response = None
     for attempt in range(3):
         try:
-            response = get_openai_client().responses.parse(
-                model=analysis_model(),
-                input=[
+            response = get_ai_provider().structured_parse(
+                                input=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_content},
                 ],
@@ -265,7 +264,7 @@ def analyze_document_context(context: str) -> schemas.DocumentAIAnalysis:
     logger.info(
         "AI analysis completed",
         extra={
-            "model": analysis_model(),
+            "model": get_ai_provider().analysis_model(),
             "context_length": len(context),
             "latest_action_overlap": overlap,
         },
