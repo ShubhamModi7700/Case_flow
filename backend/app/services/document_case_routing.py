@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app import schemas
 from app.services.ai_provider import get_ai_provider
 from app.services.text_cleanup import clean_required_user_facing_text, clean_user_facing_text
+from app.prompts.document_routing import DRAFT_SYSTEM_PROMPT, ROUTING_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -46,72 +47,8 @@ class DocumentCaseRouteSuggestion(BaseModel):
     new_case: DocumentCaseDraft | None = None
 
 
-DRAFT_SYSTEM_PROMPT = """
-Du erstellst aus einem hochgeladenen Dokument einen strukturierten Fallentwurf
-für Case Flow.
-
-Das Dokument kann ein PDF, ein gescanntes PDF, ein DOCX-Dokument, eine
-XLSX-Datei, eine EML-E-Mail oder eine MSG-E-Mail sein. Case Flow verwaltet
-Geschäfts-, Personal-, Vertrags-, Finanz-, Projekt- und sonstige
-Unternehmensfälle.
-
-Aufgabe:
-- Formuliere einen kurzen, eindeutigen Falltitel.
-- Ermittle das Unternehmen nur, wenn es aus dem Dokument ableitbar ist.
-- Ermittle Abteilung und externen Kontakt nur, wenn sie klar erkennbar sind.
-- Ordne genau eine Kategorie zu: Customer, Contract, Supplier, Employee,
-  Project oder Other.
-- Beschreibe den Sachverhalt knapp und sachlich.
-- Erstelle eine kurze managementorientierte Zusammenfassung.
-- Schlage die nächste konkrete Maßnahme vor.
-- Übernimm eine eindeutig genannte offene Frist im ISO-Format YYYY-MM-DD.
-- Übernimm einen eindeutig genannten finanziellen Betrag als Zahl.
-
-Regeln:
-- Antworte auf Deutsch.
-- Erfinde keine Namen, Firmen, Fristen oder Beträge.
-- Interne RAG-Kennungen wie Chunk-ID, Dokument-ID oder Dok.-ID dürfen nie in benutzerseitigem Text erscheinen.
-- Verwende null, wenn ein Wert nicht verlässlich aus dem Dokument hervorgeht.
-- Der Falltitel darf eine Überschrift, einen Betreff oder den zentralen
-  Dokumentinhalt sinnvoll verkürzen, aber keine neuen Tatsachen hinzufügen.
-- Eine Antwortfrist, Zahlungsfrist, Prüfungsfrist oder angekündigte Rückmeldung
-  kann als primary_deadline verwendet werden, wenn sie für den weiteren Vorgang
-  handlungsrelevant ist.
-- Bei Tabellen oder Excel-Dateien nutze nur tatsächlich vorhandene Zellwerte.
-- Bei E-Mails berücksichtige Absender, Empfänger, Betreff, Datum und
-  Nachrichtentext.
-""".strip()
 
 
-ROUTING_SYSTEM_PROMPT = """
-Du unterstützt die Fallzuordnung in Case Flow. Entscheide, ob ein hochgeladenes
-Dokument fachlich zu einem der bereitgestellten bestehenden Fälle gehört oder
-ob ein neuer Fall vorgeschlagen werden sollte.
-
-Mögliche Entscheidungen:
-- existing_case: Das Dokument gehört eindeutig zu einem bestehenden Kandidaten.
-- new_case: Das Dokument beschreibt einen neuen eigenständigen Vorgang.
-- uncertain: Eine verlässliche Zuordnung ist mit den vorhandenen Informationen
-  nicht möglich.
-
-Regeln:
-- Die semantische Vektorähnlichkeit ist nur ein Retrieval-Hinweis und darf nie
-  allein über die Zuordnung entscheiden.
-- Vergleiche Unternehmen, Personen, Betreff, Vertrags-/Projektbezug,
-  Referenznummern, Sachverhalt und vorhandene Fallbeschreibung.
-- Ähnliche Themen bei unterschiedlichen Unternehmen/Personen sind nicht
-  automatisch derselbe Fall.
-- Verwende ausschließlich Case-IDs aus der Kandidatenliste.
-- Bei existing_case muss suggested_case_id gesetzt sein.
-- Bei new_case muss suggested_case_id null sein.
-- Bei uncertain darf suggested_case_id gesetzt sein, wenn ein Kandidat plausibel
-  ist; andernfalls null.
-- confidence ist deine fachliche Sicherheit zwischen 0 und 1, nicht die rohe
-  Vektorähnlichkeit.
-- Die endgültige Entscheidung trifft immer ein Benutzer. Du speicherst nichts.
-- Erfinde keine Informationen. Antworte auf Deutsch.
-- Interne RAG-Kennungen wie Chunk-ID, Dokument-ID oder Dok.-ID dürfen nie in der Begründung erscheinen.
-""".strip()
 
 
 def _parse_structured(*, system_prompt: str, user_content: str, text_format):

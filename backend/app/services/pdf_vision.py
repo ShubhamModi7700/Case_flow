@@ -12,6 +12,7 @@ from openai import (
 from pydantic import BaseModel, Field
 
 from app.services.ai_provider import get_ai_provider
+from app.prompts.extraction import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -25,42 +26,6 @@ class VisionPdfExtraction(BaseModel):
     pages: list[VisionPdfPage]
 
 
-SYSTEM_PROMPT = """
-Du extrahierst Text aus PDF-Dokumenten für Case Flow.
-
-Die Dokumente können enthalten:
-
-- Geschäftsunterlagen
-- Verträge
-- Rechnungen
-- Briefe
-- E-Mails
-- Personalunterlagen
-- Rechtliche Dokumente
-- Technische Dokumente
-- Sonstige Unternehmensdokumente
-
-Regeln:
-
-- Extrahiere ausschließlich den lesbaren Text.
-- Keine Zusammenfassung.
-- Keine Interpretation.
-- Keine Übersetzung.
-- Keine Korrektur.
-- Bewahre Seitenreihenfolge.
-- Bewahre Zeilenumbrüche soweit sinnvoll.
-- Bewahre Überschriften.
-- Bewahre Tabellen möglichst zeilenweise.
-- Bewahre Datumsangaben exakt.
-- Bewahre Geldbeträge exakt.
-- Bewahre Namen exakt.
-- Bewahre E-Mail-Adressen exakt.
-- Bewahre Telefonnummern exakt.
-- Bewahre Referenznummern exakt.
-- Bewahre Aufzählungen.
-- Überspringe leere Seiten.
-- Erfinde niemals Text.
-""".strip()
 
 
 def extract_scanned_pdf_with_openai(

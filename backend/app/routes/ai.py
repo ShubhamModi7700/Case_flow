@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.prompts.document_analysis import DOCUMENT_ANALYSIS_PROMPT_VERSION
+from app.prompts.management import MANAGEMENT_PROMPT_VERSION
 from app.auth import get_current_user, require_editor
 from app.database import get_db
 from app.services.case_access import require_case_edit, require_case_view
@@ -514,7 +516,7 @@ def analyze_document(
         created_task_ids=[],
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="document-analysis-v5-case-aware-insights",
+        prompt_version=DOCUMENT_ANALYSIS_PROMPT_VERSION,
         raw_response=analysis.model_dump(mode="json"),
         created_by=current_user.id,
     )
@@ -1010,7 +1012,7 @@ def _create_management_summary_record(
         relevant_chunk_ids=supporting_chunk_ids,
         status="Pending",
         model_name=analysis_model(),
-        prompt_version="management-action-v11-evidence-gated",
+        prompt_version=MANAGEMENT_PROMPT_VERSION,
         generated_by=generated_by,
     )
     db.add(summary)
