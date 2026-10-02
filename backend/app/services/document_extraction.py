@@ -13,6 +13,7 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from app.services.pdf_vision import extract_scanned_pdf_with_openai
+from app.services.image_vision import extract_image_with_openai
 
 
 @dataclass
@@ -310,10 +311,28 @@ def extract_msg_document(content: bytes) -> ExtractedDocument:
             pass
 
 
+
+def extract_image(content: bytes, *, file_name: str) -> ExtractedDocument:
+    """OCR a case-relevant standalone/attached image via OpenAI vision."""
+    text = extract_image_with_openai(content, file_name=file_name)
+    metadata = {
+        "ocr": True,
+        "vision_extraction": True,
+        "extraction_provider": "openai",
+    }
+    return ExtractedDocument(
+        "image_ocr",
+        [ExtractedSection(text=text, metadata=dict(metadata))],
+        metadata,
+    )
+
+
 def extract_document(*, file_name: str, content: bytes) -> ExtractedDocument:
     extension = Path(file_name).suffix.lower()
     if extension == ".pdf":
         return extract_pdf(content, file_name=file_name)
+    if extension in {".png", ".jpg", ".jpeg", ".webp"}:
+        return extract_image(content, file_name=file_name)
     if extension == ".docx":
         return extract_docx(content)
     if extension == ".xlsx":

@@ -16,7 +16,41 @@ from app.storage import download_object
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENT_DEPTH = 3
-SUPPORTED_ATTACHMENT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".eml", ".msg", ".txt", ".csv"}
+SUPPORTED_ATTACHMENT_EXTENSIONS = {
+    ".pdf", ".docx", ".xlsx", ".eml", ".msg", ".txt", ".csv",
+    ".png", ".jpg", ".jpeg", ".webp",
+}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+DECORATIVE_IMAGE_WORDS = {
+    "logo", "icon", "linkedin", "facebook", "instagram", "twitter",
+    "signature", "email-signature", "profile", "avatar", "employee-photo",
+}
+MIN_OCR_IMAGE_BYTES = 15_000
+
+
+def should_ocr_image_attachment(*, file_name: str, content: bytes) -> bool:
+    """Skip common email decoration while OCR-ing real image attachments.
+
+    This is deliberately conservative for Outlook-style embedded images.
+    PDFs are not filtered here; scanned PDFs keep using the existing PDF
+    vision fallback in document_extraction.py.
+    """
+    name = Path(file_name).name.lower()
+    extension = Path(name).suffix.lower()
+    if extension not in IMAGE_EXTENSIONS:
+        return False
+    if not content or len(content) < MIN_OCR_IMAGE_BYTES:
+        return False
+    if any(word in name for word in DECORATIVE_IMAGE_WORDS):
+        return False
+
+    # Outlook commonly names embedded signature graphics image001.png,
+    # image002.jpg, etc. Treat those as decoration by default.
+    stem = Path(name).stem
+    if stem.startswith("image") and stem[5:].isdigit():
+        return False
+
+    return True
 
 
 def _document_level_metadata(extracted: ExtractedDocument) -> dict[str, Any]:
@@ -106,6 +140,14 @@ def _prepare_extracted_document(
             warnings.append(
                 f"Anhang {attachment_name}: größer als 10 MB und deshalb nicht indexiert."
             )
+            continue
+
+        if extension in IMAGE_EXTENSIONS and not should_ocr_image_attachment(
+            file_name=attachment_name,
+            content=attachment.content,
+        ):
+            # Decorative email images are intentionally ignored. Do not show
+            # them as processing errors/warnings because this is expected.
             continue
 
         try:
