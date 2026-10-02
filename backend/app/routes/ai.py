@@ -400,7 +400,12 @@ def analyze_document(
 
     document_text = "\n\n".join(chunk.content for chunk in own_chunks[:12])
     query_vector = create_query_embedding(document_text[:24000])
-    candidates = match_cases(db=db, query_embedding=query_vector, limit=5)
+    candidates = match_cases(
+        db=db,
+        query_embedding=query_vector,
+        user=current_user,
+        limit=5,
+    )
     related = retrieve_chunks(
         db=db,
         query_embedding=query_vector,
