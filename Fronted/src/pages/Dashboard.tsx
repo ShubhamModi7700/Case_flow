@@ -67,7 +67,7 @@ export default function Dashboard() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr><th className="px-6 py-3">Fall</th><th className="px-4 py-3">Warum relevant?</th><th className="px-4 py-3">Nächste Maßnahme</th><th className="px-4 py-3">Verantwortlich</th><th className="px-6 py-3">Frist</th></tr>
+                <tr><th className="px-6 py-3">Fall</th><th className="px-4 py-3">Warum Handlungsbedarf?</th><th className="px-4 py-3">Nächste Maßnahme</th><th className="px-4 py-3">Verantwortlich</th><th className="px-6 py-3">Frist</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.attention_items.map((item) => (
