@@ -366,6 +366,34 @@ export default function KITab({
     }
   }
 
+  const documentFacts = summaryForm.document_facts
+    .split("\n")
+    .map((fact) => fact.trim())
+    .filter(Boolean);
+
+  function updateDocumentFact(index: number, value: string): void {
+    const nextFacts = [...documentFacts];
+    nextFacts[index] = value;
+    setSummaryForm((current) => ({
+      ...current,
+      document_facts: nextFacts.join("\n"),
+    }));
+  }
+
+  function removeDocumentFact(index: number): void {
+    setSummaryForm((current) => ({
+      ...current,
+      document_facts: documentFacts.filter((_, factIndex) => factIndex !== index).join("\n"),
+    }));
+  }
+
+  function addDocumentFact(): void {
+    setSummaryForm((current) => ({
+      ...current,
+      document_facts: [...documentFacts, "Neuer belegter Fakt"].join("\n"),
+    }));
+  }
+
   if (loading) {
     return <div className="p-8 text-slate-500">KI-Daten werden geladen...</div>;
   }
@@ -477,7 +505,64 @@ export default function KITab({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Entwurf der Handlungsempfehlung</p>
             <p className="mt-1 text-sm text-slate-600">Hier prüfen und bearbeiten Sie den noch nicht freigegebenen KI-Entwurf. Erst nach Ihrer Bestätigung erscheint die freigegebene Fassung im separaten Tab „Handlungsempfehlung“.</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <label className="lg:col-span-2"><span className="text-sm font-semibold text-slate-700">1. Fakten aus den Dokumenten</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.document_facts} onChange={(e) => setSummaryForm((c) => ({...c, document_facts:e.target.value}))} placeholder="Ein belegter Fakt pro Zeile" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
+              <div className="lg:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">1. Fakten aus den Dokumenten</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Jeder belegte Fakt wird separat angezeigt. Prüfen oder bearbeiten Sie die Fakten vor der Freigabe.</p>
+                  </div>
+                  {pendingSummary && canEdit && (
+                    <button
+                      type="button"
+                      onClick={addDocumentFact}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                    >
+                      + Fakt hinzufügen
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {documentFacts.length ? documentFacts.map((fact, index) => (
+                    <div key={`${index}-${fact.slice(0, 24)}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Fakt {index + 1}</p>
+                        {pendingSummary && canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => removeDocumentFact(index)}
+                            className="text-xs font-semibold text-slate-500 hover:text-red-700"
+                          >
+                            Entfernen
+                          </button>
+                        )}
+                      </div>
+                      <textarea
+                        rows={3}
+                        disabled={!pendingSummary || !canEdit}
+                        value={fact}
+                        onChange={(event) => updateDocumentFact(index, event.target.value)}
+                        className="mt-2 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700 disabled:cursor-default disabled:border-transparent disabled:bg-transparent disabled:p-0"
+                      />
+                    </div>
+                  )) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                      Keine belegten Dokumentfakten vorhanden.
+                    </div>
+                  )}
+                </div>
+
+                {visibleSummary?.relevant_document_ids?.length ? (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Für diese Zusammenfassung verwendete Dokumente</p>
+                    <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
+                      {visibleSummary.relevant_document_ids.map((documentId) => (
+                        <li key={documentId}>• {documentsById.get(documentId)?.file_name || `Dokument ${documentId}`}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
               <label><span className="text-sm font-semibold text-slate-700">2. Einordnung / Interpretation</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.interpretation} onChange={(e) => setSummaryForm((c) => ({...c, interpretation:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
               <label><span className="text-sm font-semibold text-slate-700">3. Begründung der Maßnahme</span><textarea rows={5} disabled={!pendingSummary || !canEdit} value={summaryForm.action_justification} onChange={(e) => setSummaryForm((c) => ({...c, action_justification:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
               <label><span className="text-sm font-semibold text-slate-700">4. Verantwortlich / Rolle</span><input disabled={!pendingSummary || !canEdit} value={summaryForm.responsible_role} onChange={(e) => setSummaryForm((c) => ({...c, responsible_role:e.target.value}))} placeholder="z. B. Geschäftsführung, Legal, Buchhaltung" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm disabled:bg-slate-50" /></label>
