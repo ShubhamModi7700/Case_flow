@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 
 import { api } from "../api";
 import {
-  analyzeDocument,
   confirmDocumentCaseRoute,
   processDocument,
   suggestDocumentCase,
@@ -137,10 +136,9 @@ export default function DocumentsPage() {
       if (document.embedding_status !== "Ready") {
         await processDocument(document.id);
       }
-      await analyzeDocument(document.id);
       setWorkflowCaseId(document.case_id);
       setWorkflowStage("review-ready");
-      setNotice("Die KI hat Fakten, Frist und nächste Maßnahme als Vorschläge vorbereitet. Prüfen und bestätigen Sie diese jetzt im Fall.");
+      setNotice("Dokument hochgeladen und für die fallweite KI-Zusammenfassung indexiert.");
       await loadData();
     } catch (requestError) {
       setWorkflowStage("idle");
@@ -254,19 +252,6 @@ export default function DocumentsPage() {
     }
   }
 
-  async function analyzeWithAI(document: DocumentItem): Promise<void> {
-    try {
-      setError("");
-      await startAIWorkflow(document);
-    } catch (requestError) {
-      setError(
-        getErrorMessage(
-          requestError,
-          "Das Dokument konnte nicht mit KI analysiert werden.",
-        ),
-      );
-    }
-  }
 
   async function confirmSuggestedExistingCase(): Promise<void> {
     if (!routeSuggestion || !routeCaseId) {
@@ -282,12 +267,11 @@ export default function DocumentsPage() {
         case_id: Number(routeCaseId),
       });
       setWorkflowStage("analyzing");
-      await analyzeDocument(routeSuggestion.document_id);
       setWorkflowCaseId(result.case_id);
       setWorkflowStage("review-ready");
       setRouteSuggestion(null);
       setRouteCaseId("");
-      setNotice(`${result.message} Die KI-Vorschläge sind jetzt zur fachlichen Prüfung bereit.`);
+      setNotice(`${result.message} Das Dokument ist für die fallweite KI-Zusammenfassung bereit.`);
       await loadData();
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Die Fallzuordnung konnte nicht bestätigt werden."));
@@ -310,12 +294,11 @@ export default function DocumentsPage() {
         new_case: routeSuggestion.new_case,
       });
       setWorkflowStage("analyzing");
-      await analyzeDocument(routeSuggestion.document_id);
       setWorkflowCaseId(result.case_id);
       setWorkflowStage("review-ready");
       setRouteSuggestion(null);
       setRouteCaseId("");
-      setNotice(`${result.message} Die KI-Vorschläge sind jetzt zur fachlichen Prüfung bereit.`);
+      setNotice(`${result.message} Das Dokument ist für die fallweite KI-Zusammenfassung bereit.`);
       await loadData();
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Der neue Fall konnte nicht angelegt werden."));
@@ -629,17 +612,6 @@ export default function DocumentsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        {canEdit && (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => void analyzeWithAI(item)}
-                            className="rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isBusy ? "Bitte warten..." : "KI analysieren"}
-                          </button>
-                        )}
-
                         {item.case_id && (
                           <Link
                             to={`/cases/${item.case_id}`}

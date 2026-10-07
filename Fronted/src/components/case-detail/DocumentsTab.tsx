@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../../api";
-import { analyzeDocument, processDocument } from "../../services/ai";
 import type { DocumentItem } from "../../types";
 
 type DocumentsTabProps = {
@@ -48,9 +47,9 @@ export default function DocumentsTab({
 }: DocumentsTabProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
-  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  void canEdit;
+  void onOpenAI;
 
   async function openDocument(document: DocumentItem): Promise<void> {
     // Open a blank tab immediately so browsers do not block the new window
@@ -87,34 +86,6 @@ export default function DocumentsTab({
     }
   }
 
-  async function runAIAnalysis(document: DocumentItem): Promise<void> {
-    try {
-      setAnalyzingId(document.id);
-      setError("");
-      setNotice("");
-
-      if (document.embedding_status !== "Ready") {
-        await processDocument(document.id);
-      }
-
-      await analyzeDocument(document.id);
-      await reload();
-      setNotice(
-        `Die KI-Analyse für „${document.file_name}“ ist bereit. ` +
-          "Prüfen Sie die Vorschläge unter „KI-Vorschläge prüfen“.",
-      );
-      onOpenAI();
-    } catch (requestError: any) {
-      const detail = requestError?.response?.data?.detail;
-      setError(
-        typeof detail === "string"
-          ? detail
-          : "Das Dokument konnte nicht mit KI analysiert werden.",
-      );
-    } finally {
-      setAnalyzingId(null);
-    }
-  }
 
   async function deleteDocument(
     documentId: number,
@@ -179,11 +150,7 @@ export default function DocumentsTab({
         </div>
       )}
 
-      {notice && (
-        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          {notice}
-        </div>
-      )}
+
 
       {documents.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center">
@@ -261,19 +228,6 @@ export default function DocumentsTab({
                       ? "Wird geöffnet..."
                       : "Öffnen"}
                   </button>
-
-                  {canEdit && (
-                    <button
-                      type="button"
-                      disabled={analyzingId === document.id}
-                      onClick={() => void runAIAnalysis(document)}
-                      className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {analyzingId === document.id
-                        ? "KI analysiert..."
-                        : "KI analysieren"}
-                    </button>
-                  )}
 
                   {isManager && (
                     <button
