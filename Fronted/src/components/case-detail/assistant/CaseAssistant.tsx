@@ -88,6 +88,28 @@ function SourceBadges({
   );
 }
 
+function SourcesDisclosure({ sources }: { sources: AssistantSource[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <details className="rounded-lg border border-slate-200 bg-white">
+      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-700">
+        Quellen anzeigen ({sources.length})
+      </summary>
+      <div className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-2">
+        {sources.map((source) => (
+          <div key={source.source_id} className="rounded-lg bg-slate-50 p-3 text-sm">
+            <div className="font-semibold text-slate-900">[{source.source_id}] {source.filename}</div>
+            {source.document_date && <div className="mt-1 text-xs text-slate-600">Datum: {source.document_date}</div>}
+            {source.sender && <div className="text-xs text-slate-600">Absender: {source.sender}</div>}
+            {source.is_attachment && source.parent_filename && <div className="text-xs text-slate-600">Anhang aus: {source.parent_filename}</div>}
+            {sourceLocation(source) && <div className="text-xs text-slate-600">{sourceLocation(source)}</div>}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function EvidenceList({
   items,
   sourcesById,
@@ -384,15 +406,15 @@ function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceRespons
         )}
         {intel.executive_summary.length > 0 && <div className="mt-3"><EvidenceList items={intel.executive_summary} sourcesById={sourcesById} /></div>}
       </div>
-      {intel.key_facts.length > 0 && <div><h4 className="mb-2 font-semibold">Schlüsseltatsachen</h4><EvidenceList items={intel.key_facts} sourcesById={sourcesById} /></div>}
-      {intel.key_events.length > 0 && <ChronologyView items={intel.key_events} sourcesById={sourcesById} />}
-      {intel.key_entities.length > 0 && <EntitiesView items={intel.key_entities} sourcesById={sourcesById} />}
-      {intel.evidence_map.length > 0 && <EvidenceOverview items={intel.evidence_map} sourcesById={sourcesById} />}
-      {intel.contradictions.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="mb-2 font-semibold text-amber-900">Widersprüche</h4><EvidenceList items={intel.contradictions} sourcesById={sourcesById} /></div>}
-      {intel.information_gaps.length > 0 && <div className="rounded-lg border border-slate-200 bg-white p-4"><h4 className="font-semibold">Informationslücken</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.information_gaps.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
-      {intel.unresolved_issues.length > 0 && <div className="rounded-lg border border-violet-200 bg-white p-4"><h4 className="font-semibold">Offene Prüf- und Tatsachenfragen</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.unresolved_issues.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      {intel.key_facts.length > 0 && <div><h4 className="mb-2 font-semibold">Wichtigste Kerntatsachen</h4><EvidenceList items={intel.key_facts.slice(0, 5)} sourcesById={sourcesById} /></div>}
+      <div className="grid gap-3 md:grid-cols-2">
+        {intel.contradictions.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="font-semibold text-amber-900">Widersprüche ({intel.contradictions.length})</h4><p className="mt-1 text-sm text-amber-800">Wesentliche Punkte, die vor einer Entscheidung geklärt werden sollten.</p></div>}
+        {intel.information_gaps.length > 0 && <div className="rounded-lg border border-slate-200 bg-white p-4"><h4 className="font-semibold">Informationslücken ({intel.information_gaps.length})</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.information_gaps.slice(0, 3).map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      </div>
+      {intel.contradictions.length > 0 && <details className="rounded-lg border border-amber-200 bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-amber-900">Widersprüche im Detail</summary><div className="border-t border-amber-100 p-4"><EvidenceList items={intel.contradictions} sourcesById={sourcesById} /></div></details>}
+      {(intel.key_events.length > 0 || intel.key_entities.length > 0 || intel.evidence_map.length > 0 || intel.unresolved_issues.length > 0) && <details className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">Weitere Fallanalyse anzeigen</summary><div className="space-y-5 border-t border-slate-100 p-4">{intel.key_events.length > 0 && <ChronologyView items={intel.key_events} sourcesById={sourcesById} />}{intel.key_entities.length > 0 && <EntitiesView items={intel.key_entities} sourcesById={sourcesById} />}{intel.evidence_map.length > 0 && <EvidenceOverview items={intel.evidence_map} sourcesById={sourcesById} />}{intel.unresolved_issues.length > 0 && <div><h4 className="font-semibold">Offene Prüf- und Tatsachenfragen</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.unresolved_issues.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}</div></details>}
       <WorkStatusView item={item.work_status} />
-      {item.sources.length > 0 && <div><h4 className="mb-2 font-semibold">Verwendbare Quellen ({item.sources.length})</h4><div className="grid gap-2 md:grid-cols-2">{item.sources.map((source)=><div key={source.source_id} className="rounded-lg bg-white p-3 text-sm"><div className="font-semibold">[{source.source_id}] {source.filename}</div>{source.document_date && <div className="text-xs text-slate-600">Datum: {source.document_date}</div>}{sourceLocation(source) && <div className="text-xs text-slate-600">{sourceLocation(source)}</div>}</div>)}</div></div>}
+      <SourcesDisclosure sources={item.sources} />
     </div>
   );
 }
@@ -774,11 +796,11 @@ export default function CaseAssistant({ caseId }: Props) {
             <BriefReviewView item={result.brief_review} sourcesById={sourcesById} />
           )}
 
-          <ChronologyView items={result.chronology} sourcesById={sourcesById} />
-          <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />
-          <EntitiesView items={result.entities} sourcesById={sourcesById} />
+          {result.task_type === "chronology" && <ChronologyView items={result.chronology} sourcesById={sourcesById} />}
+          {result.task_type === "evidence" && <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />}
+          {result.task_type === "entities" && <EntitiesView items={result.entities} sourcesById={sourcesById} />}
 
-          {result.claims.length > 0 && (
+          {result.task_type === "question" && result.claims.length > 0 && (
             <div>
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Belegte Aussagen
@@ -787,27 +809,7 @@ export default function CaseAssistant({ caseId }: Props) {
             </div>
           )}
 
-          {result.sources.length > 0 && (
-            <div>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Quellen</h3>
-              <div className="grid gap-2 md:grid-cols-2">
-                {result.sources.map((source) => (
-                  <div key={source.source_id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
-                    <div className="font-semibold text-slate-900">[{source.source_id}] {source.filename}</div>
-                    {source.document_date && <div className="mt-1 text-slate-600">Datum: {source.document_date}</div>}
-                    {source.sender && <div className="text-slate-600">Absender: {source.sender}</div>}
-                    {source.is_attachment && source.parent_filename && (
-                      <div className="text-slate-600">Anhang aus: {source.parent_filename}</div>
-                    )}
-                    {source.is_attachment && source.root_email_filename && source.root_email_filename !== source.parent_filename && (
-                      <div className="text-slate-600">Ursprüngliche E-Mail: {source.root_email_filename}</div>
-                    )}
-                    {sourceLocation(source) && <div className="text-slate-600">{sourceLocation(source)}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <SourcesDisclosure sources={result.sources} />
 
           {result.contradictions.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
