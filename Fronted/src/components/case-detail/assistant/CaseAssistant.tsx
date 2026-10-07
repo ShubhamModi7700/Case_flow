@@ -517,6 +517,7 @@ export default function CaseAssistant({ caseId }: Props) {
   const [workStatusLoading, setWorkStatusLoading] = useState(false);
   const [intelligence, setIntelligence] = useState<AssistantCaseIntelligenceResponse | null>(null);
   const [intelligenceLoading, setIntelligenceLoading] = useState(false);
+  const [briefStep, setBriefStep] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [briefContext, setBriefContext] = useState<AssistantBriefContext>({
     client: "",
     role: null,
@@ -566,9 +567,9 @@ export default function CaseAssistant({ caseId }: Props) {
     taskType: AssistantTaskType = "question",
     explicitQuestion?: string,
     explicitBriefContext?: AssistantBriefContext,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const trimmed = (explicitQuestion ?? question).trim();
-    if (trimmed.length < 2 || loading) return;
+    if (trimmed.length < 2 || loading) return false;
 
     try {
       setLoading(true);
@@ -576,11 +577,20 @@ export default function CaseAssistant({ caseId }: Props) {
       setActiveTask(taskType);
       const response = await queryCaseAssistant(caseId, trimmed, taskType, explicitBriefContext);
       setResult(response);
+      return true;
     } catch (requestError) {
       setError(errorMessage(requestError));
+      return false;
     } finally {
       setLoading(false);
     }
+  }
+
+  function updateBriefContext(patch: Partial<AssistantBriefContext>): void {
+    setBriefContext((current) => ({ ...current, ...patch }));
+    // A changed assignment invalidates every downstream artifact.
+    setBriefStep(0);
+    if (activeTask.startsWith("brief_")) setResult(null);
   }
 
   async function submitBriefEvidence(): Promise<void> {
@@ -597,7 +607,7 @@ export default function CaseAssistant({ caseId }: Props) {
       additional_instructions: briefContext.additional_instructions?.trim() || null,
     };
     const request = `Stelle ein aufgabenbezogenes Beweispaket für die Vorbereitung von ${normalized.document_type} zusammen. Ziel: ${normalized.objective}`;
-    await submit("brief_evidence", request, normalized);
+    if (await submit("brief_evidence", request, normalized)) setBriefStep(1);
   }
 
   async function submitBriefOutline(): Promise<void> {
@@ -613,7 +623,8 @@ export default function CaseAssistant({ caseId }: Props) {
       additional_instructions: briefContext.additional_instructions?.trim() || null,
     };
     const request = `Erstelle eine beleggestützte Gliederung für ${normalized.document_type}. Ziel: ${normalized.objective}`;
-    await submit("brief_outline", request, normalized);
+    if (briefStep < 1) return;
+    if (await submit("brief_outline", request, normalized)) setBriefStep(2);
   }
 
   async function submitBriefDraft(): Promise<void> {
@@ -629,7 +640,8 @@ export default function CaseAssistant({ caseId }: Props) {
       additional_instructions: briefContext.additional_instructions?.trim() || null,
     };
     const request = `Erstelle einen beleggestützten KI-Entwurf für ${normalized.document_type}. Ziel: ${normalized.objective}`;
-    await submit("brief_draft", request, normalized);
+    if (briefStep < 2) return;
+    if (await submit("brief_draft", request, normalized)) setBriefStep(3);
   }
 
   async function submitBriefReview(): Promise<void> {
@@ -645,7 +657,8 @@ export default function CaseAssistant({ caseId }: Props) {
       additional_instructions: briefContext.additional_instructions?.trim() || null,
     };
     const request = `Führe eine kritische Gegenprüfung mit Gegenargumenten und Risiken für ${normalized.document_type} durch. Ziel: ${normalized.objective}`;
-    await submit("brief_review", request, normalized);
+    if (briefStep < 3) return;
+    if (await submit("brief_review", request, normalized)) setBriefStep(4);
   }
 
   return (
@@ -713,27 +726,49 @@ export default function CaseAssistant({ caseId }: Props) {
             <p className="mt-1 text-xs text-slate-600">Beweispaket, Gliederung, KI-Entwurf und kritische Gegenprüfung verwenden denselben aufgabenbezogenen Kontext.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Mandant / Partei *" value={briefContext.client} onChange={(e) => setBriefContext((v) => ({...v, client: e.target.value}))} />
-            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Rolle, z. B. Antragstellerin" value={briefContext.role ?? ""} onChange={(e) => setBriefContext((v) => ({...v, role: e.target.value}))} />
-            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Adressat, z. B. Amtsgericht Wolfsburg" value={briefContext.recipient ?? ""} onChange={(e) => setBriefContext((v) => ({...v, recipient: e.target.value}))} />
-            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Dokumentart" value={briefContext.document_type} onChange={(e) => setBriefContext((v) => ({...v, document_type: e.target.value}))} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Mandant / Partei *" value={briefContext.client} onChange={(e) => updateBriefContext({ client: e.target.value })} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Rolle, z. B. Antragstellerin" value={briefContext.role ?? ""} onChange={(e) => updateBriefContext({ role: e.target.value })} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Adressat, z. B. Amtsgericht Wolfsburg" value={briefContext.recipient ?? ""} onChange={(e) => updateBriefContext({ recipient: e.target.value })} />
+            <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Dokumentart" value={briefContext.document_type} onChange={(e) => updateBriefContext({ document_type: e.target.value })} />
           </div>
-          <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={3} placeholder="Ziel des Schriftsatzes / konkrete Aufgabe *" value={briefContext.objective} onChange={(e) => setBriefContext((v) => ({...v, objective: e.target.value}))} />
-          <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={2} placeholder="Zusätzliche Hinweise (optional)" value={briefContext.additional_instructions ?? ""} onChange={(e) => setBriefContext((v) => ({...v, additional_instructions: e.target.value}))} />
-          <div className="mt-3 flex justify-end">
-            <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {loading && activeTask === "brief_evidence" ? "Beweispaket wird erstellt..." : "Beweispaket erstellen"}
+          <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={3} placeholder="Ziel des Schriftsatzes / konkrete Aufgabe *" value={briefContext.objective} onChange={(e) => updateBriefContext({ objective: e.target.value })} />
+          <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={2} placeholder="Zusätzliche Hinweise (optional)" value={briefContext.additional_instructions ?? ""} onChange={(e) => updateBriefContext({ additional_instructions: e.target.value })} />
+          <div className="mt-4 grid gap-2 md:grid-cols-4">
+            {[
+              [1, "Beweispaket", "Fakten & Belege"],
+              [2, "Gliederung", "Struktur"],
+              [3, "KI-Entwurf", "Entwurf"],
+              [4, "Prüfung", "Risiken & Gegenargumente"],
+            ].map(([step, title, subtitle]) => {
+              const stepNumber = Number(step);
+              const completed = briefStep >= stepNumber;
+              const current = briefStep + 1 === stepNumber;
+              return (
+                <div key={stepNumber} className={`rounded-lg border p-3 ${completed ? "border-emerald-200 bg-emerald-50" : current ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-slate-50"}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${completed ? "bg-emerald-700 text-white" : current ? "bg-violet-700 text-white" : "bg-slate-200 text-slate-500"}`}>{completed ? "✓" : stepNumber}</span>
+                    <span className="text-sm font-semibold text-slate-900">{title}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{completed ? "Erstellt" : current ? "Bereit" : subtitle}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
+              {loading && activeTask === "brief_evidence" ? "1. Beweispaket wird erstellt..." : briefStep >= 1 ? "1. Beweispaket neu erstellen" : "1. Beweispaket erstellen"}
             </button>
-            <button type="button" onClick={() => void submitBriefOutline()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {loading && activeTask === "brief_outline" ? "Gliederung wird erstellt..." : "Gliederung erstellen"}
+            <button type="button" onClick={() => void submitBriefOutline()} disabled={loading || briefStep < 1} title={briefStep < 1 ? "Zuerst Beweispaket erstellen" : undefined} className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
+              {loading && activeTask === "brief_outline" ? "2. Gliederung wird erstellt..." : briefStep >= 2 ? "2. Gliederung neu erstellen" : "2. Gliederung erstellen"}
             </button>
-            <button type="button" onClick={() => void submitBriefDraft()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {loading && activeTask === "brief_draft" ? "Entwurf wird erstellt..." : "KI-Entwurf erstellen"}
+            <button type="button" onClick={() => void submitBriefDraft()} disabled={loading || briefStep < 2} title={briefStep < 2 ? "Zuerst Gliederung erstellen" : undefined} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
+              {loading && activeTask === "brief_draft" ? "3. Entwurf wird erstellt..." : briefStep >= 3 ? "3. KI-Entwurf neu erstellen" : "3. KI-Entwurf erstellen"}
             </button>
-            <button type="button" onClick={() => void submitBriefReview()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="ml-2 rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {loading && activeTask === "brief_review" ? "Red Review wird erstellt..." : "Gegenargumente & Risiken"}
+            <button type="button" onClick={() => void submitBriefReview()} disabled={loading || briefStep < 3} title={briefStep < 3 ? "Zuerst KI-Entwurf erstellen" : undefined} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
+              {loading && activeTask === "brief_review" ? "4. Prüfung wird erstellt..." : briefStep >= 4 ? "4. Prüfung neu erstellen" : "4. Gegenargumente & Risiken"}
             </button>
           </div>
+          <p className="mt-2 text-xs text-slate-500">Die Schritte werden nacheinander freigeschaltet. Wenn Sie den Auftrag oben ändern, wird der Workflow zurückgesetzt, damit keine Ergebnisse aus einem alten Kontext weiterverwendet werden.</p>
         </div>
       )}
 

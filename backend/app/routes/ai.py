@@ -1074,12 +1074,35 @@ def create_management_summary(
 ):
     require_case_edit(db, current_user, case_id)
     case = _case(case_id, db)
-    return _create_management_summary_record(
-        case=case,
-        db=db,
-        user=current_user,
-        generated_by=current_user.id,
-    )
+
+    try:
+        return _create_management_summary_record(
+            case=case,
+            db=db,
+            user=current_user,
+            generated_by=current_user.id,
+        )
+    except HTTPException:
+        # Preserve intentional FastAPI errors (403/404/etc.).
+        db.rollback()
+        raise
+    except Exception as exc:
+        # The management-summary flow includes retrieval, OpenAI parsing,
+        # validation and persistence. Log the full traceback so deployment logs
+        # show the exact failing line instead of only an HTTP 500.
+        db.rollback()
+        logger.exception(
+            "Management-summary creation failed for case_id=%s user_id=%s",
+            case_id,
+            current_user.id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Management-Zusammenfassung konnte nicht erstellt werden. "
+                f"Debug: {type(exc).__name__}: {exc}"
+            ),
+        ) from exc
 
 
 
