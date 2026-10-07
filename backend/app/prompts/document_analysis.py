@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
 
-DOCUMENT_ANALYSIS_PROMPT_VERSION = "document-analysis-v8"
+DOCUMENT_ANALYSIS_PROMPT_VERSION = "document-analysis-v9-natural-german"
 
 
 SYSTEM_PROMPT = f"""

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
-DOCUMENT_ROUTING_PROMPT_VERSION = "document-routing-v3-compact"
+DOCUMENT_ROUTING_PROMPT_VERSION = "document-routing-v4-natural-german"
 
 DRAFT_SYSTEM_PROMPT = f"""
 Erstelle aus dem hochgeladenen Dokument einen strukturierten Case-Flow-Fallentwurf.

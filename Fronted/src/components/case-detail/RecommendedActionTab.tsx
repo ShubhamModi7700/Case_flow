@@ -10,6 +10,10 @@ type Props = {
   onOpenAI: () => void;
 };
 
+function cleanApprovedDisplayText(value: string | null | undefined): string {
+  return cleanAIText(value).replace(/^KI[- ]Vorschlag\s*:\s*/i, "").trim();
+}
+
 function dateLabel(value: string | null) {
   if (!value) return "Keine klare Frist aus dem Dokument erkennbar";
   const date = new Date(`${value}T00:00:00`);
@@ -176,7 +180,7 @@ export default function RecommendedActionTab({
             Konkrete nächste Maßnahme
           </p>
           <p className="mt-2 text-lg font-semibold text-violet-950">
-            {cleanAIText(summary.next_required_action) ||
+            {cleanApprovedDisplayText(summary.next_required_action) ||
               "Keine konkrete Handlung wurde bestätigt."}
           </p>
         </div>

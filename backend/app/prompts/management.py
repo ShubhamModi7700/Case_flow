@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
 
-MANAGEMENT_PROMPT_VERSION = "management-v15"
+MANAGEMENT_PROMPT_VERSION = "management-v16-natural-german"
 
 
 SYSTEM_PROMPT = f"""

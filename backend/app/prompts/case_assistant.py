@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v7-focused-output"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v8-natural-german"
 
 BASE_SYSTEM_PROMPT = f"""
 Du bist der KI-Assistent von Case Flow. Dir werden bereits freigegebene Evidenzblöcke des ausgewählten Falls übergeben.

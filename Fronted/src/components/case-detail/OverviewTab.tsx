@@ -17,8 +17,12 @@ interface OverviewTabProps {
   onRiskConfirmed: (updatedCase: CaseItem) => void;
 }
 
+function cleanApprovedDisplayText(value: string | null | undefined): string {
+  return cleanAIText(value).replace(/^KI[- ]Vorschlag\s*:\s*/i, "").trim();
+}
+
 function compact(value: string | null | undefined, limit = 320): string | null {
-  const cleaned = cleanAIText(value)?.replace(/\s+/g, " ").trim();
+  const cleaned = cleanApprovedDisplayText(value).replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
   if (cleaned.length <= limit) return cleaned;
   const cut = cleaned.slice(0, limit);
