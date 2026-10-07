@@ -3,6 +3,7 @@ import type {
   AISuggestion,
   CaseAISummary,
   CaseStatus,
+  ManagementFactSource,
   RiskLevel,
 } from "../types";
 
@@ -27,6 +28,7 @@ export type ApproveAISuggestionResponse = {
 export type ManagementSummaryApprovalPayload = {
   short_case_summary: string | null;
   document_facts: string[];
+  document_fact_sources?: ManagementFactSource[];
   interpretation: string | null;
   responsible_role: string | null;
   action_justification: string | null;

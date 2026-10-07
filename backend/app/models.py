@@ -470,6 +470,7 @@ class CaseAISummary(Base):
     case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
     short_case_summary = Column(Text, nullable=True)
     document_facts = Column(JSONB, nullable=False, default=list)
+    document_fact_sources = Column(JSONB, nullable=False, default=list)
     interpretation = Column(Text, nullable=True)
     responsible_role = Column(String(200), nullable=True)
     action_justification = Column(Text, nullable=True)

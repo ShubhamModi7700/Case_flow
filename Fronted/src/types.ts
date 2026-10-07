@@ -216,11 +216,23 @@ export type AISuggestion = {
   reviewed_at: string | null;
 };
 
+export type ManagementFactSource = {
+  fact_index: number;
+  document_id: number;
+  chunk_id: number;
+  file_name: string;
+  page_number: number | null;
+  document_date: string | null;
+  sender: string | null;
+  email_section: string | null;
+};
+
 export type CaseAISummary = {
   id: number;
   case_id: number;
   short_case_summary: string | null;
   document_facts: string[];
+  document_fact_sources?: ManagementFactSource[];
   interpretation: string | null;
   responsible_role: string | null;
   action_justification: string | null;

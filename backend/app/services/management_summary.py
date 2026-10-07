@@ -117,7 +117,7 @@ def _parse_management_summary(context: str, *, correction: str | None = None) ->
         )
 
     response = get_ai_provider().structured_parse(
-                input=[
+        input=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
         ],

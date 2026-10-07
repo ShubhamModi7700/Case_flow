@@ -793,9 +793,26 @@ class DocumentAIAnalysis(BaseModel):
 
 
 
+class ManagementFactCitation(BaseModel):
+    fact_index: int = Field(ge=0)
+    supporting_chunk_ids: list[int] = Field(default_factory=list)
+
+
+class ManagementFactSource(BaseModel):
+    fact_index: int = Field(ge=0)
+    document_id: int
+    chunk_id: int
+    file_name: str
+    page_number: int | None = None
+    document_date: str | None = None
+    sender: str | None = None
+    email_section: str | None = None
+
+
 class ManagementSummaryAnalysis(BaseModel):
     short_case_summary: str
     document_facts: list[str] = Field(default_factory=list)
+    document_fact_citations: list[ManagementFactCitation] = Field(default_factory=list)
     interpretation: str | None = None
     responsible_role: str | None = None
     action_justification: str | None = None
@@ -870,6 +887,7 @@ class CaseAISummaryResponse(BaseModel):
     case_id: int
     short_case_summary: str | None = None
     document_facts: list[str] = Field(default_factory=list)
+    document_fact_sources: list[ManagementFactSource] = Field(default_factory=list)
     interpretation: str | None = None
     responsible_role: str | None = None
     action_justification: str | None = None

@@ -364,6 +364,9 @@ def _build_management_context(
             f"Dokument-ID: {chunk['document_id']}\n"
             f"Dateiname: {file_name}\n"
             f"Seite: {chunk.get('page_number')}\n"
+            f"Dokumentdatum: {(chunk.get('metadata') or {}).get('document_date') or 'Nicht angegeben'}\n"
+            f"Absender: {(chunk.get('metadata') or {}).get('sender') or 'Nicht angegeben'}\n"
+            f"E-Mail-Abschnitt: {chunk.get('email_section') or 'Nicht angegeben'}\n"
             f"Inhalt:\n{chunk['content']}"
         )
 
@@ -909,6 +912,8 @@ def _create_management_summary_record(
                 "case_id": chunk.case_id,
                 "content": chunk.content,
                 "page_number": chunk.page_number,
+                "email_section": chunk.email_section,
+                "metadata": chunk.metadata_json or {},
                 "similarity": 1.0,
             }
             for chunk in newest_chunks
@@ -980,6 +985,47 @@ def _create_management_summary_record(
         result.action_justification = None
         relevant_document_ids = []
 
+    # Preserve exact provenance for each generated document fact. The model may
+    # cite only chunks that were actually included in this request. Source
+    # metadata is resolved server-side so internal chunk IDs never need to be
+    # shown to users.
+    chunk_by_id = {int(chunk["chunk_id"]): chunk for chunk in chunks}
+    document_by_id = {document.id: document for document in documents}
+    document_fact_sources: list[dict] = []
+    seen_fact_sources: set[tuple[int, int]] = set()
+    for citation in result.document_fact_citations:
+        if citation.fact_index >= len(result.document_facts):
+            continue
+        for chunk_id in citation.supporting_chunk_ids:
+            chunk = chunk_by_id.get(int(chunk_id))
+            if chunk is None:
+                continue
+            key = (citation.fact_index, int(chunk_id))
+            if key in seen_fact_sources:
+                continue
+            seen_fact_sources.add(key)
+            document_id = int(chunk["document_id"])
+            document = document_by_id.get(document_id)
+            metadata = chunk.get("metadata") or {}
+            document_fact_sources.append({
+                "fact_index": citation.fact_index,
+                "document_id": document_id,
+                "chunk_id": int(chunk_id),
+                "file_name": document.file_name if document else chunk.get("file_name", "Unbekannt"),
+                "page_number": chunk.get("page_number"),
+                "document_date": metadata.get("document_date"),
+                "sender": metadata.get("sender"),
+                "email_section": chunk.get("email_section"),
+            })
+
+    # Fact-level citations are also part of the summary-wide evidence basis.
+    # Union them into the existing validated source lists without trusting any
+    # ID that was not present in the RAG context.
+    fact_chunk_ids = [source["chunk_id"] for source in document_fact_sources]
+    supporting_chunk_ids = list(dict.fromkeys(supporting_chunk_ids + fact_chunk_ids))[:12]
+    fact_document_ids = [source["document_id"] for source in document_fact_sources]
+    relevant_document_ids = list(dict.fromkeys(relevant_document_ids + fact_document_ids))[:8]
+
     # A deadline is allowed only when it is already represented by confirmed
     # case/task/document evidence. This prevents an unsupported date from
     # becoming a management proposal merely because the model inferred it.
@@ -1038,6 +1084,7 @@ def _create_management_summary_record(
         case_id=case.id,
         short_case_summary=result.short_case_summary,
         document_facts=result.document_facts,
+        document_fact_sources=document_fact_sources,
         interpretation=result.interpretation,
         responsible_role=result.responsible_role,
         action_justification=result.action_justification,

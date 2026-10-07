@@ -544,6 +544,15 @@ export default function KITab({
                         onChange={(event) => updateDocumentFact(index, event.target.value)}
                         className="mt-2 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700 disabled:cursor-default disabled:border-transparent disabled:bg-transparent disabled:p-0"
                       />
+                      {(visibleSummary?.document_fact_sources || []).filter((source) => source.fact_index === index).map((source) => (
+                        <p key={`${source.fact_index}-${source.chunk_id}`} className="mt-2 text-xs leading-5 text-slate-500">
+                          <span className="font-semibold text-slate-600">Quelle:</span> {source.file_name}
+                          {source.document_date ? ` · ${source.document_date}` : ""}
+                          {source.sender ? ` · Absender: ${source.sender}` : ""}
+                          {source.page_number != null ? ` · Seite ${source.page_number}` : ""}
+                          {source.email_section ? ` · ${source.email_section}` : ""}
+                        </p>
+                      ))}
                     </div>
                   )) : (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">

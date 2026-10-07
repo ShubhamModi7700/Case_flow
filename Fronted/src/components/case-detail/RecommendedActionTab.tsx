@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getManagementSummaries } from "../../services/ai";
+import { api } from "../../api";
 import type { CaseAISummary, DocumentItem } from "../../types";
 import { cleanAIText } from "../../utils/aiText";
 
@@ -29,6 +30,21 @@ export default function RecommendedActionTab({
   const [items, setItems] = useState<CaseAISummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [openingDocumentId, setOpeningDocumentId] = useState<number | null>(null);
+
+  async function openDocument(documentId: number) {
+    const target = window.open("", "_blank");
+    if (!target) { setError("Bitte erlauben Sie Pop-ups für Case Flow."); return; }
+    try {
+      setOpeningDocumentId(documentId);
+      const response = await api.get<{ download_url: string }>(`/documents/${documentId}/download`);
+      target.opener = null;
+      target.location.href = response.data.download_url;
+    } catch {
+      target.close();
+      setError("Die Quelldatei konnte nicht geöffnet werden.");
+    } finally { setOpeningDocumentId(null); }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -199,9 +215,31 @@ export default function RecommendedActionTab({
           </h3>
           {summary.document_facts?.length ? (
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
-              {summary.document_facts.map((fact, index) => (
-                <li key={index}>{cleanAIText(fact)}</li>
-              ))}
+              {summary.document_facts.map((fact, index) => {
+                const sources = (summary.document_fact_sources || []).filter((source) => source.fact_index === index);
+                return (
+                  <li key={index}>
+                    <div>{cleanAIText(fact)}</div>
+                    {sources.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {sources.map((source) => (
+                          <div key={`${source.fact_index}-${source.chunk_id}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                            <span className="font-medium text-slate-600">Quelle:</span>
+                            <span>{source.file_name}</span>
+                            {source.document_date && <span>· {source.document_date}</span>}
+                            {source.sender && <span>· Absender: {source.sender}</span>}
+                            {source.page_number != null && <span>· Seite {source.page_number}</span>}
+                            {source.email_section && <span>· {source.email_section}</span>}
+                            <button type="button" onClick={() => void openDocument(source.document_id)} disabled={openingDocumentId === source.document_id} className="font-semibold text-violet-700 hover:text-violet-900 disabled:opacity-50">
+                              {openingDocumentId === source.document_id ? "Öffnen..." : "Dokument öffnen"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="mt-3 text-sm text-slate-500">

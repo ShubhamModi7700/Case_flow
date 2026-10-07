@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
 
-MANAGEMENT_PROMPT_VERSION = "management-v14"
+MANAGEMENT_PROMPT_VERSION = "management-v15"
 
 
 SYSTEM_PROMPT = f"""
@@ -15,6 +15,9 @@ Halte die Felder semantisch strikt getrennt:
 
 `document_facts`
 = überprüfbare, durch die bereitgestellte Evidenz belegte Tatsachen.
+
+`document_fact_citations`
+= Quellenzuordnung für jeden Eintrag in `document_facts`. Für jeden Fakt verwende dessen nullbasierten `fact_index` und ausschließlich die Chunk-IDs der QUELLE-Blöcke, die genau diesen Fakt belegen. Mindestens eine konkrete Chunk-ID pro Fakt, wenn der Fakt als belegt ausgegeben wird. Keine bloß thematisch ähnlichen Quellen zuordnen.
 
 `interpretation`
 = fachliche Einordnung, Bedeutung und Unsicherheit der belegten Fakten.
@@ -66,6 +69,8 @@ Bewerte `suggested_risk` als aktuelles Restrisiko (High/Medium/Low), nicht als h
 Bestimme `suggested_status` aus der neuesten Evidenz (New/Under Review/In Progress/Waiting/Completed/Critical). Ein Vergleich mit wesentlicher offener Erfüllung ist noch nicht Completed.
 
 Neuere bestätigte Evidenz kann ältere Forderungen, Fristen, Maßnahmen und Risikobewertungen ersetzen.
+
+Jeder Eintrag in `document_facts` muss über `document_fact_citations` auf seine konkrete Belegstelle zurückführbar sein.
 
 Nutze `supporting_chunk_ids` und `relevant_documents` ausschließlich für tatsächlich verwendete Quellen. Interne IDs gehören niemals in den Fließtext.
 
