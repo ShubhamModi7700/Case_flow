@@ -47,9 +47,45 @@ export default function DocumentsTab({
   onOpenAI,
 }: DocumentsTabProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [openingId, setOpeningId] = useState<number | null>(null);
   const [analyzingId, setAnalyzingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  async function openDocument(document: DocumentItem): Promise<void> {
+    // Open a blank tab immediately so browsers do not block the new window
+    // while we wait for the authenticated API request that returns a short-lived URL.
+    const documentWindow = window.open("", "_blank");
+
+    if (!documentWindow) {
+      setError("Das Dokument konnte nicht geöffnet werden. Bitte erlauben Sie Pop-ups für Case Flow.");
+      return;
+    }
+
+    try {
+      setOpeningId(document.id);
+      setError("");
+
+      const response = await api.get<{
+        download_url: string;
+        file_name: string;
+        expires_in: number;
+      }>(`/documents/${document.id}/download`);
+
+      documentWindow.opener = null;
+      documentWindow.location.href = response.data.download_url;
+    } catch (requestError: any) {
+      documentWindow.close();
+      const detail = requestError?.response?.data?.detail;
+      setError(
+        typeof detail === "string"
+          ? detail
+          : `Das Dokument „${document.file_name}“ konnte nicht geöffnet werden.`,
+      );
+    } finally {
+      setOpeningId(null);
+    }
+  }
 
   async function runAIAnalysis(document: DocumentItem): Promise<void> {
     try {
@@ -215,6 +251,17 @@ export default function DocumentsTab({
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={openingId === document.id}
+                    onClick={() => void openDocument(document)}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {openingId === document.id
+                      ? "Wird geöffnet..."
+                      : "Öffnen"}
+                  </button>
+
                   {canEdit && (
                     <button
                       type="button"

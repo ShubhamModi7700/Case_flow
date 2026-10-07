@@ -349,7 +349,7 @@ function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; so
     <div className="space-y-4 rounded-xl border-2 border-rose-200 bg-rose-50 p-4">
       <div>
         <span className="rounded bg-rose-100 px-2 py-1 text-xs font-bold text-rose-900">{item.review_label || "KI-RED-REVIEW"}</span>
-        <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Step 11 · Gegenargumente & Risiken</div>
+        <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Gegenargumente & Risiken</div>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">Kritische Gegenprüfung</h3>
         <p className="mt-2 text-xs text-slate-600">Keine abschließende Rechtsbewertung. Gegenargumente, Risiken und Prüfpunkte müssen fachlich bewertet werden.</p>
       </div>
@@ -372,7 +372,7 @@ function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceRespons
   return (
     <div className="space-y-5 rounded-xl border-2 border-cyan-200 bg-cyan-50 p-4">
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Step 13 · Case-Intelligence</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Fall-Intelligence</div>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">Konsolidierte Fallübersicht</h3>
         <p className="mt-1 text-xs text-slate-600">Dokumentenbasierte Erkenntnisse sind quellengebunden; Fristen und Aufgaben stammen direkt aus Case Flow.</p>
         {item.freshness && (
@@ -428,7 +428,7 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
   return (
     <div className="space-y-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Step 12 · Fristen & offene Arbeit</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Fristen & offene Arbeit</div>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">Arbeitsstand aus Case Flow</h3>
         <p className="mt-1 text-xs text-slate-600">Diese Angaben stammen direkt aus der Case-Flow-Datenbank und werden nicht von der KI erfunden.</p>
       </div>

@@ -751,6 +751,7 @@ def approve_suggestion(
         _create_management_summary_record(
             case=_case(case.id, db),
             db=db,
+            user=current_user,
             generated_by=current_user.id,
         )
         management_summary_created = True
@@ -800,6 +801,7 @@ def _create_management_summary_record(
     *,
     case: models.Case,
     db: Session,
+    user: models.User,
     generated_by: int | None,
 ) -> models.CaseAISummary:
     tasks = (
@@ -844,14 +846,49 @@ def _create_management_summary_record(
         "und relevante Dokumente"
     )
     query_embedding = create_query_embedding(query_text)
+
+    # Management summaries do not depend on per-document ``KI analysieren``.
+    # Every indexed document linked to the case is considered directly through
+    # its document chunks. Retrieval remains permission-scoped before any
+    # evidence can be sent to the model.
     chunks = retrieve_chunks(
         db=db,
+        user=user,
         query_embedding=query_embedding,
         case_id=case.id,
         document_id=None,
-        threshold=0.58,
-        limit=8,
+        threshold=0.50,
+        limit=16,
     )
+
+    # Also retrieve a small number of candidates from each uploaded/indexed
+    # document. A single global vector ranking can otherwise be dominated by one
+    # long document and completely omit another case document. This does not
+    # send every full document to OpenAI; it makes every indexed document part
+    # of the RAG candidate set and then keeps a bounded, deduplicated context.
+    per_document_chunks: list[dict] = []
+    for document in documents:
+        document_chunks = retrieve_chunks(
+            db=db,
+            user=user,
+            query_embedding=query_embedding,
+            case_id=case.id,
+            document_id=document.id,
+            threshold=0.35,
+            limit=3,
+        )
+        per_document_chunks.extend(document_chunks)
+
+    combined_chunks = per_document_chunks + chunks
+    seen_chunk_ids: set[int] = set()
+    chunks = []
+    for item in combined_chunks:
+        chunk_id = int(item["chunk_id"])
+        if chunk_id in seen_chunk_ids:
+            continue
+        seen_chunk_ids.add(chunk_id)
+        chunks.append(item)
+    chunks = chunks[:24]
 
     # Always include chunks from the newest case document. This prevents an old
     # but semantically similar lawyer letter from outranking a newer settlement
@@ -880,7 +917,7 @@ def _create_management_summary_record(
         chunks = newest_payloads + [
             item for item in chunks if item["chunk_id"] not in newest_ids
         ]
-        chunks = chunks[:16]
+        chunks = chunks[:24]
 
     context = _build_management_context(
         case=case,
@@ -1040,6 +1077,7 @@ def create_management_summary(
     return _create_management_summary_record(
         case=case,
         db=db,
+        user=current_user,
         generated_by=current_user.id,
     )
 

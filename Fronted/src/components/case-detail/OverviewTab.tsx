@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "../../api";
 import type { AISuggestion, CaseAISummary, CaseItem, DocumentItem, TaskItem, TimelineEvent } from "../../types";
 import { getCaseAISuggestions, getLatestApprovedManagementSummary } from "../../services/ai";
 import { cleanAIText } from "../../utils/aiText";
 import { RiskBadge, StatusBadge } from "./Badges";
-import { formatDateTime } from "./formatters";
 
 interface OverviewTabProps {
   caseItem: CaseItem;
@@ -65,18 +64,25 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
   const openTasks = tasks.filter((task) => task.status !== "Completed");
   const overdueTasks = openTasks.filter((task) => task.due_date && new Date(`${task.due_date}T00:00:00`) < today);
 
-  const latestTimeline = useMemo(() => [...timeline]
-    .filter((event) => !event.is_future && !["milestone", "task deadline"].includes(event.event_type.trim().toLowerCase()))
-    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())[0], [timeline]);
-
+  // "Was ist neu?" must show an approved business development, not a raw
+  // technical timeline/audit entry such as "risk: Low -> High".
+  // The approved case-level management summary is the primary source because
+  // it is generated from the indexed documents of the whole case.
   const latestDevelopment = compact(
-    latestApprovedSuggestion?.suggested_latest_development || approvedSummary?.latest_development || latestTimeline?.description || latestTimeline?.title,
+    approvedSummary?.latest_development ||
+    latestApprovedSuggestion?.suggested_latest_development,
     360,
   );
+
+  // Prefer the approved case-level management recommendation. An approved
+  // individual-document suggestion and the stored case action are fallbacks.
   const nextAction = compact(
-    latestApprovedSuggestion?.suggested_next_action || approvedSummary?.next_required_action || caseItem.next_action,
+    approvedSummary?.next_required_action ||
+    latestApprovedSuggestion?.suggested_next_action ||
+    caseItem.next_action,
     260,
   );
+
   const riskReason = compact(caseItem.risk_reason || caseItem.suggested_risk_reason, 240);
   const missingOwner = caseItem.status !== "Completed" && !caseItem.responsible_person?.trim();
   const missingAction = caseItem.status !== "Completed" && !nextAction;
@@ -103,7 +109,7 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
       </div>
       <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <SignalCard label="Was ist kritisch?" value={<><RiskBadge value={caseItem.risk} /> <span className="ml-2"><StatusBadge value={caseItem.status} /></span></>} detail={riskReason || (isCritical ? "Aktiver Handlungsbedarf erkannt." : "Kein akutes Warnsignal.")} alert={isCritical} />
-        <SignalCard label="Was ist neu?" value={latestDevelopment || "Keine neue bestätigte Entwicklung"} detail={latestTimeline ? formatDateTime(latestTimeline.occurred_at) : undefined} />
+        <SignalCard label="Was ist neu?" value={latestDevelopment || "Keine neue bestätigte Entwicklung"} />
         <SignalCard label="Nächste Maßnahme" value={caseItem.status === "Completed" ? "Fall abgeschlossen" : nextAction || "Nicht definiert"} alert={missingAction} />
         <SignalCard label="Verantwortlich" value={caseItem.responsible_person?.trim() || "Nicht zugewiesen"} alert={missingOwner} />
         <SignalCard label="Relevante Frist" value={caseItem.status === "Completed" ? "Keine offene Frist" : caseItem.primary_deadline || "Keine klare Frist"} detail={deadlineOverdue ? "Frist ist überfällig." : undefined} alert={deadlineOverdue} />
