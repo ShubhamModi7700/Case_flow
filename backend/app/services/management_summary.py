@@ -132,11 +132,19 @@ def _parse_management_summary(context: str, *, correction: str | None = None) ->
 
 def _clean_result(result: schemas.ManagementSummaryAnalysis) -> schemas.ManagementSummaryAnalysis:
     result.short_case_summary = _clean_short_summary(result.short_case_summary)
-    result.document_facts = [clean_required_user_facing_text(item) for item in result.document_facts if clean_user_facing_text(item)][:6]
+    result.document_facts = [
+        clean_required_user_facing_text(item, field_name="Dokumentfakt")
+        for item in result.document_facts
+        if clean_user_facing_text(item)
+    ][:6]
     result.interpretation = _clean_text(result.interpretation)
     result.responsible_role = _clean_text(result.responsible_role)
     result.action_justification = _clean_text(result.action_justification)
-    result.uncertainty_notes = [clean_required_user_facing_text(item) for item in result.uncertainty_notes if clean_user_facing_text(item)][:6]
+    result.uncertainty_notes = [
+        clean_required_user_facing_text(item, field_name="Unsicherheitshinweis")
+        for item in result.uncertainty_notes
+        if clean_user_facing_text(item)
+    ][:6]
     result.latest_development = _clean_latest_development(result.latest_development)
     result.next_required_action = _clean_action(result.next_required_action)
     result.risk_comment = _clean_risk_comment(result.risk_comment)
