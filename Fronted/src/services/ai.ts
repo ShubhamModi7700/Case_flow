@@ -271,6 +271,10 @@ export type AssistantEvidenceLink = {
   claim: string;
   relevance: string | null;
   source_ids: string[];
+  evidence_status?: "direct" | "indirect" | "contradicted" | "insufficient";
+  evidence_reason?: string | null;
+  limitations?: string[];
+  missing_proof?: string[];
 };
 
 export type AssistantEntity = {

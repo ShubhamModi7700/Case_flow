@@ -588,6 +588,10 @@ class AssistantEvidenceLink(BaseModel):
     claim: str
     relevance: str | None = None
     source_ids: list[str] = Field(default_factory=list)
+    evidence_status: Literal["direct", "indirect", "contradicted", "insufficient"] = "insufficient"
+    evidence_reason: str | None = None
+    limitations: list[str] = Field(default_factory=list)
+    missing_proof: list[str] = Field(default_factory=list)
 
 
 class AssistantEntity(BaseModel):

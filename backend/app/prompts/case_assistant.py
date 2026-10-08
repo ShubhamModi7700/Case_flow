@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
-CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v8-natural-german"
+CASE_ASSISTANT_PROMPT_VERSION = "case-assistant-v9-evidence-assessment"
 
 BASE_SYSTEM_PROMPT = f"""
 Du bist der KI-Assistent von Case Flow. Dir werden bereits freigegebene Evidenzblöcke des ausgewählten Falls übergeben.
@@ -16,7 +16,7 @@ Das Feld `answer` ist eine kurze Einordnung (in der Regel höchstens 5 Sätze), 
 TASK_PROMPTS: dict[str, str] = {
     "question": "Beantworte nur die konkrete Fallfrage evidenzbasiert. `answer` kurz und direkt; nutze `claims` für höchstens 5 zentrale belegte Aussagen. Fülle andere strukturierte Bereiche nur, wenn sie für die konkrete Frage zwingend relevant sind.",
     "chronology": "Erstelle in `chronology` eine fokussierte, chronologisch sortierte Folge der wesentlichen belegten Geschäfts-/Fallereignisse (in der Regel höchstens 10). Setze Daten nur, wenn sie belegt sind; trenne Ereignis und Interpretation. Ignoriere Upload-, Indexierungs-, KI- und sonstige technische Workflow-Ereignisse. `answer` nur als kurze Einleitung; `evidence` und `entities` nicht zusätzlich wiederholen.",
-    "evidence": "Ordne in `evidence` höchstens 8 entscheidungsrelevante Behauptungen den tatsächlich stützenden Belegen zu und erkläre deren Relevanz in 1-2 Sätzen. Gegenbelege als Widerspruch kennzeichnen. `answer` nur als kurze Einordnung; Chronologie und Entitäten nicht wiederholen.",
+    "evidence": "Erstelle in `evidence` höchstens 8 entscheidungsrelevante, präzise Behauptungen mit konkreten `source_ids`. Für jede Behauptung: `relevance` erklärt die Bedeutung des Belegs; `evidence_status` ist `direct` nur wenn die Fundstelle genau diese Behauptung ausdrücklich belegt, `indirect` bei Indizien, `contradicted` bei widersprechenden Fundstellen und `insufficient` bei unzureichender Beweislage. `evidence_reason` erläutert knapp, was die Quelle tatsächlich belegt. `limitations` nennt Grenzen der Aussagekraft, `missing_proof` die konkret benötigten Nachweise. Unterscheide strikt Angebot, Annahme, Vertrag, Rechnungsstellung, Zahlung, Leistungserbringung und Erledigung: eine Rechnung beweist keine Zahlung, eine Vereinbarung keine Durchführung, ein Angebot keine Annahme. Belegstärke nie aus der Anzahl der Quellen ableiten. Gegenbelege zusätzlich in `contradictions` erfassen. Kein abschließendes rechtliches Beweisurteil. `answer` nur als kurze Einordnung; Chronologie und Entitäten nicht wiederholen.",
     "entities": "Erfasse in `entities` nur fallrelevante Personen/Organisationen und belegte Rollen (in der Regel höchstens 10). `role_is_explicit=true` nur bei ausdrücklich belegter Rolle; sonst Rolle offen/unsicher lassen. `answer` nur als kurze Einordnung; Chronologie und Beweismittel nicht wiederholen.",
     "brief_evidence": "Erstelle in `brief_evidence_package` ein auftragsbezogenes Beweispaket aus belegten Tatsachen, Belegen, Ereignissen, Beteiligten und offenen Punkten. Noch keinen Schriftsatz oder fertige Gliederung erstellen.",
     "brief_outline": "Erstelle in `brief_outline` eine Gliederung mit Zweck, belegter Tatsachengrundlage, Beweishinweisen und offenen Punkten. Noch keine ausformulierte Schriftsatzprosa.",

@@ -201,6 +201,10 @@ def validate_answer_sources(
     for item in result.evidence:
         item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
         if item.source_ids:
+            # A source ID is necessary but does not itself verify semantic support.
+            if item.evidence_status == "direct" and not item.evidence_reason:
+                item.evidence_status = "insufficient"
+                item.limitations.append("Eine konkrete Begründung der direkten Belegwirkung fehlt.")
             valid_evidence.append(item)
         else:
             unsupported.append(item.claim)

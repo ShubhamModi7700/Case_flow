@@ -176,24 +176,58 @@ function EvidenceOverview({
   items: AssistantEvidenceLink[];
   sourcesById: Map<string, AssistantSource>;
 }) {
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Keine belastbare Beweismittelzuordnung erstellt. Prüfen Sie die verfügbaren Dokumente und Quellen.</div>;
+  }
+  const labels = {
+    direct: "Direkt belegt",
+    indirect: "Indirekt gestützt",
+    contradicted: "Widersprüchlich",
+    insufficient: "Nicht ausreichend belegt",
+  };
+  const tones = {
+    direct: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    indirect: "bg-blue-50 text-blue-800 border-blue-200",
+    contradicted: "bg-amber-50 text-amber-800 border-amber-200",
+    insufficient: "bg-slate-100 text-slate-700 border-slate-200",
+  };
   return (
-    <div>
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Beweismittelübersicht
-      </h3>
+    <section>
+      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-700">Beweismittelübersicht</h3>
+      <p className="mb-3 text-xs text-slate-500">KI-Einschätzung zur konkreten Behauptung, keine abschließende rechtliche Beweiswürdigung. Quellen und Bewertungen fachlich prüfen.</p>
       <div className="space-y-3">
-        {items.map((item, index) => (
-          <div key={`${item.claim}-${index}`} className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-900">{item.claim}</p>
-            {item.relevance && (
-              <p className="mt-1 text-sm leading-6 text-slate-600">{item.relevance}</p>
-            )}
-            <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />
-          </div>
-        ))}
+        {items.map((item, index) => {
+          const status = item.evidence_status ?? "insufficient";
+          const groups = new Map<string, string[]>();
+          for (const id of [...new Set(item.source_ids)]) {
+            const source = sourcesById.get(id);
+            const name = source?.filename ?? "Unbekanntes Dokument";
+            groups.set(name, [...(groups.get(name) ?? []), `${id}${source && sourceLocation(source) ? ` · ${sourceLocation(source)}` : ""}`]);
+          }
+          return (
+            <article key={`${item.claim}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Behauptung {index + 1}</p>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">{item.claim}</p>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${tones[status]}`}>{labels[status]}</span>
+              </div>
+              {item.relevance && <p className="mt-3 text-sm leading-6 text-slate-700"><strong>Relevanz:</strong> {item.relevance}</p>}
+              {item.evidence_reason && <p className="mt-2 text-sm leading-6 text-slate-700"><strong>Beweiswert:</strong> {item.evidence_reason}</p>}
+              {(item.limitations?.length ?? 0) > 0 && <div className="mt-3 text-sm text-slate-700"><strong>Grenzen der Beweiskraft</strong><ul className="mt-1 list-disc space-y-1 pl-5">{item.limitations?.map((text, i) => <li key={i}>{text}</li>)}</ul></div>}
+              {(item.missing_proof?.length ?? 0) > 0 && <div className="mt-3 text-sm text-slate-700"><strong>Offene Nachweise</strong><ul className="mt-1 list-disc space-y-1 pl-5">{item.missing_proof?.map((text, i) => <li key={i}>{text}</li>)}</ul></div>}
+              <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Dokumente und Fundstellen anzeigen ({item.source_ids.length})</summary>
+                <div className="space-y-2 border-t border-slate-200 p-3">
+                  {[...groups.entries()].map(([filename, ids]) => <div key={filename}><p className="text-xs font-semibold text-slate-800">{filename}</p><p className="mt-1 text-xs leading-5 text-slate-600">{ids.map(id => `[${id}]`).join(" · ")}</p></div>)}
+                </div>
+              </details>
+            </article>
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 }
 
