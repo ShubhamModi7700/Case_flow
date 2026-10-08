@@ -575,6 +575,8 @@ export default function CaseAssistant({ caseId }: Props) {
     if (intelligenceLoading) return;
     try {
       setIntelligenceLoading(true);
+      setWorkStatus(null);
+      setResult(null);
       setError("");
       const data = await getCaseAssistantIntelligence(caseId, forceRefresh);
       setIntelligence(data);
@@ -591,6 +593,8 @@ export default function CaseAssistant({ caseId }: Props) {
     if (workStatusLoading) return;
     try {
       setWorkStatusLoading(true);
+      setIntelligence(null);
+      setResult(null);
       setError("");
       const data = await getCaseAssistantWorkStatus(caseId);
       setWorkStatus(data);
@@ -613,6 +617,9 @@ export default function CaseAssistant({ caseId }: Props) {
     try {
       setLoading(true);
       setError("");
+      setIntelligence(null);
+      setWorkStatus(null);
+      setResult(null);
       setActiveTask(taskType);
       const response = await queryCaseAssistant(caseId, trimmed, taskType, explicitBriefContext);
       setResult(response);
@@ -715,7 +722,7 @@ export default function CaseAssistant({ caseId }: Props) {
           <button
             key={action.type}
             type="button"
-            disabled={loading}
+            disabled={loading || intelligenceLoading || workStatusLoading}
             onClick={() => { setShowBriefForm(false); void submit(action.type, action.question); }}
             className={`rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTask === action.type && result?.task_type === action.type
@@ -728,7 +735,7 @@ export default function CaseAssistant({ caseId }: Props) {
         ))}
         <button
           type="button"
-          disabled={loading || intelligenceLoading}
+          disabled={loading || intelligenceLoading || workStatusLoading}
           onClick={() => { setShowBriefForm(false); void loadIntelligence(intelligence?.freshness?.status === "outdated"); }}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
         >
@@ -740,7 +747,7 @@ export default function CaseAssistant({ caseId }: Props) {
         </button>
         <button
           type="button"
-          disabled={loading || workStatusLoading}
+          disabled={loading || intelligenceLoading || workStatusLoading}
           onClick={() => { setShowBriefForm(false); void loadWorkStatus(); }}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
         >
