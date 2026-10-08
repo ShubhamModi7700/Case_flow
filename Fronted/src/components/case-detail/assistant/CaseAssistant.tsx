@@ -488,7 +488,7 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
                 <button
                   type="button"
                   onClick={() => setShowAllTasks((current) => !current)}
-                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-500"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500"
                 >
                   {showAllTasks ? "Weniger anzeigen" : `Weitere ${hiddenTaskCount} Aufgaben anzeigen`}
                 </button>
@@ -677,7 +677,7 @@ export default function CaseAssistant({ caseId }: Props) {
             key={action.type}
             type="button"
             disabled={loading}
-            onClick={() => void submit(action.type, action.question)}
+            onClick={() => { setShowBriefForm(false); void submit(action.type, action.question); }}
             className={`rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTask === action.type && result?.task_type === action.type
                 ? "border-slate-900 bg-slate-900 text-white"
@@ -690,8 +690,8 @@ export default function CaseAssistant({ caseId }: Props) {
         <button
           type="button"
           disabled={loading || intelligenceLoading}
-          onClick={() => void loadIntelligence(intelligence?.freshness?.status === "outdated")}
-          className="rounded-lg border border-cyan-300 bg-white px-3 py-2 text-sm font-medium text-cyan-800 transition hover:border-cyan-500 disabled:opacity-50"
+          onClick={() => { setShowBriefForm(false); void loadIntelligence(intelligence?.freshness?.status === "outdated"); }}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
         >
           {intelligenceLoading
             ? "Fall-Intelligence wird erstellt..."
@@ -702,8 +702,8 @@ export default function CaseAssistant({ caseId }: Props) {
         <button
           type="button"
           disabled={loading || workStatusLoading}
-          onClick={() => void loadWorkStatus()}
-          className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-500 disabled:opacity-50"
+          onClick={() => { setShowBriefForm(false); void loadWorkStatus(); }}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
         >
           {workStatusLoading ? "Arbeitsstand wird geladen..." : "Fristen & Aufgaben"}
         </button>
@@ -712,7 +712,7 @@ export default function CaseAssistant({ caseId }: Props) {
           disabled={loading}
           onClick={() => setShowBriefForm((value) => !value)}
           className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-            showBriefForm ? "border-violet-700 bg-violet-700 text-white" : "border-violet-300 bg-white text-violet-800 hover:border-violet-500"
+            showBriefForm ? "border-violet-700 bg-violet-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
           }`}
         >
           Schriftsatz vorbereiten
@@ -726,13 +726,25 @@ export default function CaseAssistant({ caseId }: Props) {
             <p className="mt-1 text-xs text-slate-600">Beweispaket, Gliederung, KI-Entwurf und kritische Gegenprüfung verwenden denselben aufgabenbezogenen Kontext.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Mandant / Partei *
             <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Mandant / Partei *" value={briefContext.client} onChange={(e) => updateBriefContext({ client: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Rolle
             <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Rolle, z. B. Antragstellerin" value={briefContext.role ?? ""} onChange={(e) => updateBriefContext({ role: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Adressat
             <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Adressat, z. B. Amtsgericht Wolfsburg" value={briefContext.recipient ?? ""} onChange={(e) => updateBriefContext({ recipient: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Dokumentart
             <input className="rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Dokumentart" value={briefContext.document_type} onChange={(e) => updateBriefContext({ document_type: e.target.value })} />
+            </label>
           </div>
+          <label className="mt-3 block text-xs font-semibold text-slate-600">Ziel des Schreibens / konkrete Aufgabe *
           <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={3} placeholder="Ziel des Schriftsatzes / konkrete Aufgabe *" value={briefContext.objective} onChange={(e) => updateBriefContext({ objective: e.target.value })} />
+          </label>
+          <label className="mt-3 block text-xs font-semibold text-slate-600">Zusätzliche Hinweise (optional)
           <textarea className="mt-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm" rows={2} placeholder="Zusätzliche Hinweise (optional)" value={briefContext.additional_instructions ?? ""} onChange={(e) => updateBriefContext({ additional_instructions: e.target.value })} />
+          </label>
           <div className="mt-4 grid gap-2 md:grid-cols-4">
             {[
               [1, "Beweispaket", "Fakten & Belege"],
@@ -754,24 +766,20 @@ export default function CaseAssistant({ caseId }: Props) {
               );
             })}
           </div>
-          <div className="mt-3 flex flex-wrap justify-end gap-2">
-            <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
-              {loading && activeTask === "brief_evidence" ? "1. Beweispaket wird erstellt..." : briefStep >= 1 ? "1. Beweispaket neu erstellen" : "1. Beweispaket erstellen"}
-            </button>
-            <button type="button" onClick={() => void submitBriefOutline()} disabled={loading || briefStep < 1} title={briefStep < 1 ? "Zuerst Beweispaket erstellen" : undefined} className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
-              {loading && activeTask === "brief_outline" ? "2. Gliederung wird erstellt..." : briefStep >= 2 ? "2. Gliederung neu erstellen" : "2. Gliederung erstellen"}
-            </button>
-            <button type="button" onClick={() => void submitBriefDraft()} disabled={loading || briefStep < 2} title={briefStep < 2 ? "Zuerst Gliederung erstellen" : undefined} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
-              {loading && activeTask === "brief_draft" ? "3. Entwurf wird erstellt..." : briefStep >= 3 ? "3. KI-Entwurf neu erstellen" : "3. KI-Entwurf erstellen"}
-            </button>
-            <button type="button" onClick={() => void submitBriefReview()} disabled={loading || briefStep < 3} title={briefStep < 3 ? "Zuerst KI-Entwurf erstellen" : undefined} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
-              {loading && activeTask === "brief_review" ? "4. Prüfung wird erstellt..." : briefStep >= 4 ? "4. Prüfung neu erstellen" : "4. Gegenargumente & Risiken"}
-            </button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+            <p className="text-sm text-slate-600">{briefStep === 0 ? "Als Nächstes: Belege zusammenstellen" : briefStep === 1 ? "Als Nächstes: Gliederung erstellen" : briefStep === 2 ? "Als Nächstes: Entwurf formulieren" : briefStep === 3 ? "Als Nächstes: Gegenprüfung" : "Alle vier Schritte abgeschlossen"}</p>
+            {briefStep === 0 && <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{loading && activeTask === "brief_evidence" ? "Beweispaket wird erstellt..." : "Beweispaket erstellen →"}</button>}
+            {briefStep === 1 && <button type="button" onClick={() => void submitBriefOutline()} disabled={loading} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{loading && activeTask === "brief_outline" ? "Gliederung wird erstellt..." : "Gliederung erstellen →"}</button>}
+            {briefStep === 2 && <button type="button" onClick={() => void submitBriefDraft()} disabled={loading} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{loading && activeTask === "brief_draft" ? "Entwurf wird erstellt..." : "KI-Entwurf erstellen →"}</button>}
+            {briefStep === 3 && <button type="button" onClick={() => void submitBriefReview()} disabled={loading} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{loading && activeTask === "brief_review" ? "Prüfung wird erstellt..." : "Gegenargumente & Risiken prüfen →"}</button>}
+            {briefStep === 4 && <button type="button" onClick={() => void submitBriefEvidence()} disabled={loading || !briefContext.client.trim() || briefContext.objective.trim().length < 2} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-40">Workflow neu starten</button>}
           </div>
           <p className="mt-2 text-xs text-slate-500">Die Schritte werden nacheinander freigeschaltet. Wenn Sie den Auftrag oben ändern, wird der Workflow zurückgesetzt, damit keine Ergebnisse aus einem alten Kontext weiterverwendet werden.</p>
         </div>
       )}
 
+      {!showBriefForm && <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <label className="mb-2 block text-sm font-semibold text-slate-800">Frage zum Fall</label>
       <textarea
         value={question}
         onChange={(event) => setQuestion(event.target.value)}
@@ -789,6 +797,8 @@ export default function CaseAssistant({ caseId }: Props) {
           {loading ? "Analyse wird erstellt..." : "Fragen"}
         </button>
       </div>
+
+      </div>}
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">

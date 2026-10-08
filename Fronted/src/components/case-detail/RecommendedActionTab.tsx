@@ -161,18 +161,8 @@ export default function RecommendedActionTab({
             </h2>
           </div>
           <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-            Fachlich bestätigt
+            Freigegeben
           </span>
-        </div>
-
-        <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-          <p className="text-sm font-semibold text-emerald-950">
-            Freigegebene Handlungsempfehlung
-          </p>
-          <p className="mt-1 text-sm text-emerald-900">
-            Diese Fassung wurde im Prüfprozess bestätigt. Die zugrunde liegenden
-            Dokumente und Unsicherheiten bleiben zur Nachvollziehbarkeit sichtbar.
-          </p>
         </div>
 
         <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5">
