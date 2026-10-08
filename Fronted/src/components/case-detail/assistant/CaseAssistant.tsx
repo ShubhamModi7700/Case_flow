@@ -845,29 +845,31 @@ export default function CaseAssistant({ caseId }: Props) {
           {result.task_type === "evidence" && <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />}
           {result.task_type === "entities" && <EntitiesView items={result.entities} sourcesById={sourcesById} />}
 
-          {result.task_type === "question" && result.claims.length > 0 && (
-            <div>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Belegte Aussagen
-              </h3>
-              <EvidenceList items={result.claims} sourcesById={sourcesById} />
-            </div>
+          {result.task_type === "question" && result.answer?.trim() && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Antwort auf Ihre Frage</h3>
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-800">{result.answer}</p>
+            </section>
           )}
 
-          {result.answer?.trim() && (
-            result.task_type === "question" ? (
-              <section className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-900">Antwort auf Ihre Frage</h3>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-800">{result.answer}</p>
-              </section>
-            ) : (
-              <details className="rounded-xl border border-slate-200 bg-white">
-                <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-700">
-                  Zusätzliche KI-Erläuterung anzeigen
-                </summary>
-                <p className="whitespace-pre-wrap border-t border-slate-100 px-4 py-3 text-sm leading-7 text-slate-700">{result.answer}</p>
-              </details>
-            )
+          {result.task_type === "question" && result.claims.length > 0 && (
+            <details className="rounded-xl border border-slate-200 bg-white">
+              <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-700">
+                Belegte Aussagen und Einzelnachweise anzeigen ({result.claims.length})
+              </summary>
+              <div className="border-t border-slate-100 p-4">
+                <EvidenceList items={result.claims} sourcesById={sourcesById} />
+              </div>
+            </details>
+          )}
+
+          {result.task_type !== "question" && result.answer?.trim() && (
+            <details className="rounded-xl border border-slate-200 bg-white">
+              <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-700">
+                Zusätzliche KI-Erläuterung anzeigen
+              </summary>
+              <p className="whitespace-pre-wrap break-words border-t border-slate-100 px-4 py-3 text-sm leading-7 text-slate-700">{result.answer}</p>
+            </details>
           )}
 
           <SourcesDisclosure sources={result.sources} />

@@ -14,10 +14,6 @@ from app.prompts.case_assistant import CASE_ASSISTANT_PROMPT_VERSION, BASE_SYSTE
 
 TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"]
 
-
-
-
-
 def retrieval_question(question: str, task_type: TaskType) -> str:
     if task_type == "chronology":
         return (
@@ -48,6 +44,47 @@ def retrieve_case_evidence(
     task_type: TaskType = "question",
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
+    # An evidence inventory is broader than a factual question. A single
+    # embedding of "which claims have evidence?" often matches no document,
+    # even when the case has indexed contracts, invoices and correspondence.
+    # Use several bounded, complementary searches within the SAME authorized
+    # case scope. Never broaden to another case or unassigned documents.
+    if task_type == "evidence":
+        search_texts = (
+            "Vertrag Angebot Rechnung Zahlung Ablöse Betrag Kosten Vereinbarung",
+            "E-Mail Korrespondenz Bestätigung Forderung Termin Kündigung Abholung",
+            "Nachweis Dokument Beleg Schreiben Widerspruch Sachverhalt",
+        )
+        candidates: dict[int, dict[str, Any]] = {}
+        for search_text in search_texts:
+            embedding = create_query_embedding(search_text)
+            for chunk in retrieve_chunks(
+                db=db, user=user, query_embedding=embedding,
+                case_id=case_id, threshold=0.20, limit=16,
+            ):
+                chunk_id = int(chunk["chunk_id"])
+                previous = candidates.get(chunk_id)
+                if previous is None or float(chunk["similarity"]) > float(previous["similarity"]):
+                    candidates[chunk_id] = chunk
+
+        # Round-robin across documents prevents one long document from
+        # crowding out all other evidence. Cap the model context at 30 chunks.
+        by_document: dict[int, list[dict[str, Any]]] = {}
+        for chunk in candidates.values():
+            by_document.setdefault(int(chunk["document_id"]), []).append(chunk)
+        for rows in by_document.values():
+            rows.sort(key=lambda row: float(row["similarity"]), reverse=True)
+        selected: list[dict[str, Any]] = []
+        while by_document and len(selected) < min(limit or 30, 30):
+            for document_id in list(by_document):
+                if len(selected) >= min(limit or 30, 30):
+                    break
+                rows = by_document[document_id]
+                selected.append(rows.pop(0))
+                if not rows:
+                    del by_document[document_id]
+        return selected
+
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
     task_limit = limit if limit is not None else (35 if task_type == "intelligence" else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20))
     task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"} else 0.40
