@@ -71,20 +71,25 @@ function SourceBadges({
   sourceIds: string[];
   sourcesById: Map<string, AssistantSource>;
 }) {
+  const uniqueIds = [...new Set(sourceIds)];
+  if (uniqueIds.length === 0) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      {sourceIds.map((sourceId) => {
-        const source = sourcesById.get(sourceId);
-        return (
-          <span
-            key={sourceId}
-            className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600"
-          >
-            [{sourceId}] {source?.filename ?? "Quelle"}
-          </span>
-        );
-      })}
-    </div>
+    <details className="mt-2 text-xs text-slate-600">
+      <summary className="w-fit cursor-pointer select-none rounded-md px-1 py-1 font-medium text-slate-600 hover:bg-slate-100">
+        Belege anzeigen ({uniqueIds.length})
+      </summary>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {uniqueIds.map((sourceId) => {
+          const source = sourcesById.get(sourceId);
+          return (
+            <span key={sourceId} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700">
+              [{sourceId}] {source?.filename ?? "Quelle nicht zugeordnet"}
+              {source && sourceLocation(source) ? ` · ${sourceLocation(source)}` : ""}
+            </span>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -123,7 +128,7 @@ function EvidenceList({
       {items.map((item, index) => (
         <li
           key={`${item.text}-${index}`}
-          className="rounded-lg border border-slate-200 bg-white p-3"
+          className="rounded-lg border border-slate-200 bg-white p-4"
         >
           <p className="text-sm text-slate-800">{item.text}</p>
           <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />
@@ -244,7 +249,7 @@ function BriefEvidenceView({
   sourcesById: Map<string, AssistantSource>;
 }) {
   return (
-    <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50 p-4">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div>
         <div className="text-xs font-semibold uppercase tracking-wide text-violet-700">Schriftsatzvorbereitung</div>
         <h3 className="mt-1 text-base font-semibold text-slate-900">Aufgabenbezogenes Beweispaket</h3>
@@ -291,9 +296,9 @@ function BriefOutlineView({
   sourcesById: Map<string, AssistantSource>;
 }) {
   return (
-    <div className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Step 9 · Gliederung</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Schritt 2 · Gliederung</div>
         <h3 className="mt-1 text-base font-semibold text-slate-900">{item.title}</h3>
         {item.objective && <p className="mt-2 text-sm leading-6 text-slate-700">{item.objective}</p>}
         <p className="mt-2 text-xs text-slate-600">Noch kein ausformulierter Schriftsatz. Tatsachengrundlagen bleiben mit den freigegebenen Quellen verknüpft.</p>
@@ -344,10 +349,10 @@ function BriefDraftView({ item, sourcesById }: { item: AssistantBriefDraft; sour
     ))}</div>
   );
   return (
-    <div className="space-y-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div>
         <span className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">{item.draft_label || "KI-ENTWURF"}</span>
-        <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Step 10 · Schriftsatzentwurf</div>
+        <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Schritt 3 · Schriftsatzentwurf</div>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">{item.title}</h3>
         <p className="mt-2 text-xs text-slate-600">Nicht freigegebene KI-Fassung. Vor Verwendung fachlich prüfen, bearbeiten und freigeben.</p>
       </div>
@@ -368,7 +373,7 @@ function BriefDraftView({ item, sourcesById }: { item: AssistantBriefDraft; sour
 
 function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; sourcesById: Map<string, AssistantSource> }) {
   return (
-    <div className="space-y-4 rounded-xl border-2 border-rose-200 bg-rose-50 p-4">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div>
         <span className="rounded bg-rose-100 px-2 py-1 text-xs font-bold text-rose-900">{item.review_label || "KI-RED-REVIEW"}</span>
         <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Gegenargumente & Risiken</div>
@@ -392,7 +397,7 @@ function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceRespons
   );
   const intel = item.intelligence;
   return (
-    <div className="space-y-5 rounded-xl border-2 border-cyan-200 bg-cyan-50 p-4">
+    <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
       <div>
         <div className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Fall-Intelligence</div>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">Konsolidierte Fallübersicht</h3>
@@ -820,11 +825,6 @@ export default function CaseAssistant({ caseId }: Props) {
 
       {result && (
         <div className="mt-6 space-y-5">
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Antwort</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-900">{result.answer}</p>
-          </div>
-
           {result.brief_evidence_package && (
             <BriefEvidenceView item={result.brief_evidence_package} sourcesById={sourcesById} />
           )}
@@ -852,6 +852,22 @@ export default function CaseAssistant({ caseId }: Props) {
               </h3>
               <EvidenceList items={result.claims} sourcesById={sourcesById} />
             </div>
+          )}
+
+          {result.answer?.trim() && (
+            result.task_type === "question" ? (
+              <section className="rounded-xl border border-slate-200 bg-white p-5">
+                <h3 className="text-sm font-semibold text-slate-900">Antwort auf Ihre Frage</h3>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-800">{result.answer}</p>
+              </section>
+            ) : (
+              <details className="rounded-xl border border-slate-200 bg-white">
+                <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-700">
+                  Zusätzliche KI-Erläuterung anzeigen
+                </summary>
+                <p className="whitespace-pre-wrap border-t border-slate-100 px-4 py-3 text-sm leading-7 text-slate-700">{result.answer}</p>
+              </details>
+            )
           )}
 
           <SourcesDisclosure sources={result.sources} />

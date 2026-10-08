@@ -31,9 +31,9 @@ function compact(value: string | null | undefined, limit = 320): string | null {
 }
 
 function SignalCard({ label, value, detail, alert = false }: { label: string; value: React.ReactNode; detail?: React.ReactNode; alert?: boolean }) {
-  return <div className={`rounded-2xl border p-5 ${alert ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+  return <div className={`min-w-0 rounded-xl border p-4 ${alert ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white"}`}>
     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-    <div className="mt-2 text-base font-semibold text-slate-950">{value}</div>
+    <div className="mt-2 break-words text-sm font-semibold leading-6 text-slate-950">{value}</div>
     {detail ? <div className="mt-2 text-sm leading-6 text-slate-600">{detail}</div> : null}
   </div>;
 }
@@ -111,7 +111,7 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
         </div>
         {canEdit && <button type="button" onClick={onEditCase} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Fall bearbeiten</button>}
       </div>
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <SignalCard label="Was ist kritisch?" value={<><RiskBadge value={caseItem.risk} /> <span className="ml-2"><StatusBadge value={caseItem.status} /></span></>} detail={riskReason || (isCritical ? "Aktiver Handlungsbedarf erkannt." : "Kein akutes Warnsignal.")} alert={isCritical} />
         <SignalCard label="Was ist neu?" value={latestDevelopment || "Keine neue bestätigte Entwicklung"} />
         <SignalCard label="Nächste Maßnahme" value={caseItem.status === "Completed" ? "Fall abgeschlossen" : nextAction || "Nicht definiert"} alert={missingAction} />
@@ -130,12 +130,12 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
       </div>
     </section>}
 
-    <section className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Kurzkontext</p>
         <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{compact(caseItem.management_summary || caseItem.description, 700) || "Noch keine bestätigte Zusammenfassung vorhanden."}</p>
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Arbeitsstand</p>
         <dl className="mt-3 space-y-3 text-sm">
           <div className="flex justify-between gap-4"><dt className="text-slate-500">Offene Aufgaben</dt><dd className="font-semibold">{openTasks.length}</dd></div>

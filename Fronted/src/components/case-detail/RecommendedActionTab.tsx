@@ -35,6 +35,7 @@ export default function RecommendedActionTab({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openingDocumentId, setOpeningDocumentId] = useState<number | null>(null);
+  const [showDocumentBasis, setShowDocumentBasis] = useState(false);
 
   async function openDocument(documentId: number) {
     const target = window.open("", "_blank");
@@ -165,17 +166,17 @@ export default function RecommendedActionTab({
           </span>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5">
+        <div className="mt-5 rounded-xl border border-violet-200 bg-violet-50/60 p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-violet-700">
             Konkrete nächste Maßnahme
           </p>
-          <p className="mt-2 text-lg font-semibold text-violet-950">
+          <p className="mt-2 whitespace-pre-wrap text-base font-medium leading-7 text-slate-900">
             {cleanApprovedDisplayText(summary.next_required_action) ||
               "Keine konkrete Handlung wurde bestätigt."}
           </p>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold uppercase text-slate-400">
               Verantwortlich
@@ -208,16 +209,16 @@ export default function RecommendedActionTab({
             1. Bestätigte Fakten aus den Dokumenten
           </h3>
           {summary.document_facts?.length ? (
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
+            <ul className="mt-4 space-y-3 text-sm text-slate-700">
               {summary.document_facts.map((fact, index) => {
                 const sources = (summary.document_fact_sources || []).filter((source) => source.fact_index === index);
                 return (
-                  <li key={index}>
-                    <div>{cleanAIText(fact)}</div>
+                  <li key={index} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                    <div className="leading-6">{cleanAIText(fact)}</div>
                     {sources.length > 0 && (
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-2 space-y-1 border-t border-slate-200 pt-2">
                         {sources.map((source) => (
-                          <div key={`${source.fact_index}-${source.chunk_id}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                          <div key={`${source.fact_index}-${source.chunk_id}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 break-all text-xs text-slate-500">
                             <span className="font-medium text-slate-600">Quelle:</span>
                             <span>{source.file_name}</span>
                             {source.document_date && <span>· {source.document_date}</span>}
@@ -244,7 +245,7 @@ export default function RecommendedActionTab({
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <h3 className="font-semibold text-slate-950">2. Einordnung</h3>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">
             {cleanAIText(summary.interpretation) ||
               "Keine zusätzliche Einordnung hinterlegt."}
           </p>
@@ -254,7 +255,7 @@ export default function RecommendedActionTab({
           <h3 className="font-semibold text-slate-950">
             3. Begründung aus der Evidenz
           </h3>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">
             {cleanAIText(summary.action_justification) ||
               "Keine gesonderte Begründung hinterlegt."}
           </p>
@@ -265,7 +266,7 @@ export default function RecommendedActionTab({
             4. Unsicherheit / noch zu prüfen
           </h3>
           {summary.uncertainty_notes?.length ? (
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-amber-900">
+            <ul className="mt-3 list-disc space-y-3 pl-5 text-sm leading-6 text-amber-900">
               {summary.uncertainty_notes.map((note, index) => (
                 <li key={index}>{cleanAIText(note)}</li>
               ))}
@@ -292,7 +293,15 @@ export default function RecommendedActionTab({
           </p>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setShowDocumentBasis((visible) => !visible)}
+          aria-expanded={showDocumentBasis}
+          className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          {showDocumentBasis ? "Dokumentliste ausblenden" : `Dokumentliste anzeigen (${summary.relevant_document_ids?.length || 0})`}
+        </button>
+        {showDocumentBasis && <div className="mt-3 flex flex-wrap gap-2">
           {summary.relevant_document_ids?.length ? (
             summary.relevant_document_ids.map((id) => (
               <span
@@ -307,7 +316,7 @@ export default function RecommendedActionTab({
               Keine Dokumentreferenz hinterlegt.
             </span>
           )}
-        </div>
+        </div>}
       </section>
     </div>
   );
