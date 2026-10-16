@@ -99,7 +99,6 @@ def _source_ids_matching(sources: list[dict[str, Any]], predicate) -> list[str]:
 
 
 def _collect_model_source_ids(result: Any) -> set[str]:
-    # Import lazily so retrieval-only runs stay focused on the retrieval contract.
     from app.services.ai_audit import referenced_source_ids
 
     return referenced_source_ids(result)
@@ -117,8 +116,6 @@ def run(case_id: int, user_id: int, question: str, retrieval_only: bool) -> Acce
         if case is None:
             raise RuntimeError(f"Case {case_id} was not found.")
 
-        # This must succeed before embeddings/retrieval. retrieve_case_evidence ->
-        # retrieve_chunks enforces the ACL again inside the vector SQL query.
         require_case_view(db, user, case_id)
 
         chunks = retrieve_case_evidence(
@@ -187,8 +184,6 @@ def run(case_id: int, user_id: int, question: str, retrieval_only: bool) -> Acce
             if not has_uncertainty:
                 failures.append("The result contains no explicit gap, contradiction, or unsupported-statement signal.")
 
-            # Print the public evidence metadata as part of the acceptance record;
-            # content itself is intentionally not dumped by this script.
             print("\nValidated public sources:")
             for source in public_sources(sources):
                 print(

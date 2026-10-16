@@ -123,8 +123,6 @@ def _normalize_management_current_state(
     has_open_deadline = result.open_deadline is not None
     next_action = (result.next_required_action or "").lower()
 
-    # The newest confirmed document risk is the strongest current-state signal.
-    # It may lower a stale official High risk after a later settlement.
     if newest_confirmed and newest_confirmed.suggested_risk:
         try:
             result.suggested_risk = schemas.RiskLevel(
@@ -138,8 +136,6 @@ def _normalize_management_current_state(
         result.suggested_status = newest_status
 
     if has_resolution and not has_live_escalation:
-        # A settlement with a material future obligation is residual Medium risk,
-        # not historical High. If no material step remains, Low is appropriate.
         if has_open_deadline or next_action:
             if result.suggested_risk == schemas.RiskLevel.HIGH:
                 result.suggested_risk = schemas.RiskLevel.MEDIUM
@@ -175,8 +171,6 @@ def _normalize_management_current_state(
                 "Erledigung ohne wesentliche offene Verpflichtungen hin."
             )
 
-    # High/Critical may only be reintroduced by a live escalation found in the
-    # newest confirmed evidence, never by historical case text.
     if has_live_escalation:
         result.suggested_risk = schemas.RiskLevel.HIGH
         if result.open_deadline is not None:
@@ -417,9 +411,6 @@ def analyze_document(
         limit=12,
     )
 
-    # The document the user just asked us to analyse must always be present in
-    # the prompt. Pure similarity retrieval can otherwise return only older case
-    # documents, which makes an old demand/deadline incorrectly look current.
     own_chunk_payloads = [
         {
             "chunk_id": chunk.id,
@@ -477,8 +468,6 @@ def analyze_document(
     suggested_risk_reason = "Keine ausreichenden Risikodaten erkannt."
 
     if risk_case:
-        # Use a detached shallow copy so SQLAlchemy does not track temporary
-        # AI values as real database changes.
         simulated_case = copy(risk_case)
         simulated_case.primary_deadline = (
             analysis.recognized_deadline or risk_case.primary_deadline
@@ -528,8 +517,6 @@ def analyze_document(
         raw_response=analysis.model_dump(mode="json"),
         created_by=current_user.id,
     )
-    # A newer analysis for the same case supersedes older unreviewed proposals.
-    # Keep them for audit/history, but do not present them as concurrently valid.
     target_case_id = document.case_id or suggested_case_id
     if target_case_id is not None:
         db.query(models.AIDocumentSuggestion).filter(
@@ -592,9 +579,6 @@ def approve_suggestion(
         raise HTTPException(403, "Nur Manager dürfen das Risiko bestätigen.")
 
     try:
-        # Confirm the document analysis as evidence. Do not overwrite the
-        # official case-level management state here; that happens only after
-        # the subsequently generated management proposal is reviewed.
         suggestion.suggested_summary = payload.summary
         suggestion.suggested_latest_development = payload.latest_development
         suggestion.suggested_deadline = payload.deadline
@@ -603,10 +587,6 @@ def approve_suggestion(
             suggestion.suggested_risk = approved_risk.value
             suggestion.suggested_risk_reason = payload.risk_reason
 
-        # A Manager has explicitly reviewed and confirmed this document
-        # analysis. Confirmed operational values become official immediately.
-        # The generated management summary remains the place for consolidated
-        # narrative, status and official risk approval.
         if normalized_role == "Manager" and case.status != "Completed":
             if payload.next_action is not None:
                 case.next_action = payload.next_action.strip() or None
@@ -668,8 +648,6 @@ def approve_suggestion(
         suggestion.reviewed_by = current_user.id
         suggestion.reviewed_at = utc_now()
 
-        # Existing pending case summaries are now stale because approved
-        # document information changes the case context.
         db.query(models.CaseAISummary).filter(
             models.CaseAISummary.case_id == case.id,
             models.CaseAISummary.status.in_(["Pending", "Approved"]),
@@ -734,8 +712,6 @@ def approve_suggestion(
         db.rollback()
         raise
 
-    # Embedding refresh is intentionally a separate operation. A failure here
-    # must not undo the already approved user changes.
     try:
         refresh_case_embedding(case=case, db=db)
     except Exception:
@@ -759,8 +735,6 @@ def approve_suggestion(
         )
         management_summary_created = True
     except Exception:
-        # Document approval must remain valid even if the follow-up AI call
-        # temporarily fails. The user can still regenerate it manually.
         db.rollback()
         logger.exception(
             "Automatic management-summary generation failed after document approval",
@@ -850,10 +824,6 @@ def _create_management_summary_record(
     )
     query_embedding = create_query_embedding(query_text)
 
-    # Management summaries do not depend on per-document ``KI analysieren``.
-    # Every indexed document linked to the case is considered directly through
-    # its document chunks. Retrieval remains permission-scoped before any
-    # evidence can be sent to the model.
     chunks = retrieve_chunks(
         db=db,
         user=user,
@@ -864,11 +834,6 @@ def _create_management_summary_record(
         limit=16,
     )
 
-    # Also retrieve a small number of candidates from each uploaded/indexed
-    # document. A single global vector ranking can otherwise be dominated by one
-    # long document and completely omit another case document. This does not
-    # send every full document to OpenAI; it makes every indexed document part
-    # of the RAG candidate set and then keeps a bounded, deduplicated context.
     per_document_chunks: list[dict] = []
     for document in documents:
         document_chunks = retrieve_chunks(
@@ -893,9 +858,6 @@ def _create_management_summary_record(
         chunks.append(item)
     chunks = chunks[:24]
 
-    # Always include chunks from the newest case document. This prevents an old
-    # but semantically similar lawyer letter from outranking a newer settlement
-    # or closure document in the management summary.
     if documents:
         newest_document = documents[0]
         newest_chunks = (
@@ -942,7 +904,6 @@ def _create_management_summary_record(
     valid_document_ids = {document.id for document in documents}
     valid_chunk_ids = {int(chunk["chunk_id"]) for chunk in chunks}
 
-    # Never persist source IDs that were not actually provided to the model.
     relevant_document_ids = list(
         dict.fromkeys(
             item.document_id
@@ -958,8 +919,6 @@ def _create_management_summary_record(
         )
     )[:8]
 
-    # If the model returned supporting chunks but omitted the document list,
-    # derive documents only from those validated chunks (not from every RAG hit).
     if not relevant_document_ids and supporting_chunk_ids:
         relevant_document_ids = list(
             dict.fromkeys(
@@ -970,9 +929,6 @@ def _create_management_summary_record(
             )
         )[:5]
 
-    # A management action must not be presented as evidence-grounded when the
-    # model did not identify any validated supporting chunk/document. Keep the
-    # generated text for human review, but make the lack of evidence explicit.
     if result.next_required_action and not supporting_chunk_ids:
         note = (
             "Für die vorgeschlagene nächste Maßnahme wurde keine konkrete "
@@ -985,10 +941,6 @@ def _create_management_summary_record(
         result.action_justification = None
         relevant_document_ids = []
 
-    # Preserve exact provenance for each generated document fact. The model may
-    # cite only chunks that were actually included in this request. Source
-    # metadata is resolved server-side so internal chunk IDs never need to be
-    # shown to users.
     chunk_by_id = {int(chunk["chunk_id"]): chunk for chunk in chunks}
     document_by_id = {document.id: document for document in documents}
     document_fact_sources: list[dict] = []
@@ -1018,17 +970,11 @@ def _create_management_summary_record(
                 "email_section": chunk.get("email_section"),
             })
 
-    # Fact-level citations are also part of the summary-wide evidence basis.
-    # Union them into the existing validated source lists without trusting any
-    # ID that was not present in the RAG context.
     fact_chunk_ids = [source["chunk_id"] for source in document_fact_sources]
     supporting_chunk_ids = list(dict.fromkeys(supporting_chunk_ids + fact_chunk_ids))[:12]
     fact_document_ids = [source["document_id"] for source in document_fact_sources]
     relevant_document_ids = list(dict.fromkeys(relevant_document_ids + fact_document_ids))[:8]
 
-    # A deadline is allowed only when it is already represented by confirmed
-    # case/task/document evidence. This prevents an unsupported date from
-    # becoming a management proposal merely because the model inferred it.
     supported_deadlines = {
         value
         for value in [case.primary_deadline, case.follow_up_date]
@@ -1049,22 +995,12 @@ def _create_management_summary_record(
         result.open_deadline = None
         result.deadline_comment = None
 
-    # Do not invent a business development from the mere fact that a file was
-    # uploaded. Prefer confirmed document evidence when the model cannot state
-    # a grounded latest development.
     if not result.latest_development:
         for item in confirmed_suggestions:
             if item.suggested_latest_development:
                 result.latest_development = item.suggested_latest_development.strip()
                 break
 
-    # A confirmed document analysis is evidence. Its risk suggestion can raise
-    # the pending case-level recommendation, but never changes the official
-    # case risk until a manager approves the management summary.
-    # confirmed_suggestions are ordered newest-first. The newest confirmed
-    # document analysis represents the current evidence and must be able to lower
-    # an older risk level after settlement/closure. Falling back to the case risk
-    # preserves current behaviour when no confirmed document risk exists.
     newest_confirmed_risk = next(
         (item.suggested_risk for item in confirmed_suggestions if item.suggested_risk),
         None,
@@ -1130,13 +1066,9 @@ def create_management_summary(
             generated_by=current_user.id,
         )
     except HTTPException:
-        # Preserve intentional FastAPI errors (403/404/etc.).
         db.rollback()
         raise
     except Exception as exc:
-        # The management-summary flow includes retrieval, OpenAI parsing,
-        # validation and persistence. Log the full traceback so deployment logs
-        # show the exact failing line instead of only an HTTP 500.
         db.rollback()
         logger.exception(
             "Management-summary creation failed for case_id=%s user_id=%s",
@@ -1245,14 +1177,10 @@ def approve_management_summary(
 
         case.management_summary = summary.short_case_summary
 
-        # Keep the blue automatic recommendation aligned with the latest
-        # approved management current-state analysis. This remains a suggestion;
-        # the official risk changes only when a Manager approves it.
         if summary.suggested_risk:
             case.suggested_risk = summary.suggested_risk
             case.suggested_risk_reason = summary.risk_comment
 
-        # Only Managers may change the official deadline or next action.
         normalized_role = _normalized_role(current_user)
         approved_risk = _payload_risk(payload)
         if approved_risk is not None and normalized_role != "Manager":
@@ -1262,8 +1190,6 @@ def approve_management_summary(
         if normalized_role == "Manager":
             approved_status = payload.status.value if payload.status is not None else None
 
-            # Closing a case is authoritative current-state information. Do not
-            # reintroduce an AI-generated action/deadline into a completed case.
             if approved_status == "Completed":
                 case.next_action = None
                 case.primary_deadline = None

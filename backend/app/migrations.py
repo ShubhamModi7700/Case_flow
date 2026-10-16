@@ -434,7 +434,6 @@ def migrate_task_assignment_fields(engine: Engine) -> None:
     with engine.begin() as connection:
         if "category" not in columns:
             connection.execute(text("ALTER TABLE tasks ADD COLUMN category VARCHAR(120)"))
-        # PostgreSQL safely widens existing VARCHAR columns.
         if "responsible_person" in columns:
             connection.execute(text("ALTER TABLE tasks ALTER COLUMN responsible_person TYPE VARCHAR(500)"))
 

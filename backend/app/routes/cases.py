@@ -75,8 +75,6 @@ def create_case(
     db.add(new_case)
     db.flush()
 
-    # Managers/shareholders may explicitly grant access. A normal employee
-    # creating a case always receives edit access to that case.
     if has_global_case_access(current_user):
         replace_case_access(db, new_case.id, case_data.access)
     else:
@@ -440,10 +438,6 @@ def update_case(
             ),
         )
 
-    # A completed case must not keep operational "next work" fields.
-    # Preserve the information in History via the generated change entries,
-    # while clearing it from the current state so dashboards do not treat the
-    # closed case as actionable.
     if update_values.get("status") == "Completed":
         update_values["next_action"] = None
         update_values["primary_deadline"] = None

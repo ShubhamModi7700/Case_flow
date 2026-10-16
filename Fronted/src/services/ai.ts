@@ -245,7 +245,7 @@ export async function confirmDocumentCaseRoute(
 
   return data;
 }
-export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline" | "brief_draft" | "brief_review" | "intelligence";
+export type AssistantTaskType = "question" | "chronology" | "evidence" | "entities" | "brief_evidence" | "brief_outline" | "brief_draft" | "brief_review" | "intelligence" | "report";
 
 export type AssistantBriefContext = {
   client: string;
@@ -443,6 +443,8 @@ export type CaseAssistantResponse = {
   chronology: AssistantChronologyEvent[];
   evidence: AssistantEvidenceLink[];
   entities: AssistantEntity[];
+  report_deadlines: { date: string | null; description: string; source_ids: string[] }[];
+  report_tasks: { description: string; responsible_person: string | null; due_date: string | null; source_ids: string[] }[];
   brief_evidence_package: AssistantBriefEvidencePackage | null;
   brief_outline: AssistantBriefOutline | null;
   brief_draft: AssistantBriefDraft | null;
@@ -463,4 +465,18 @@ export async function queryCaseAssistant(
   );
 
   return data;
+}
+
+
+export type ChatMessage = { id: number; role: "user" | "assistant"; content: string; response: CaseAssistantResponse | null };
+export async function getCaseChat(caseId: number): Promise<ChatMessage[]> {
+  const { data } = await api.get<ChatMessage[]>(`/cases/${caseId}/assistant/chat`);
+  return data;
+}
+export async function sendCaseChat(caseId: number, message: string): Promise<CaseAssistantResponse> {
+  const { data } = await api.post<CaseAssistantResponse>(`/cases/${caseId}/assistant/chat`, { message }, { timeout: AI_TIMEOUT_MS });
+  return data;
+}
+export async function clearCaseChat(caseId: number): Promise<void> {
+  await api.delete(`/cases/${caseId}/assistant/chat`);
 }

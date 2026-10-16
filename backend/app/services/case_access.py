@@ -109,7 +109,6 @@ def replace_case_access(
                 detail=f"Benutzer {user_id} ist nicht verfügbar",
             )
 
-        # Global roles do not need explicit rows.
         if has_global_case_access(user):
             continue
 

@@ -100,17 +100,12 @@ def create_signed_url(path: str, expires_in: int = 60) -> str:
     if not signed_url:
         raise RuntimeError("Supabase Storage returned no signed URL")
 
-    # Supabase can return an already complete signed URL.
     if signed_url.startswith("http://") or signed_url.startswith("https://"):
         return signed_url
 
-    # Some Supabase versions/responses already include /storage/v1.
     if signed_url.startswith("/storage/v1/"):
         return f"{SUPABASE_URL}{signed_url}"
 
-    # Common response:
-    # /object/sign/<bucket>/<object>?token=...
-    # It must be resolved below the Storage API prefix.
     if not signed_url.startswith("/"):
         signed_url = f"/{signed_url}"
 

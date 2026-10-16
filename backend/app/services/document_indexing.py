@@ -44,8 +44,6 @@ def should_ocr_image_attachment(*, file_name: str, content: bytes) -> bool:
     if any(word in name for word in DECORATIVE_IMAGE_WORDS):
         return False
 
-    # Outlook commonly names embedded signature graphics image001.png,
-    # image002.jpg, etc. Treat those as decoration by default.
     stem = Path(name).stem
     if stem.startswith("image") and stem[5:].isdigit():
         return False
@@ -146,8 +144,6 @@ def _prepare_extracted_document(
             file_name=attachment_name,
             content=attachment.content,
         ):
-            # Decorative email images are intentionally ignored. Do not show
-            # them as processing errors/warnings because this is expected.
             continue
 
         try:
@@ -230,8 +226,6 @@ def index_document(*, document: models.Document, db: Session) -> None:
         document.embedding_status = "Ready"
         document.chunk_count = len(prepared)
         document.processed_at = utc_now()
-        # Keep non-fatal attachment extraction warnings visible without marking
-        # the whole parent email as failed.
         document.processing_error = (
             "Warnungen bei der Anhangsverarbeitung: " + " | ".join(warnings[:20])
             if warnings

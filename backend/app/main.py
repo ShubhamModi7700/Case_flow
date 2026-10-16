@@ -34,8 +34,6 @@ def _allowed_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Never run migrations, create tables, or seed users during Vercel startup.
-    # Multiple Vercel instances may start concurrently.
     yield
 
 

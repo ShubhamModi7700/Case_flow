@@ -72,7 +72,6 @@ def response_from_snapshot(
 ) -> schemas.AssistantCaseIntelligenceResponse:
     return schemas.AssistantCaseIntelligenceResponse(
         intelligence=schemas.AssistantCaseIntelligence.model_validate(snapshot.intelligence_json),
-        # Workflow state is operational data, so always expose the current DB value.
         work_status=current_work_status,
         sources=[schemas.AssistantSource.model_validate(item) for item in (snapshot.sources_json or [])],
         freshness=schemas.AssistantCaseIntelligenceFreshness(

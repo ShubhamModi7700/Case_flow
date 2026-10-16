@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   queryCaseAssistant,
+  getCaseChat, sendCaseChat, clearCaseChat, type ChatMessage,
   getCaseAssistantWorkStatus,
   getCaseAssistantIntelligence,
   type AssistantBriefContext,
@@ -547,6 +548,28 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
 
 export default function CaseAssistant({ caseId }: Props) {
   const [question, setQuestion] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatText, setChatText] = useState("");
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    setChatHistory([]);
+    getCaseChat(caseId).then((rows) => { if (alive) setChatHistory(rows); }).catch(() => { if (alive) setChatError("Chatverlauf konnte nicht geladen werden."); });
+    return () => { alive = false; };
+  }, [caseId]);
+  async function sendChat(): Promise<void> {
+    const message = chatText.trim();
+    if (message.length < 2 || chatLoading) return;
+    setChatLoading(true); setChatError("");
+    try {
+      await sendCaseChat(caseId, message);
+      setChatText("");
+      setChatHistory(await getCaseChat(caseId));
+    } catch (e) { setChatError(errorMessage(e)); }
+    finally { setChatLoading(false); }
+  }
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -718,12 +741,14 @@ export default function CaseAssistant({ caseId }: Props) {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
+        <button type="button" onClick={() => { setChatOpen(true); setResult(null); setIntelligence(null); setWorkStatus(null); setShowBriefForm(false); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">KI-Chat</button>
+        <button type="button" disabled={loading || intelligenceLoading} onClick={() => { setChatOpen(false); void submit("report", "Erstelle einen umfassenden belegten Fallbericht mit Kurzüberblick, Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
         {QUICK_ACTIONS.map((action) => (
           <button
             key={action.type}
             type="button"
             disabled={loading || intelligenceLoading || workStatusLoading}
-            onClick={() => { setShowBriefForm(false); void submit(action.type, action.question); }}
+            onClick={() => { setChatOpen(false); setShowBriefForm(false); void submit(action.type, action.question); }}
             className={`rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTask === action.type && result?.task_type === action.type
                 ? "border-slate-900 bg-slate-900 text-white"
@@ -736,7 +761,7 @@ export default function CaseAssistant({ caseId }: Props) {
         <button
           type="button"
           disabled={loading || intelligenceLoading || workStatusLoading}
-          onClick={() => { setShowBriefForm(false); void loadIntelligence(intelligence?.freshness?.status === "outdated"); }}
+          onClick={() => { setChatOpen(false); setShowBriefForm(false); void loadIntelligence(intelligence?.freshness?.status === "outdated"); }}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
         >
           {intelligenceLoading
@@ -748,7 +773,7 @@ export default function CaseAssistant({ caseId }: Props) {
         <button
           type="button"
           disabled={loading || intelligenceLoading || workStatusLoading}
-          onClick={() => { setShowBriefForm(false); void loadWorkStatus(); }}
+          onClick={() => { setChatOpen(false); setShowBriefForm(false); void loadWorkStatus(); }}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
         >
           {workStatusLoading ? "Arbeitsstand wird geladen..." : "Fristen & Aufgaben"}
@@ -756,7 +781,7 @@ export default function CaseAssistant({ caseId }: Props) {
         <button
           type="button"
           disabled={loading}
-          onClick={() => setShowBriefForm((value) => !value)}
+          onClick={() => { setChatOpen(false); setShowBriefForm((value) => !value); }}
           className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
             showBriefForm ? "border-violet-700 bg-violet-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
           }`}
@@ -765,6 +790,13 @@ export default function CaseAssistant({ caseId }: Props) {
         </button>
       </div>
 
+      {chatOpen && <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">KI-Chat · Gespräch zum Fall</h3><button type="button" className="text-xs text-slate-500 underline" onClick={async () => { if (!window.confirm("Eigenen Chatverlauf dieses Falls löschen?")) return; try { await clearCaseChat(caseId); setChatHistory([]); } catch (e) { setChatError(errorMessage(e)); } }}>Verlauf löschen</button></div>
+        <p className="mb-3 text-xs text-slate-500">Persönlicher, gespeicherter Verlauf. Antworten basieren auf aktuell freigegebenen Falldokumenten. KI-Ausgaben sind nicht freigegeben.</p>
+        <div className="max-h-96 space-y-3 overflow-y-auto">{chatHistory.map((turn) => <div key={turn.id} className={`rounded-lg p-3 text-sm ${turn.role === "user" ? "ml-8 bg-slate-100" : "mr-8 border border-slate-200 bg-white"}`}><div className="mb-1 text-xs font-semibold">{turn.role === "user" ? "Sie" : "Case Flow"}</div><p className="whitespace-pre-wrap">{turn.content}</p>{turn.response && <details className="mt-2 text-xs"><summary className="cursor-pointer">Dokumentquellen ({turn.response.sources.length})</summary>{turn.response.sources.map((source) => <div key={source.source_id} className="mt-1">[{source.source_id}] {source.filename}{source.page_number ? ` · Seite ${source.page_number}` : ""}</div>)}</details>}</div>)}</div>
+        {chatError && <p className="mt-2 text-sm text-red-700">{chatError}</p>}
+        <form className="mt-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); void sendChat(); }}><input className="min-w-0 flex-1 rounded-lg border border-slate-300 p-2 text-sm" value={chatText} onChange={(event) => setChatText(event.target.value)} placeholder="Stellen Sie eine Folgefrage..."/><button type="submit" disabled={chatLoading || chatText.trim().length < 2} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">{chatLoading ? "Antwort läuft..." : "Senden"}</button></form>
+      </div>}
       {showBriefForm && (
         <div className="mb-4 rounded-xl border border-violet-200 bg-white p-4">
           <div className="mb-3">
@@ -824,7 +856,7 @@ export default function CaseAssistant({ caseId }: Props) {
         </div>
       )}
 
-      {!showBriefForm && <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      {!showBriefForm && !chatOpen && <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
       <label className="mb-2 block text-sm font-semibold text-slate-800">Frage zum Fall</label>
       <textarea
         value={question}
@@ -882,6 +914,22 @@ export default function CaseAssistant({ caseId }: Props) {
             <BriefReviewView item={result.brief_review} sourcesById={sourcesById} />
           )}
 
+          {result.task_type === "report" && <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
+            <div><h3 className="text-xl font-semibold">Fallbericht</h3><p className="mt-1 text-xs text-amber-700">KI-Entwurf · fachliche Prüfung erforderlich · keine automatische Freigabe</p></div>
+            <div><h4 className="font-semibold">1. Kurzüberblick</h4><p className="mt-2 whitespace-pre-wrap text-sm leading-7">{result.answer || "Keine belegten Angaben gefunden."}</p></div>
+            <div><h4 className="mb-2 font-semibold">2. Chronologie</h4>{result.chronology.length ? <ChronologyView items={result.chronology} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Ereignisse gefunden.</p>}</div>
+            <div><h4 className="mb-2 font-semibold">3. Beweismittel und Beweiswert</h4>{result.evidence.length ? <EvidenceOverview items={result.evidence} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Angaben gefunden.</p>}</div>
+            <div><h4 className="mb-2 font-semibold">4. Personen & Rollen</h4>{result.entities.length ? <EntitiesView items={result.entities} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Rollen gefunden.</p>}</div>
+            <div><h4 className="mb-2 font-semibold">5. Fristen & Aufgaben</h4>
+              <h5 className="mb-1 text-sm font-medium">Dokumentierte Fristen und Termine</h5>
+              {result.report_deadlines?.length ? <ul className="list-disc space-y-2 pl-5 text-sm">{result.report_deadlines.map((item, i) => <li key={i}><strong>{item.date || "Datum offen"}</strong>: {item.description} <span className="text-slate-500">({item.source_ids.join(", ")})</span></li>)}</ul> : <p className="text-sm text-slate-500">Keine belegten Fristen gefunden.</p>}
+              <h5 className="mb-1 mt-3 text-sm font-medium">Dokumentierte Aufgaben und Vereinbarungen</h5>
+              {result.report_tasks?.length ? <ul className="list-disc space-y-2 pl-5 text-sm">{result.report_tasks.map((item, i) => <li key={i}>{item.description}{item.responsible_person ? ` · Zuständig: ${item.responsible_person}` : ""}{item.due_date ? ` · Bis: ${item.due_date}` : ""} <span className="text-slate-500">({item.source_ids.join(", ")})</span></li>)}</ul> : <p className="text-sm text-slate-500">Keine belegten Aufgaben gefunden.</p>}
+              <p className="mt-2 text-xs text-slate-500">Dieser Abschnitt zeigt dokumentierte Angaben, nicht automatisch die aktuellen Aufgaben aus der Fall-Datenbank.</p>
+            </div>
+            <div><h4 className="mb-2 font-semibold">6. Widersprüche</h4>{result.contradictions.length ? <EvidenceList items={result.contradictions} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Widersprüche identifiziert.</p>}</div>
+            <div><h4 className="mb-2 font-semibold">7. Offene Fragen und fehlende Nachweise</h4>{result.missing_information.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{result.missing_information.map((item, i) => <li key={i}>{item}</li>)}</ul> : <p className="text-sm text-slate-500">Keine weiteren offenen Punkte identifiziert.</p>}</div>
+          </section>}
           {result.task_type === "chronology" && <ChronologyView items={result.chronology} sourcesById={sourcesById} />}
           {result.task_type === "evidence" && <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />}
           {result.task_type === "entities" && <EntitiesView items={result.entities} sourcesById={sourcesById} />}
@@ -904,7 +952,7 @@ export default function CaseAssistant({ caseId }: Props) {
             </details>
           )}
 
-          {result.task_type !== "question" && result.answer?.trim() && (
+          {result.task_type !== "question" && result.task_type !== "report" && result.answer?.trim() && (
             <details className="rounded-xl border border-slate-200 bg-white">
               <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-700">
                 Zusätzliche KI-Erläuterung anzeigen
@@ -915,14 +963,14 @@ export default function CaseAssistant({ caseId }: Props) {
 
           <SourcesDisclosure sources={result.sources} />
 
-          {result.contradictions.length > 0 && (
+          {result.task_type !== "report" && result.contradictions.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
               <h3 className="mb-2 text-sm font-semibold text-amber-900">Widersprüche</h3>
               <EvidenceList items={result.contradictions} sourcesById={sourcesById} />
             </div>
           )}
 
-          {result.missing_information.length > 0 && (
+          {result.task_type !== "report" && result.missing_information.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h3 className="text-sm font-semibold text-slate-900">Fehlende Informationen</h3>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">

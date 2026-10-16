@@ -161,9 +161,6 @@ def generate_management_summary(
 
     result = _clean_result(_parse_management_summary(context))
 
-    # The two fields have opposite temporal purposes. If the first answer makes
-    # them too similar, ask once for a targeted rewrite instead of showing a
-    # confusing duplicate to management.
     overlap = _semantic_overlap(
         result.latest_development,
         result.next_required_action,
@@ -184,9 +181,6 @@ def generate_management_summary(
             result.next_required_action,
         )
 
-    # If a second model pass still cannot separate past evidence from future
-    # action, do not persist a misleading duplicate. Keep the confirmed past
-    # development and leave the action empty for human review/regeneration.
     if overlap >= 0.65:
         result.uncertainty_notes.append(
             "Letzte Entwicklung und nächste Maßnahme konnten nicht ausreichend "

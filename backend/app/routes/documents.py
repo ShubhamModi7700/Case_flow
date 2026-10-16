@@ -56,7 +56,6 @@ def _safe_storage_filename(file_name: str) -> str:
     suffix = path.suffix.lower()
     stem = path.stem or "document"
 
-    # German umlauts are more readable when transliterated explicitly.
     stem = (
         stem.replace("Ä", "Ae")
         .replace("Ö", "Oe")
@@ -70,12 +69,10 @@ def _safe_storage_filename(file_name: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem)
     stem = re.sub(r"_+", "_", stem).strip("._-") or "document"
 
-    # Keep Storage keys compact while preserving the extension.
     stem = stem[:120].rstrip("._-") or "document"
     safe_suffix = re.sub(r"[^a-z0-9.]", "", suffix)[:16]
     return f"{stem}{safe_suffix}"
 
-# Version 1 supported formats:
 # PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Email (EML/MSG)
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
@@ -561,8 +558,6 @@ def confirm_document_case_route(
         db.add(new_case)
         db.flush()
 
-        # Keep document-driven case creation consistent with manual case creation:
-        # the responsible employee/creator receives edit access automatically.
         ensure_responsible_access(
             db,
             case_id=new_case.id,

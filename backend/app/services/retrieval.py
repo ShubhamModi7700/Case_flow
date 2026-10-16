@@ -75,9 +75,6 @@ def retrieve_chunks(
         ):
             raise ValueError("Das Dokument gehört nicht zum angeforderten Fall.")
 
-    # Do not call the legacy global match_document_chunks() RPC here. Keeping
-    # the ACL inside this vector query guarantees that unauthorized rows are
-    # filtered before ranking/limiting, not after retrieval.
     statement = text(
         """
         select

@@ -79,8 +79,6 @@ def dashboard_summary(
 
     visible_case_ids = visible_cases().with_entities(models.Case.id).subquery()
 
-    # Keep cockpit deadline KPIs consistent with the Handlungsbedarf list:
-    # both are based on the confirmed case-level primary_deadline.
     overdue_deadlines = (
         visible_cases()
         .filter(
@@ -168,9 +166,6 @@ def dashboard_summary(
         .all()
     )
 
-    # Management cockpit: one compact, prioritised list instead of making
-    # managers interpret several independent KPI tiles.  The list is based
-    # only on confirmed case fields; AI suggestions remain human-in-the-loop.
     attention_candidates = (
         visible_cases()
         .filter(*active_case_filters)

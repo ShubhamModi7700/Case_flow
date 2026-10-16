@@ -198,7 +198,6 @@ class Task(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String(120), nullable=True, index=True)
-    # May contain one or multiple comma-separated responsible people.
     responsible_person = Column(String(500), nullable=True)
 
     due_date = Column(Date, nullable=True)
@@ -232,8 +231,6 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # Documents are independent records. They can be linked to a case now,
-    # assigned later, or unlinked again without deleting the stored file.
     case_id = Column(
         Integer,
         ForeignKey("cases.id", ondelete="SET NULL"),
@@ -492,3 +489,15 @@ class CaseAISummary(Base):
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AssistantChatMessage(Base):
+    """Private per-user, per-case conversation messages. Never share across users."""
+    __tablename__ = "assistant_chat_messages"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(16), nullable=False)
+    content = Column(Text, nullable=False)
+    response_json = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)

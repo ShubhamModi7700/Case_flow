@@ -15,7 +15,6 @@ Grundregeln für Case Flow:
 
 HUMAN_REVIEW_RULE = "KI-Ausgaben sind Entwürfe/Vorschläge und müssen vor fachlicher Verwendung menschlich geprüft werden."
 
-# Compatibility aliases for existing imports/tests.
 EVIDENCE_GROUNDING_RULES = CORE_RULES
 SOURCE_CITATION_RULES = "Nutze nur bereitgestellte Quellen-IDs für tatsächlich gestützte Aussagen; erfinde keine Quellen oder Metadaten."
 HUMAN_REVIEW_RULES = HUMAN_REVIEW_RULE

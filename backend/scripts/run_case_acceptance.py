@@ -51,7 +51,6 @@ def _public_source_record(source: Any) -> dict[str, Any]:
 
 def _source_ids_from_response(response: schemas.CaseAssistantResponse) -> set[str]:
     from app.services.ai_audit import referenced_source_ids
-    # CaseAssistantResponse extends the model answer, so the audit helper can validate it.
     return referenced_source_ids(response)
 
 
@@ -74,7 +73,6 @@ def run(*, case_id: int, user_id: int, query: str, task_type: TaskType,
         require_case_view(db, user, case_id)
 
         if retrieval_only:
-            # Mirror the route's retrieval input exactly (including task-specific query expansion).
             request_text = build_task_request_text(question=query, task_type=task_type, brief_context=None)
             chunks = retrieve_case_evidence(
                 db=db, user=user, case_id=case_id, question=request_text,
@@ -97,8 +95,6 @@ def run(*, case_id: int, user_id: int, query: str, task_type: TaskType,
 
             before_id = db.query(models.AIQueryLog.id).order_by(models.AIQueryLog.id.desc()).limit(1).scalar() or 0
             payload = schemas.CaseAssistantQueryRequest(question=query, task_type=task_type)
-            # Call the exact same application route function used by the frontend. This exercises
-            # ACL -> audit log -> retrieval -> source audit -> OpenAI -> citation validation -> completion.
             response = query_case_assistant(case_id=case_id, payload=payload, db=db, current_user=user)
             safe_sources = [_public_source_record(s) for s in response.sources]
             model_ids = _source_ids_from_response(response)

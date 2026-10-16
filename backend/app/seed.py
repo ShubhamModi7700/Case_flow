@@ -80,7 +80,6 @@ def create_users() -> None:
                 user.full_name = user_data["full_name"]
                 user.role = user_data["role"]
                 user.is_active = True
-                # Keep existing passwords unchanged when the application restarts.
                 updated += 1
 
         db.commit()

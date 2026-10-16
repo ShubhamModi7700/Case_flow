@@ -567,9 +567,16 @@ class AssistantBriefContext(BaseModel):
     additional_instructions: str | None = Field(default=None, max_length=3000)
 
 
+class ChatMessagePublic(BaseModel):
+    id: int
+    role: Literal["user", "assistant"]
+    content: str
+    response: dict | None = None
+
+
 class CaseAssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=5000)
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"] = "question"
     brief_context: AssistantBriefContext | None = None
 
 
@@ -581,6 +588,19 @@ class AssistantEvidenceStatement(BaseModel):
 class AssistantChronologyEvent(BaseModel):
     date: str | None = None
     event: str
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantReportDeadline(BaseModel):
+    date: str | None = None
+    description: str
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantReportTask(BaseModel):
+    description: str
+    responsible_person: str | None = None
+    due_date: str | None = None
     source_ids: list[str] = Field(default_factory=list)
 
 
@@ -700,6 +720,8 @@ class CaseAssistantModelAnswer(BaseModel):
     chronology: list[AssistantChronologyEvent] = Field(default_factory=list)
     evidence: list[AssistantEvidenceLink] = Field(default_factory=list)
     entities: list[AssistantEntity] = Field(default_factory=list)
+    report_deadlines: list[AssistantReportDeadline] = Field(default_factory=list)
+    report_tasks: list[AssistantReportTask] = Field(default_factory=list)
     brief_evidence_package: AssistantBriefEvidencePackage | None = None
     brief_outline: AssistantBriefOutline | None = None
     brief_draft: AssistantBriefDraft | None = None
@@ -708,7 +730,7 @@ class CaseAssistantModelAnswer(BaseModel):
 
 
 class CaseAssistantResponse(CaseAssistantModelAnswer):
-    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"] = "question"
+    task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 
 
@@ -824,8 +846,6 @@ class ManagementSummaryAnalysis(BaseModel):
     next_required_action: str | None = None
     open_deadline: date | None = None
     deadline_comment: str | None = None
-    # Current-state fields are mandatory so a management generation can never
-    # silently fall back to the historical case risk/status.
     suggested_risk: RiskLevel
     risk_comment: str
     suggested_status: CaseStatus

@@ -12,7 +12,7 @@ from app.services.retrieval import retrieve_chunks
 from app.prompts.case_assistant import CASE_ASSISTANT_PROMPT_VERSION, BASE_SYSTEM_PROMPT, TASK_PROMPTS
 
 
-TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"]
+TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"]
 
 def retrieval_question(question: str, task_type: TaskType) -> str:
     if task_type == "chronology":
@@ -24,7 +24,7 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
         return f"{question}\n\nBeleg, Beweis, Nachweis, Dokumentstelle, Bestätigung, Widerspruch"
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
-    if task_type == "intelligence":
+    if task_type in {"intelligence", "report"}:
         return (f"{question}\n\nSchlüsseltatsachen, Chronologie, Beteiligte, Rollen, Beweismittel, "
                 "Widersprüche, Informationslücken, offene Fragen, aktueller Sachstand")
     if task_type in {"brief_evidence", "brief_outline", "brief_draft", "brief_review"}:
@@ -44,11 +44,7 @@ def retrieve_case_evidence(
     task_type: TaskType = "question",
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    # An evidence inventory is broader than a factual question. A single
-    # embedding of "which claims have evidence?" often matches no document,
-    # even when the case has indexed contracts, invoices and correspondence.
-    # Use several bounded, complementary searches within the SAME authorized
-    # case scope. Never broaden to another case or unassigned documents.
+
     if task_type == "evidence":
         search_texts = (
             "Vertrag Angebot Rechnung Zahlung Ablöse Betrag Kosten Vereinbarung",
@@ -67,8 +63,6 @@ def retrieve_case_evidence(
                 if previous is None or float(chunk["similarity"]) > float(previous["similarity"]):
                     candidates[chunk_id] = chunk
 
-        # Round-robin across documents prevents one long document from
-        # crowding out all other evidence. Cap the model context at 30 chunks.
         by_document: dict[int, list[dict[str, Any]]] = {}
         for chunk in candidates.values():
             by_document.setdefault(int(chunk["document_id"]), []).append(chunk)
@@ -86,8 +80,8 @@ def retrieve_case_evidence(
         return selected
 
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
-    task_limit = limit if limit is not None else (35 if task_type == "intelligence" else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20))
-    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence"} else 0.40
+    task_limit = limit if limit is not None else (35 if task_type in {"intelligence", "report"} else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20))
+    task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"} else 0.40
     return retrieve_chunks(
         db=db,
         user=user,
@@ -201,7 +195,6 @@ def validate_answer_sources(
     for item in result.evidence:
         item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
         if item.source_ids:
-            # A source ID is necessary but does not itself verify semantic support.
             if item.evidence_status == "direct" and not item.evidence_reason:
                 item.evidence_status = "insufficient"
                 item.limitations.append("Eine konkrete Begründung der direkten Belegwirkung fehlt.")
@@ -220,6 +213,24 @@ def validate_answer_sources(
                 f"Entität ohne gültigen Beleg: {entity.name}"
             )
     result.entities = valid_entities
+
+    valid_deadlines = []
+    for item in result.report_deadlines:
+        item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+        if item.source_ids:
+            valid_deadlines.append(item)
+        else:
+            unsupported.append(item.description)
+    result.report_deadlines = valid_deadlines
+
+    valid_tasks = []
+    for item in result.report_tasks:
+        item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+        if item.source_ids:
+            valid_tasks.append(item)
+        else:
+            unsupported.append(item.description)
+    result.report_tasks = valid_tasks
 
     package = result.brief_evidence_package
     if package is not None:

@@ -66,9 +66,6 @@ def extract_pdf(
                 )
             )
 
-    # A scan can occasionally contain only a tiny text layer (for example a
-    # scanner watermark or page number). Treat that as insufficient and use
-    # the PDF vision fallback as well.
     extracted_character_count = sum(len(section.text) for section in sections)
     if extracted_character_count >= 50:
         return ExtractedDocument(

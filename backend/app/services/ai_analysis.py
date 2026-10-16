@@ -114,9 +114,6 @@ def analyze_document_context(context: str) -> schemas.DocumentAIAnalysis:
 
     overlap = _semantic_overlap(result.latest_development, result.proposed_next_action)
 
-    # Repair the source-level evidence before it can propagate into the case-level
-    # management summary. Containment catches paraphrases where one field embeds
-    # most of the content of the other even when the raw strings differ.
     if overlap >= 0.55:
         correction = (
             "Die Felder 'latest_development' und 'proposed_next_action' überlappen "
@@ -144,8 +141,6 @@ def analyze_document_context(context: str) -> schemas.DocumentAIAnalysis:
         overlap = _semantic_overlap(result.latest_development, result.proposed_next_action)
 
     if overlap >= 0.65:
-        # Prefer missing data over misleading duplication. The management layer can
-        # still derive an action from the remaining confirmed evidence later.
         result.uncertainty_notes.append(
             "Letzte Entwicklung und nächste Maßnahme konnten nicht ausreichend "
             "getrennt werden; die nächste Maßnahme wurde deshalb nicht übernommen."

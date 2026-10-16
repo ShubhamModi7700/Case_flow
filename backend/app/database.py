@@ -9,16 +9,12 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 
-# database.py is inside backend/app/
-# Therefore parent.parent is backend/
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 ENV_FILE = BACKEND_DIR / ".env"
 
 print(f"Loading environment from: {ENV_FILE}")
 print(f".env exists: {ENV_FILE.exists()}")
 
-# override=True ensures values from this file replace any old/empty
-# DATABASE_URL already present in the process environment.
 loaded = load_dotenv(
     dotenv_path=ENV_FILE,
     override=False,
@@ -56,7 +52,6 @@ def get_database_url() -> str:
             "DATABASE_URL does not contain a database hostname."
         )
 
-    # Safe diagnostic: does not print the password.
     print(
         "Database configuration loaded:",
         f"driver={parsed_url.drivername}, "

@@ -13,7 +13,6 @@ from app.prompts.management import MANAGEMENT_PROMPT_VERSION
 def test_case_assistant_uses_compact_shared_contract():
     assert CORE_RULES in BASE_SYSTEM_PROMPT
 
-    # Critical grounding requirements must survive prompt compression.
     assert "erfinde nichts" in CORE_RULES.casefold()
     assert "Nutzerangaben" in CORE_RULES
     assert "bereitgestellte" in CORE_RULES
@@ -37,8 +36,6 @@ def test_all_case_assistant_tasks_keep_specialized_instructions():
 
 
 def test_task_prompts_remain_compact():
-    # Task prompts should describe only task-specific behavior.
-    # Shared grounding rules belong in CORE_RULES.
     for task, prompt in TASK_PROMPTS.items():
         assert len(prompt.strip()) < 1000, (
             f"{task} prompt became unexpectedly large"

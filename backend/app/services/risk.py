@@ -162,7 +162,6 @@ def calculate_case_risk(
             reason="Der Fall ist abgeschlossen.",
         )
 
-    # Deadline rules
     if (
         case.primary_deadline
         and case.primary_deadline < today
@@ -192,7 +191,6 @@ def calculate_case_risk(
             "Die Hauptfrist liegt innerhalb der nächsten sieben Tage.",
         )
 
-    # Text-based rules
     case_text = build_case_text(case)
 
     resolution_terms = (
@@ -218,9 +216,6 @@ def calculate_case_risk(
     has_resolution_signal = any(term in case_text for term in resolution_terms)
     has_live_escalation = any(term in case_text for term in live_escalation_terms)
 
-    # A stored Critical status can itself be stale after a newer settlement.
-    # Do not let the old status permanently force High. It only remains a
-    # current High signal when there is live escalation in the present state.
     if case.status == "Critical":
         if has_resolution_signal and not has_live_escalation:
             add_reason(
@@ -273,16 +268,12 @@ def calculate_case_risk(
             "Der Fall enthält Hinweise auf möglichen Handlungsbedarf.",
         )
 
-    # Employment-law category alone is not a High-risk signal.
-    # It can justify additional attention, but current exposure must come from
-    # deadlines, active disputes, non-performance or other live evidence.
     if case.category == "Employee":
         add_reason(
             medium_reasons,
             "Der Fall betrifft einen Mitarbeiter- bzw. arbeitsrechtlichen Sachverhalt.",
         )
 
-    # Responsible person
     if not (
         case.responsible_person or ""
     ).strip():
@@ -291,7 +282,6 @@ def calculate_case_risk(
             "Es ist keine verantwortliche Person zugewiesen.",
         )
 
-    # Next action
     if (
         case.primary_deadline
         and not (
@@ -314,7 +304,6 @@ def calculate_case_risk(
             "Es ist keine nächste Maßnahme definiert.",
         )
 
-    # Overdue tasks
     overdue_tasks = [
         task
         for task in case.tasks
@@ -334,7 +323,6 @@ def calculate_case_risk(
             ),
         )
 
-    # Financial exposure
     financial_amount = normalize_financial_amount(
         getattr(
             case,

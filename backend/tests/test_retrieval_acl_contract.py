@@ -19,8 +19,6 @@ def test_chunk_retrieval_embeds_acl_in_vector_query():
     assert "order by dc.embedding" in source
     assert "limit :match_count" in source
 
-    # Regression guard: do not reintroduce the old global RPC followed by
-    # application-side filtering.
     assert "match_document_chunks(" not in source
 
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -36,8 +37,7 @@ def get_case_work_status(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    # Step 12 is structured workflow data, not generative AI. Enforce the same
-    # case permission before reading the case or its tasks.
+
     require_case_view(db, current_user, case_id)
 
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
@@ -63,7 +63,7 @@ def get_case_intelligence(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    # ACL is enforced before any document/task retrieval or model call.
+   
     require_case_view(db, current_user, case_id)
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if case is None:
@@ -102,9 +102,7 @@ def query_case_assistant(
         brief_context=payload.brief_context,
     )
 
-    # Manager requirement: every AI request must be auditable. Persist the
-    # request before retrieval starts. If this fails, do not continue to RAG or
-    # OpenAI, otherwise an unlogged AI request could occur.
+
     try:
         audit_query = create_ai_query_log(
             db=db,
@@ -133,8 +131,6 @@ def query_case_assistant(
         )
         sources = build_sources(chunks)
 
-        # These are exactly the authorized evidence chunks that are about to be
-        # supplied to the model. Commit them before the OpenAI call.
         record_ai_query_sources(
             db=db,
             query=audit_query,
@@ -172,3 +168,41 @@ def query_case_assistant(
         task_type=payload.task_type,
         sources=public_sources(sources),
     )
+
+
+class ChatTurnRequest(BaseModel):
+    message: str = Field(min_length=2, max_length=5000)
+
+
+@router.get("/cases/{case_id}/assistant/chat", response_model=list[schemas.ChatMessagePublic])
+def get_chat_history(case_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_case_view(db, current_user, case_id)
+    rows = (db.query(models.AssistantChatMessage)
+            .filter_by(case_id=case_id, user_id=current_user.id)
+            .order_by(models.AssistantChatMessage.id.asc()).limit(200).all())
+    return [schemas.ChatMessagePublic(id=r.id, role=r.role, content=r.content, response=r.response_json) for r in rows]
+
+
+@router.delete("/cases/{case_id}/assistant/chat", status_code=204)
+def clear_chat_history(case_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_case_view(db, current_user, case_id)
+    (db.query(models.AssistantChatMessage)
+     .filter_by(case_id=case_id, user_id=current_user.id).delete(synchronize_session=False))
+    db.commit()
+
+
+@router.post("/cases/{case_id}/assistant/chat", response_model=schemas.CaseAssistantResponse)
+def chat_case_assistant(case_id: int, payload: ChatTurnRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_case_view(db, current_user, case_id)
+    previous = (db.query(models.AssistantChatMessage)
+                .filter_by(case_id=case_id, user_id=current_user.id)
+                .order_by(models.AssistantChatMessage.id.desc()).limit(8).all())
+    context = "\n".join(f"{row.role}: {row.content[:900]}" for row in reversed(previous))
+    contextual_question = (f"Bisheriger Dialog (nur Kontext, keine Belege):\n{context}\n\nAktuelle Frage: {payload.message}"
+                           if context else payload.message)[:5000]
+    
+    result = query_case_assistant(case_id, schemas.CaseAssistantQueryRequest(question=contextual_question, task_type="question"), db, current_user)
+    db.add(models.AssistantChatMessage(case_id=case_id, user_id=current_user.id, role="user", content=payload.message))
+    db.add(models.AssistantChatMessage(case_id=case_id, user_id=current_user.id, role="assistant", content=result.answer, response_json=result.model_dump(mode="json")))
+    db.commit()
+    return result
