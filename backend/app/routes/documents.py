@@ -73,7 +73,6 @@ def _safe_storage_filename(file_name: str) -> str:
     safe_suffix = re.sub(r"[^a-z0-9.]", "", suffix)[:16]
     return f"{stem}{safe_suffix}"
 
-# PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Email (EML/MSG)
 ALLOWED_CONTENT_TYPES = {
     "application/pdf",
     "application/msword",
