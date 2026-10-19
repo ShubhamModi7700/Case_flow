@@ -758,8 +758,7 @@ export default function CaseAssistant({ caseId }: Props) {
         <section aria-label="KI-Chat" className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
             <div>
-              <h3 className="font-semibold text-slate-900">KI-Chat · Gespräch zum Fall</h3>
-              <p className="mt-1 text-xs text-slate-500">Persönlicher Verlauf je Benutzer und Fall · KI-Ausgaben müssen geprüft werden.</p>
+              <h3 className="font-semibold text-slate-900">KI-Chat</h3>
             </div>
             <button type="button" disabled={chatLoading || chatHistoryLoading || chatHistory.length === 0} className="text-xs text-slate-600 underline disabled:opacity-40" onClick={async () => {
               if (!window.confirm("Eigenen Chatverlauf dieses Falls dauerhaft löschen?")) return;
