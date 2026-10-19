@@ -160,6 +160,25 @@ function ReportTable({ headers, rows }: { headers: string[]; rows: React.ReactNo
   </div>;
 }
 
+const financeGroups = [
+  { key: "invoice", label: "Rechnungen und Forderungen" },
+  { key: "recurring", label: "Wiederkehrende Entgelte" },
+  { key: "cost", label: "Weitere Kosten" },
+  { key: "offer", label: "Angebote und Alternativen" },
+  { key: "credit", label: "Gutschriften" },
+  { key: "payment", label: "Nachgewiesene Zahlungen" },
+  { key: "other", label: "Sonstige / nicht eindeutig zugeordnet" },
+] as const;
+
+function deadlineSortKey(value: string | null): string {
+  if (!value) return "9999-12-31";
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (iso) return value.trim();
+  const german = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(value.trim());
+  if (german) return `${german[3]}-${german[2].padStart(2, "0")}-${german[1].padStart(2, "0")}`;
+  return "9999-12-31";
+}
+
 function ReportChronologyTable({ items, sourcesById }: { items: AssistantChronologyEvent[]; sourcesById: Map<string, AssistantSource> }) {
   return <ReportTable headers={["Datum", "Ereignis", "Bedeutung", "Nachweise"]} rows={items.map((item) => [item.date || "Datum nicht belegt", item.event, item.significance || "Nicht gesondert bewertet", <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} />;
 }
@@ -577,9 +596,9 @@ export default function CaseAssistant({ caseId }: Props) {
       .finally(() => { if (alive) setChatHistoryLoading(false); });
     return () => { alive = false; };
   }, [caseId, chatReloadKey]);
-  async function sendChat(): Promise<void> {
-    const message = chatText.trim();
-    if (message.length < 2 || chatLoading) return;
+  async function sendChat(explicitMessage?: string): Promise<void> {
+    const message = (explicitMessage ?? chatText).trim();
+    if (message.length < 2 || chatLoading || chatHistoryLoading) return;
     setChatLoading(true); setChatError("");
     try {
       await sendCaseChat(caseId, message);
@@ -797,14 +816,13 @@ export default function CaseAssistant({ caseId }: Props) {
               catch (error) { setChatError(errorMessage(error)); }
             }}>Verlauf löschen</button>
           </header>
-          <div role="log" aria-label="Chatverlauf" aria-live="polite" className="max-h-[520px] min-h-[260px] space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
+          <div role="log" aria-label="Chatverlauf" aria-live="polite" className="max-h-[520px] min-h-[190px] space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
             {chatHistoryLoading && <p className="text-sm text-slate-500">Chatverlauf wird geladen...</p>}
-            {!chatHistoryLoading && chatHistory.length === 0 && <div className="mx-auto max-w-lg py-8 text-center">
-              <div className="text-lg font-semibold text-slate-900">Wie kann ich Ihnen bei diesem Fall helfen?</div>
-              <p className="mt-2 text-sm text-slate-500">Stellen Sie Fragen zu freigegebenen Falldokumenten. Folgefragen berücksichtigen den bisherigen Gesprächsverlauf.</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
-                {["Erstelle eine Chronologie des Falls.", "Welche Zahlungen sind noch ungeklärt?", "Welche Nachweise fehlen?"].map((suggestion) => (
-                  <button key={suggestion} type="button" onClick={() => setChatText(suggestion)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100">{suggestion}</button>
+            {!chatHistoryLoading && chatHistory.length === 0 && <div className="mx-auto max-w-lg py-4 text-center">
+              <div className="text-base font-semibold text-slate-900">Wie kann ich Ihnen helfen?</div>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {["Welche Zahlungen sind noch ungeklärt?", "Welche Nachweise fehlen?"].map((suggestion) => (
+                  <button key={suggestion} type="button" disabled={chatLoading} onClick={() => void sendChat(suggestion)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">{suggestion}</button>
                 ))}
               </div>
             </div>}
@@ -939,12 +957,15 @@ export default function CaseAssistant({ caseId }: Props) {
             <div><h4 className="mb-2 font-semibold">3. Beweismittel und Beweiswert</h4>{result.evidence.length ? <ReportEvidenceTable items={result.evidence} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Angaben gefunden.</p>}</div>
             <div><h4 className="mb-2 font-semibold">4. Personen & Rollen</h4>{result.entities.length ? <ReportEntitiesTable items={result.entities} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Rollen gefunden.</p>}</div>
             <div><h4 className="mb-2 font-semibold">5. Finanzielle Übersicht</h4>
-              {result.report_finances?.length ? <ReportTable headers={["Position", "Betrag", "Dokumentierter Status", "Bedeutung", "Nachweise"]} rows={result.report_finances.map((item) => [item.position, item.amount || "Nicht belegt", item.status || "Nicht belegt", item.significance || "—", <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /> : <p className="text-sm text-slate-500">Keine belegten Finanzpositionen gefunden.</p>}
+              {result.report_finances?.length ? <div className="space-y-4">{financeGroups.map((group) => {
+                const entries = result.report_finances.filter((item) => (item.category || "other") === group.key);
+                return entries.length ? <div key={group.key}><h5 className="mb-2 text-sm font-semibold text-slate-700">{group.label} ({entries.length})</h5><ReportTable headers={["Position", "Betrag", "Dokumentierter Status", "Bedeutung", "Nachweise"]} rows={entries.map((item) => [item.position, item.amount || "Nicht belegt", item.status || "Nicht belegt", item.significance || "—", <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /></div> : null;
+              })}</div> : <p className="text-sm text-slate-500">Keine belegten Finanzpositionen gefunden.</p>}
               <p className="mt-2 text-xs text-slate-500">Rechnungen belegen keine Zahlung. Beträge dürfen ohne Prüfung von Gutschriften und Überschneidungen nicht addiert werden.</p>
             </div>
             <div><h4 className="mb-2 font-semibold">6. Fristen & Aufgaben</h4>
               <h5 className="mb-1 text-sm font-medium">Dokumentierte Fristen und Termine</h5>
-              {result.report_deadlines?.length ? <ReportTable headers={["Datum", "Frist / Termin", "Nachweise"]} rows={result.report_deadlines.map((item) => [item.date || "Datum nicht belegt", item.description, <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /> : <p className="text-sm text-slate-500">Keine belegten Fristen gefunden.</p>}
+              {result.report_deadlines?.length ? <ReportTable headers={["Datum", "Frist / Termin", "Art", "Status / Begründung", "Nachweise"]} rows={[...result.report_deadlines].sort((a, b) => deadlineSortKey(a.date).localeCompare(deadlineSortKey(b.date))).map((item) => [item.date || "Datum nicht belegt", item.description, ({ deadline: "Frist", invoice_date: "Rechnungsdatum", offer_expiry: "Angebotsfrist", event_date: "Ereignisdatum", other: "Nicht eindeutig" } as const)[item.date_type || "other"], <><strong>{({ active: "Aktiv", completed: "Erledigt", historical: "Historisch / ersetzt", unclear: "Ungeklärt" } as const)[item.status || "unclear"]}</strong>{item.status_reason && <p className="mt-1">{item.status_reason}</p>}</>, <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /> : <p className="text-sm text-slate-500">Keine belegten Fristen gefunden.</p>}
               <h5 className="mb-1 mt-3 text-sm font-medium">Dokumentierte Aufgaben und Vereinbarungen</h5>
               {result.report_tasks?.length ? <ReportTable headers={["Aufgabe", "Zuständigkeit", "Fällig", "Nachweise"]} rows={result.report_tasks.map((item) => [item.description, item.responsible_person || "Nicht belegt", item.due_date || "Nicht belegt", <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /> : <p className="text-sm text-slate-500">Keine belegten Aufgaben gefunden.</p>}
               <p className="mt-2 text-xs text-slate-500">Dieser Abschnitt zeigt dokumentierte Angaben, nicht automatisch die aktuellen Aufgaben aus der Fall-Datenbank.</p>

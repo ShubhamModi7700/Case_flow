@@ -444,8 +444,8 @@ export type CaseAssistantResponse = {
   chronology: AssistantChronologyEvent[];
   evidence: AssistantEvidenceLink[];
   entities: AssistantEntity[];
-  report_finances: { position: string; amount: string | null; status: string | null; significance: string | null; source_ids: string[] }[];
-  report_deadlines: { date: string | null; description: string; source_ids: string[] }[];
+  report_finances: { position: string; category: "invoice" | "recurring" | "cost" | "offer" | "credit" | "payment" | "other"; amount: string | null; status: string | null; significance: string | null; source_ids: string[] }[];
+  report_deadlines: { date: string | null; date_type: "deadline" | "invoice_date" | "offer_expiry" | "event_date" | "other"; status: "active" | "completed" | "historical" | "unclear"; status_reason: string | null; description: string; source_ids: string[] }[];
   report_tasks: { description: string; responsible_person: string | null; due_date: string | null; source_ids: string[] }[];
   brief_evidence_package: AssistantBriefEvidencePackage | null;
   brief_outline: AssistantBriefOutline | null;

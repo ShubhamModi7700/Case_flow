@@ -594,6 +594,7 @@ class AssistantChronologyEvent(BaseModel):
 
 class AssistantReportFinancialItem(BaseModel):
     position: str
+    category: Literal["invoice", "recurring", "cost", "offer", "credit", "payment", "other"] = "other"
     amount: str | None = None
     status: str | None = None
     significance: str | None = None
@@ -602,6 +603,9 @@ class AssistantReportFinancialItem(BaseModel):
 
 class AssistantReportDeadline(BaseModel):
     date: str | None = None
+    date_type: Literal["deadline", "invoice_date", "offer_expiry", "event_date", "other"] = "other"
+    status: Literal["active", "completed", "historical", "unclear"] = "unclear"
+    status_reason: str | None = None
     description: str
     source_ids: list[str] = Field(default_factory=list)
 

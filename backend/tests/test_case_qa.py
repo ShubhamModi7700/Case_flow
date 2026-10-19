@@ -351,3 +351,33 @@ class ReportFinanceValidationTests(unittest.TestCase):
         self.assertEqual(len(validated.report_finances), 1)
         self.assertEqual(validated.report_finances[0].position, "Rechnung")
         self.assertIn("Erfundene Zahlung", validated.unsupported_statements)
+
+class ReportClassificationTests(unittest.TestCase):
+    def test_unexplained_deadline_status_becomes_unclear(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Beleg [S1]",
+            report_deadlines=[schemas.AssistantReportDeadline(
+                date="2026-10-31", description="Angebotsfrist",
+                date_type="offer_expiry", status="historical", source_ids=["S1"]
+            )],
+        )
+        validated = validate_answer_sources(result, [{
+            "source_id": "S1", "chunk_id": 1, "document_id": 1,
+            "filename": "angebot.pdf", "content": "Angebotsfrist",
+        }])
+        self.assertEqual(validated.report_deadlines[0].status, "unclear")
+        self.assertTrue(validated.report_deadlines[0].status_reason)
+
+    def test_finance_category_survives_source_validation(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Rechnung [S1]",
+            report_finances=[schemas.AssistantReportFinancialItem(
+                position="Rechnung", category="invoice", amount="100 EUR",
+                status="Zahlung ungeklärt", source_ids=["S1"]
+            )],
+        )
+        validated = validate_answer_sources(result, [{
+            "source_id": "S1", "chunk_id": 1, "document_id": 1,
+            "filename": "rechnung.pdf", "content": "Rechnung",
+        }])
+        self.assertEqual(validated.report_finances[0].category, "invoice")
