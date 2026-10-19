@@ -526,18 +526,26 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
 }
 
 export default function CaseAssistant({ caseId }: Props) {
-  const [question, setQuestion] = useState("");
-  const [chatOpen, setChatOpen] = useState(false);
+  const question = "";
+  const [chatOpen, setChatOpen] = useState(true);
   const [chatText, setChatText] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState("");
+  const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
+  const [chatReloadKey, setChatReloadKey] = useState(0);
   useEffect(() => {
     let alive = true;
     setChatHistory([]);
-    getCaseChat(caseId).then((rows) => { if (alive) setChatHistory(rows); }).catch(() => { if (alive) setChatError("Chatverlauf konnte nicht geladen werden."); });
+    setChatText("");
+    setChatError("");
+    setChatHistoryLoading(true);
+    getCaseChat(caseId)
+      .then((rows) => { if (alive) setChatHistory(rows); })
+      .catch((error) => { if (alive) setChatError(`Chatverlauf konnte nicht geladen werden: ${errorMessage(error)}`); })
+      .finally(() => { if (alive) setChatHistoryLoading(false); });
     return () => { alive = false; };
-  }, [caseId]);
+  }, [caseId, chatReloadKey]);
   async function sendChat(): Promise<void> {
     const message = chatText.trim();
     if (message.length < 2 || chatLoading) return;
@@ -746,13 +754,60 @@ export default function CaseAssistant({ caseId }: Props) {
         </button>
       </div>
 
-      {chatOpen && <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">KI-Chat · Gespräch zum Fall</h3><button type="button" className="text-xs text-slate-500 underline" onClick={async () => { if (!window.confirm("Eigenen Chatverlauf dieses Falls löschen?")) return; try { await clearCaseChat(caseId); setChatHistory([]); } catch (e) { setChatError(errorMessage(e)); } }}>Verlauf löschen</button></div>
-        <p className="mb-3 text-xs text-slate-500">Persönlicher, gespeicherter Verlauf. Antworten basieren auf aktuell freigegebenen Falldokumenten. KI-Ausgaben sind nicht freigegeben.</p>
-        <div className="max-h-96 space-y-3 overflow-y-auto">{chatHistory.map((turn) => <div key={turn.id} className={`rounded-lg p-3 text-sm ${turn.role === "user" ? "ml-8 bg-slate-100" : "mr-8 border border-slate-200 bg-white"}`}><div className="mb-1 text-xs font-semibold">{turn.role === "user" ? "Sie" : "Case Flow"}</div><AssistantMarkdown content={turn.content} />{turn.response && <details className="mt-2 text-xs"><summary className="cursor-pointer">Dokumentquellen ({turn.response.sources.length})</summary>{turn.response.sources.map((source) => <div key={source.source_id} className="mt-1">[{source.source_id}] {source.filename}{source.page_number ? ` · Seite ${source.page_number}` : ""}</div>)}</details>}</div>)}</div>
-        {chatError && <p className="mt-2 text-sm text-red-700">{chatError}</p>}
-        <form className="mt-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); void sendChat(); }}><input className="min-w-0 flex-1 rounded-lg border border-slate-300 p-2 text-sm" value={chatText} onChange={(event) => setChatText(event.target.value)} placeholder="Stellen Sie eine Folgefrage..."/><button type="submit" disabled={chatLoading || chatText.trim().length < 2} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">{chatLoading ? "Antwort läuft..." : "Senden"}</button></form>
-      </div>}
+      {chatOpen && (
+        <section aria-label="KI-Chat" className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+            <div>
+              <h3 className="font-semibold text-slate-900">KI-Chat · Gespräch zum Fall</h3>
+              <p className="mt-1 text-xs text-slate-500">Persönlicher Verlauf je Benutzer und Fall · KI-Ausgaben müssen geprüft werden.</p>
+            </div>
+            <button type="button" disabled={chatLoading || chatHistoryLoading || chatHistory.length === 0} className="text-xs text-slate-600 underline disabled:opacity-40" onClick={async () => {
+              if (!window.confirm("Eigenen Chatverlauf dieses Falls dauerhaft löschen?")) return;
+              try { await clearCaseChat(caseId); setChatHistory([]); setChatError(""); }
+              catch (error) { setChatError(errorMessage(error)); }
+            }}>Verlauf löschen</button>
+          </header>
+          <div role="log" aria-label="Chatverlauf" aria-live="polite" className="max-h-[520px] min-h-[260px] space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
+            {chatHistoryLoading && <p className="text-sm text-slate-500">Chatverlauf wird geladen...</p>}
+            {!chatHistoryLoading && chatHistory.length === 0 && <div className="mx-auto max-w-lg py-8 text-center">
+              <div className="text-lg font-semibold text-slate-900">Wie kann ich Ihnen bei diesem Fall helfen?</div>
+              <p className="mt-2 text-sm text-slate-500">Stellen Sie Fragen zu freigegebenen Falldokumenten. Folgefragen berücksichtigen den bisherigen Gesprächsverlauf.</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {["Erstelle eine Chronologie des Falls.", "Welche Zahlungen sind noch ungeklärt?", "Welche Nachweise fehlen?"].map((suggestion) => (
+                  <button key={suggestion} type="button" onClick={() => setChatText(suggestion)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100">{suggestion}</button>
+                ))}
+              </div>
+            </div>}
+            {chatHistory.map((turn) => (
+              <div key={turn.id} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm sm:max-w-[85%] ${turn.role === "user" ? "bg-slate-100 text-slate-900" : "border border-slate-100 bg-white text-slate-800"}`}>
+                  <div className="mb-2 text-xs font-semibold text-slate-500">{turn.role === "user" ? "Sie" : "Case Flow"}</div>
+                  <AssistantMarkdown content={turn.content} />
+                  {turn.response && turn.response.sources.length > 0 && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-600">
+                    <summary className="cursor-pointer font-medium">Dokumentquellen ({turn.response.sources.length})</summary>
+                    <ul className="mt-2 space-y-1">{turn.response.sources.map((source) => <li key={source.source_id}>[{source.source_id}] {source.filename}{source.page_number ? ` · Seite ${source.page_number}` : ""}</li>)}</ul>
+                  </details>}
+                </div>
+              </div>
+            ))}
+            {chatLoading && <p role="status" className="text-sm text-slate-500">Case Flow erstellt eine Antwort...</p>}
+          </div>
+          {chatError && <div role="alert" className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 sm:mx-5">
+            <span>{chatError}</span>
+            <button type="button" className="font-semibold underline" onClick={() => setChatReloadKey((value) => value + 1)}>Verlauf erneut laden</button>
+          </div>}
+          <form className="border-t border-slate-100 p-3 sm:p-4" onSubmit={(event) => { event.preventDefault(); void sendChat(); }}>
+            <label htmlFor="case-chat-message" className="sr-only">Nachricht an Case Flow</label>
+            <textarea id="case-chat-message" rows={2} className="w-full resize-y rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-slate-500" value={chatText} onChange={(event) => setChatText(event.target.value)} onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendChat(); }
+            }} placeholder="Fragen Sie etwas zu diesem Fall oder stellen Sie eine Folgefrage..." disabled={chatLoading || chatHistoryLoading} />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500">Nur freigegebene Falldokumente · Enter senden · Shift+Enter Zeilenumbruch</span>
+              <button type="submit" disabled={chatLoading || chatHistoryLoading || chatText.trim().length < 2} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">{chatLoading ? "Antwort läuft..." : "Senden ↑"}</button>
+            </div>
+          </form>
+        </section>
+      )}
       {showBriefForm && (
         <div className="mb-4 rounded-xl border border-violet-200 bg-white p-4">
           <div className="mb-3">
@@ -811,28 +866,6 @@ export default function CaseAssistant({ caseId }: Props) {
           <p className="mt-2 text-xs text-slate-500">Die Schritte werden nacheinander freigeschaltet. Wenn Sie den Auftrag oben ändern, wird der Workflow zurückgesetzt, damit keine Ergebnisse aus einem alten Kontext weiterverwendet werden.</p>
         </div>
       )}
-
-      {!showBriefForm && !chatOpen && <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-      <label className="mb-2 block text-sm font-semibold text-slate-800">Frage zum Fall</label>
-      <textarea
-        value={question}
-        onChange={(event) => setQuestion(event.target.value)}
-        placeholder="z. B. Welche Buchhaltungsunterlagen wurden bereits übergeben?"
-        rows={4}
-        className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm outline-none focus:border-slate-500"
-      />
-      <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => void submit("question")}
-          disabled={loading || question.trim().length < 2}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? "Analyse wird erstellt..." : "Fragen"}
-        </button>
-      </div>
-
-      </div>}
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
