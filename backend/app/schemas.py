@@ -588,6 +588,15 @@ class AssistantEvidenceStatement(BaseModel):
 class AssistantChronologyEvent(BaseModel):
     date: str | None = None
     event: str
+    significance: str | None = None
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class AssistantReportFinancialItem(BaseModel):
+    position: str
+    amount: str | None = None
+    status: str | None = None
+    significance: str | None = None
     source_ids: list[str] = Field(default_factory=list)
 
 
@@ -720,6 +729,7 @@ class CaseAssistantModelAnswer(BaseModel):
     chronology: list[AssistantChronologyEvent] = Field(default_factory=list)
     evidence: list[AssistantEvidenceLink] = Field(default_factory=list)
     entities: list[AssistantEntity] = Field(default_factory=list)
+    report_finances: list[AssistantReportFinancialItem] = Field(default_factory=list)
     report_deadlines: list[AssistantReportDeadline] = Field(default_factory=list)
     report_tasks: list[AssistantReportTask] = Field(default_factory=list)
     brief_evidence_package: AssistantBriefEvidencePackage | None = None

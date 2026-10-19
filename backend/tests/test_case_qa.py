@@ -336,3 +336,18 @@ class Phase5IRedReviewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportFinanceValidationTests(unittest.TestCase):
+    def test_financial_items_require_valid_document_sources(self):
+        result = schemas.CaseAssistantModelAnswer(
+            answer="Finanzielle Positionen",
+            report_finances=[
+                schemas.AssistantReportFinancialItem(position="Rechnung", amount="100 EUR netto", status="Zahlung nicht belegt", source_ids=["S1"]),
+                schemas.AssistantReportFinancialItem(position="Erfundene Zahlung", amount="100 EUR", status="bezahlt", source_ids=["S99"]),
+            ],
+        )
+        validated = validate_answer_sources(result, [{"source_id": "S1", "chunk_id": 1, "document_id": 1, "filename": "invoice.pdf", "content": "Rechnung"}])
+        self.assertEqual(len(validated.report_finances), 1)
+        self.assertEqual(validated.report_finances[0].position, "Rechnung")
+        self.assertIn("Erfundene Zahlung", validated.unsupported_statements)

@@ -161,7 +161,7 @@ function ReportTable({ headers, rows }: { headers: string[]; rows: React.ReactNo
 }
 
 function ReportChronologyTable({ items, sourcesById }: { items: AssistantChronologyEvent[]; sourcesById: Map<string, AssistantSource> }) {
-  return <ReportTable headers={["Datum", "Ereignis", "Nachweise"]} rows={items.map((item) => [item.date || "Datum nicht belegt", item.event, <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} />;
+  return <ReportTable headers={["Datum", "Ereignis", "Bedeutung", "Nachweise"]} rows={items.map((item) => [item.date || "Datum nicht belegt", item.event, item.significance || "Nicht gesondert bewertet", <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} />;
 }
 
 function ReportEvidenceTable({ items, sourcesById }: { items: AssistantEvidenceLink[]; sourcesById: Map<string, AssistantSource> }) {
@@ -938,7 +938,11 @@ export default function CaseAssistant({ caseId }: Props) {
             <div><h4 className="mb-2 font-semibold">2. Chronologie</h4>{result.chronology.length ? <ReportChronologyTable items={result.chronology} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Ereignisse gefunden.</p>}</div>
             <div><h4 className="mb-2 font-semibold">3. Beweismittel und Beweiswert</h4>{result.evidence.length ? <ReportEvidenceTable items={result.evidence} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Angaben gefunden.</p>}</div>
             <div><h4 className="mb-2 font-semibold">4. Personen & Rollen</h4>{result.entities.length ? <ReportEntitiesTable items={result.entities} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Rollen gefunden.</p>}</div>
-            <div><h4 className="mb-2 font-semibold">5. Fristen & Aufgaben</h4>
+            <div><h4 className="mb-2 font-semibold">5. Finanzielle Übersicht</h4>
+              {result.report_finances?.length ? <ReportTable headers={["Position", "Betrag", "Dokumentierter Status", "Bedeutung", "Nachweise"]} rows={result.report_finances.map((item) => [item.position, item.amount || "Nicht belegt", item.status || "Nicht belegt", item.significance || "—", <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /> : <p className="text-sm text-slate-500">Keine belegten Finanzpositionen gefunden.</p>}
+              <p className="mt-2 text-xs text-slate-500">Rechnungen belegen keine Zahlung. Beträge dürfen ohne Prüfung von Gutschriften und Überschneidungen nicht addiert werden.</p>
+            </div>
+            <div><h4 className="mb-2 font-semibold">6. Fristen & Aufgaben</h4>
               <h5 className="mb-1 text-sm font-medium">Dokumentierte Fristen und Termine</h5>
               {result.report_deadlines?.length ? <ReportTable headers={["Datum", "Frist / Termin", "Nachweise"]} rows={result.report_deadlines.map((item) => [item.date || "Datum nicht belegt", item.description, <SourceBadges sourceIds={item.source_ids} sourcesById={sourcesById} />])} /> : <p className="text-sm text-slate-500">Keine belegten Fristen gefunden.</p>}
               <h5 className="mb-1 mt-3 text-sm font-medium">Dokumentierte Aufgaben und Vereinbarungen</h5>
@@ -946,8 +950,8 @@ export default function CaseAssistant({ caseId }: Props) {
               <p className="mt-2 text-xs text-slate-500">Dieser Abschnitt zeigt dokumentierte Angaben, nicht automatisch die aktuellen Aufgaben aus der Fall-Datenbank.</p>
               <button type="button" disabled={workStatusLoading} onClick={() => { void loadWorkStatus(); }} className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-500 disabled:opacity-50">{workStatusLoading ? "Arbeitsstand wird geladen..." : "Aktuelle Fristen & Aufgaben aus Case Flow anzeigen"}</button>
             </div>
-            <div><h4 className="mb-2 font-semibold">6. Widersprüche</h4>{result.contradictions.length ? <EvidenceList items={result.contradictions} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Widersprüche identifiziert.</p>}</div>
-            <div><h4 className="mb-2 font-semibold">7. Offene Fragen und fehlende Nachweise</h4>{result.missing_information.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{result.missing_information.map((item, i) => <li key={i}>{item}</li>)}</ul> : <p className="text-sm text-slate-500">Keine weiteren offenen Punkte identifiziert.</p>}</div>
+            <div><h4 className="mb-2 font-semibold">7. Widersprüche</h4>{result.contradictions.length ? <EvidenceList items={result.contradictions} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Widersprüche identifiziert.</p>}</div>
+            <div><h4 className="mb-2 font-semibold">8. Offene Fragen und fehlende Nachweise</h4>{result.missing_information.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{result.missing_information.map((item, i) => <li key={i}>{item}</li>)}</ul> : <p className="text-sm text-slate-500">Keine weiteren offenen Punkte identifiziert.</p>}</div>
           </section>}
           {result.task_type === "chronology" && <ChronologyView items={result.chronology} sourcesById={sourcesById} />}
           {result.task_type === "evidence" && <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />}

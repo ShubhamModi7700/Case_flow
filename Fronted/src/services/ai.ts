@@ -264,6 +264,7 @@ export type AssistantEvidenceStatement = {
 export type AssistantChronologyEvent = {
   date: string | null;
   event: string;
+  significance?: string | null;
   source_ids: string[];
 };
 
@@ -443,6 +444,7 @@ export type CaseAssistantResponse = {
   chronology: AssistantChronologyEvent[];
   evidence: AssistantEvidenceLink[];
   entities: AssistantEntity[];
+  report_finances: { position: string; amount: string | null; status: string | null; significance: string | null; source_ids: string[] }[];
   report_deadlines: { date: string | null; description: string; source_ids: string[] }[];
   report_tasks: { description: string; responsible_person: string | null; due_date: string | null; source_ids: string[] }[];
   brief_evidence_package: AssistantBriefEvidencePackage | null;

@@ -25,7 +25,7 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
     if task_type == "entities":
         return f"{question}\n\nPerson, Unternehmen, Organisation, Rolle, Funktion, Absender, Empfänger"
     if task_type in {"intelligence", "report"}:
-        return (f"{question}\n\nSchlüsseltatsachen, Chronologie, Beteiligte, Rollen, Beweismittel, "
+        return (f"{question}\n\nSchlüsseltatsachen, Chronologie, Beteiligte, Rollen, Beweismittel, Rechnungen, Beträge, Zahlungen, Vertragskosten, "
                 "Widersprüche, Informationslücken, offene Fragen, aktueller Sachstand")
     if task_type in {"brief_evidence", "brief_outline", "brief_draft", "brief_review"}:
         return (
@@ -213,6 +213,15 @@ def validate_answer_sources(
                 f"Entität ohne gültigen Beleg: {entity.name}"
             )
     result.entities = valid_entities
+
+    valid_finances: list[schemas.AssistantReportFinancialItem] = []
+    for item in result.report_finances:
+        item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
+        if item.source_ids:
+            valid_finances.append(item)
+        else:
+            unsupported.append(item.position)
+    result.report_finances = valid_finances
 
     valid_deadlines = []
     for item in result.report_deadlines:
