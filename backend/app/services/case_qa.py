@@ -32,6 +32,12 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
             f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
             "Beweismittel, Korrespondenz, Übergabe, Beteiligte, Widerspruch, offene Frage"
         )
+    # Search the latest chat question first, with a small amount of user context.
+    if "Aktuelle Frage:" in question:
+        latest = question.rsplit("Aktuelle Frage:", 1)[-1].strip()
+        prior = question.split("Aktuelle Frage:", 1)[0]
+        user_lines = [line.split(":", 1)[-1].strip() for line in prior.splitlines() if line.startswith("user:")]
+        return f"{latest}\nVorherige Nutzerfrage: {user_lines[-1][:250]}" if user_lines else latest
     return question
 
 

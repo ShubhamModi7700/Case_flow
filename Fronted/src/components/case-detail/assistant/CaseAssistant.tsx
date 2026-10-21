@@ -816,7 +816,7 @@ export default function CaseAssistant({ caseId }: Props) {
               catch (error) { setChatError(errorMessage(error)); }
             }}>Verlauf löschen</button>
           </header>
-          <div role="log" aria-label="Chatverlauf" aria-live="polite" className="max-h-[520px] min-h-[190px] space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
+          <div role="log" aria-label="Chatverlauf" aria-live="polite" className="max-h-[70vh] min-h-[190px] space-y-5 overflow-y-auto px-3 py-5 sm:px-5">
             {chatHistoryLoading && <p className="text-sm text-slate-500">Chatverlauf wird geladen...</p>}
             {!chatHistoryLoading && chatHistory.length === 0 && <div className="mx-auto max-w-lg py-4 text-center">
               <div className="text-base font-semibold text-slate-900">Wie kann ich Ihnen helfen?</div>
@@ -828,12 +828,12 @@ export default function CaseAssistant({ caseId }: Props) {
             </div>}
             {chatHistory.map((turn) => (
               <div key={turn.id} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm sm:max-w-[85%] ${turn.role === "user" ? "bg-slate-100 text-slate-900" : "border border-slate-100 bg-white text-slate-800"}`}>
+                <div className={`min-w-0 ${turn.role === "user" ? "max-w-[92%] sm:max-w-[80%]" : "w-full max-w-full"} rounded-2xl px-4 py-3 text-sm ${turn.role === "user" ? "bg-slate-100 text-slate-900" : "border border-slate-100 bg-white text-slate-800"}`}>
                   <div className="mb-2 text-xs font-semibold text-slate-500">{turn.role === "user" ? "Sie" : "Case Flow"}</div>
-                  <AssistantMarkdown content={turn.content} />
+                  <AssistantMarkdown content={turn.content} sources={turn.response?.sources} sourcePrefix={`chat-${turn.id}`} />
                   {turn.response && turn.response.sources.length > 0 && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-600">
                     <summary className="cursor-pointer font-medium">Dokumentquellen ({turn.response.sources.length})</summary>
-                    <ul className="mt-2 space-y-1">{turn.response.sources.map((source) => <li key={source.source_id}>[{source.source_id}] {source.filename}{source.page_number ? ` · Seite ${source.page_number}` : ""}</li>)}</ul>
+                    <ul className="mt-2 space-y-1">{turn.response.sources.map((source) => <li id={`chat-${turn.id}-source-${source.source_id}`} key={source.source_id} className="scroll-mt-5 rounded px-1 py-0.5 target:bg-amber-100">[{source.source_id}] {source.filename}{source.page_number ? ` · Seite ${source.page_number}` : ""}{source.sheet_name ? ` · Blatt ${source.sheet_name}` : ""}{source.document_date ? ` · ${source.document_date}` : ""}</li>)}</ul>
                   </details>}
                 </div>
               </div>

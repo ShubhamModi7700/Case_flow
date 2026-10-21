@@ -197,8 +197,8 @@ def chat_case_assistant(case_id: int, payload: ChatTurnRequest, db: Session = De
     previous = (db.query(models.AssistantChatMessage)
                 .filter_by(case_id=case_id, user_id=current_user.id)
                 .order_by(models.AssistantChatMessage.id.desc()).limit(8).all())
-    context = "\n".join(f"{row.role}: {row.content[:900]}" for row in reversed(previous))
-    contextual_question = (f"Bisheriger Dialog (nur Kontext, keine Belege):\n{context}\n\nAktuelle Frage: {payload.message}"
+    context = "\n".join(f"{row.role}: {row.content[:550]}" for row in reversed(previous))
+    contextual_question = (f"Bisheriger Dialog (nur Kontext, keine Belege; Fakten stets anhand der freigegebenen Dokumente prüfen):\n{context}\n\nAktuelle Frage: {payload.message}"
                            if context else payload.message)[:5000]
     
     result = query_case_assistant(case_id, schemas.CaseAssistantQueryRequest(question=contextual_question, task_type="question"), db, current_user)
