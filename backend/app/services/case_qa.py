@@ -32,7 +32,6 @@ def retrieval_question(question: str, task_type: TaskType) -> str:
             f"{question}\n\nSchriftsatz, Beweispaket, maßgebliche Tatsachen, "
             "Beweismittel, Korrespondenz, Übergabe, Beteiligte, Widerspruch, offene Frage"
         )
-    # Search the latest chat question first, with a small amount of user context.
     if "Aktuelle Frage:" in question:
         latest = question.rsplit("Aktuelle Frage:", 1)[-1].strip()
         prior = question.split("Aktuelle Frage:", 1)[0]
@@ -233,8 +232,6 @@ def validate_answer_sources(
     for item in result.report_deadlines:
         item.source_ids = _valid_source_ids(item.source_ids, valid_ids)
         if item.source_ids:
-            # Conservative status classification: ambiguous active/completed/superseded
-            # claims require an explicit source-grounded explanation.
             if item.status in ("active", "completed", "historical") and not (item.status_reason or "").strip():
                 item.status = "unclear"
                 item.status_reason = "Status aus den belegten Angaben nicht eindeutig bestätigt."
