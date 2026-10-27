@@ -42,25 +42,28 @@ function SignalCard({ label, value, detail, alert = false }: { label: string; va
 // Format the approved development without inventing an event date or headline.
 // The backend continues to determine which documented event is the latest.
 function formatLatestDevelopment(value: string | null): { date: string | null; headline: string; detail: string } | null {
-  const cleaned = cleanApprovedDisplayText(value).replace(/\\s+/g, " ").trim();
+  const cleaned = cleanApprovedDisplayText(value).replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
-  const dateMatch = cleaned.match(/^(?:Am |Vom |Zum )?(\\d{2}\\.\\d{2}\\.\\d{4})(?:\\s*[·:–-]\\s*|\\s+)/i);
+
+  // The approved text may start with "Am 06.10.2026" or introduce the date later
+  // in the opening sentence. Extract only a valid, explicitly present date.
+  const dateMatch = cleaned.slice(0, 160).match(/\b(\d{2}\.\d{2}\.\d{4})\b/);
+  const openingSentence = cleaned.match(/^.*?(?:[.!?](?=\s|$)|$)/)?.[0] || cleaned;
   let date: string | null = null;
-  let body = cleaned;
   if (dateMatch) {
     const [day, month, year] = dateMatch[1].split(".").map(Number);
     const parsed = new Date(Date.UTC(year, month - 1, day));
     if (parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) {
       date = dateMatch[1];
-      body = cleaned.slice(dateMatch[0].length).trim();
     }
   }
-  const invoiceEvent = /Ablöserechnung/i.test(body)
-    && /(?:übersand|übermittelt|gestellt|erhalten|zugesandt)/i.test(body);
+
+  const invoiceEvent = /Ablöserechnung/i.test(cleaned)
+    && /(?:übersand|übermittelt|gestellt|erhalten|zugesandt)/i.test(cleaned);
   const headline = invoiceEvent
     ? "Ablöserechnung übermittelt"
-    : (body.match(/^(.+?[.!?])(?:\\s|$)/)?.[1] || body).slice(0, 110).trim();
-  return { date, headline, detail: body };
+    : (openingSentence.replace(/^(?:Am|Vom|Zum)\s+\d{2}\.\d{2}\.\d{4}\s*[·:–-]?\s*/i, "").trim().slice(0, 110) || cleaned.slice(0, 110));
+  return { date, headline, detail: cleaned };
 }
 
 function LatestDevelopmentCard({ value }: { value: string | null }) {
@@ -75,13 +78,15 @@ function LatestDevelopmentCard({ value }: { value: string | null }) {
 }
 
 function riskDisplay(reason: string | null): { headline: string; explanation: string } {
-  const text = cleanApprovedDisplayText(reason).replace(/^(?:Das aktuelle )?(?:Rest)?risiko ist (?:hoch|mittel|niedrig)\\.?\\s*/i, "").trim();
+  const original = cleanApprovedDisplayText(reason).replace(/\s+/g, " ").trim();
+  // Remove an introductory risk-rating sentence, including "Das aktuelle Restrisiko ist hoch."
+  // The badge already communicates the rating; preserve all substantive risk facts.
+  const text = original.replace(/^(?:(?:Das\s+aktuelle|Das\s+derzeitige|Das\s+bestehende)\s+)?(?:Rest)?risiko\s+ist\s+(?:hoch|mittel|niedrig)\s*[.!:]?\s*/i, "").trim();
   if (!text) return { headline: "Keine Risikobegründung hinterlegt", explanation: "" };
-  // Derive a short issue headline only when the stored explanation mentions both topics.
   const payment = /(?:zahl|begleich|rechnung)/i.test(text);
   const dismantling = /(?:abbau|demontage)/i.test(text);
   if (payment && dismantling) return { headline: "Zahlung und Geräteabbau ungeklärt", explanation: text };
-  const firstSentence = text.match(/^(.+?[.!?])(?:\\s|$)/)?.[1] || text;
+  const firstSentence = text.match(/^(.+?[.!?])(?:\s|$)/)?.[1] || text;
   return { headline: compact(firstSentence, 110) || firstSentence, explanation: text };
 }
 
