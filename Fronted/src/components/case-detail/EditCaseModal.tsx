@@ -104,9 +104,6 @@ export default function EditCaseModal({
 
     setLocalError("");
 
-    // Normal Users may update the general case information only.
-    // Manager-only fields are deliberately omitted from the PATCH payload,
-    // preventing the backend from rejecting an otherwise valid User update.
     const values: CaseUpdatePayload = {
       title: normalizedTitle,
       company: normalizedCompany || null,
@@ -137,8 +134,6 @@ export default function EditCaseModal({
     await onSave(values);
   }
 
-  // The parent page should normally hide the edit button for Viewers.
-  // This guard prevents the modal from being used if it is opened indirectly.
   if (isViewer) {
     return null;
   }

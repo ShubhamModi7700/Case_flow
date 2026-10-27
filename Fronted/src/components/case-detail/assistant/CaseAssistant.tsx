@@ -494,20 +494,16 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
   const sortedOpenTasks = useMemo(
     () =>
       [...item.open_tasks].sort((a, b) => {
-        // Overdue tasks first.
         if (a.is_overdue !== b.is_overdue) return a.is_overdue ? -1 : 1;
 
-        // Then tasks with a deadline before tasks without a deadline.
         if (a.due_date && !b.due_date) return -1;
         if (!a.due_date && b.due_date) return 1;
 
-        // Within those groups, show the earliest deadline first.
         if (a.due_date && b.due_date) {
           const byDate = a.due_date.localeCompare(b.due_date);
           if (byDate !== 0) return byDate;
         }
 
-        // Stable, readable fallback for tasks without/equal deadlines.
         return a.title.localeCompare(b.title, "de");
       }),
     [item.open_tasks],
@@ -694,7 +690,6 @@ export default function CaseAssistant({ caseId }: Props) {
 
   function updateBriefContext(patch: Partial<AssistantBriefContext>): void {
     setBriefContext((current) => ({ ...current, ...patch }));
-    // A changed assignment invalidates every downstream artifact.
     setBriefStep(0);
     if (activeTask.startsWith("brief_")) setResult(null);
   }

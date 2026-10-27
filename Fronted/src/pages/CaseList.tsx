@@ -174,8 +174,6 @@ export default function CaseList() {
 
       case "priority":
       default:
-        // Die vom Backend gelieferte Prioritätsreihenfolge
-        // wird unverändert übernommen.
         return result;
     }
   }, [cases, sortBy]);
@@ -241,8 +239,6 @@ export default function CaseList() {
       next.delete("status_group");
     }
 
-    // Group navigation is about the lifecycle state; remove dashboard-only
-    // filters that could make the result unexpectedly empty.
     next.delete("overdue");
     next.delete("upcoming");
     next.delete("missing_owner");

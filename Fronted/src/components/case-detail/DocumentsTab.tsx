@@ -52,8 +52,6 @@ export default function DocumentsTab({
   void onOpenAI;
 
   async function openDocument(document: DocumentItem): Promise<void> {
-    // Open a blank tab immediately so browsers do not block the new window
-    // while we wait for the authenticated API request that returns a short-lived URL.
     const documentWindow = window.open("", "_blank");
 
     if (!documentWindow) {

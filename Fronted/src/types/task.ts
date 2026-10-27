@@ -15,7 +15,6 @@ export interface TaskItem {
   created_at: string;
 }
 
-// Backwards-compatible name if another file already imports CaseTask.
 export type CaseTask = TaskItem;
 
 export interface TaskCreatePayload {

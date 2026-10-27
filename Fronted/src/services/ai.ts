@@ -38,7 +38,6 @@ export type ManagementSummaryApprovalPayload = {
   open_deadline: string | null;
   deadline_comment: string | null;
 
-  // Needed by KITab.tsx
   risk: RiskLevel | null;
   risk_comment: string | null;
   status: CaseStatus | null;

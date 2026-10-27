@@ -65,9 +65,6 @@ export default function RecommendedActionTab({
     })();
   }, [caseId]);
 
-  // IMPORTANT:
-  // This tab is the business-facing result view. Pending AI drafts belong only
-  // in "KI-Vorschläge prüfen" and must never be shown here as if confirmed.
   const summary = useMemo(
     () => items.find(isApproved) ?? null,
     [items],
