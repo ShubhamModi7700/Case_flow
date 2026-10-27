@@ -42,11 +42,8 @@ function SignalCard({ label, value, detail, alert = false }: { label: string; va
 // Format the approved development without inventing an event date or headline.
 // The backend continues to determine which documented event is the latest.
 function formatLatestDevelopment(value: string | null): { date: string | null; headline: string; detail: string } | null {
-  if (!value) return null;
   const cleaned = cleanApprovedDisplayText(value).replace(/\\s+/g, " ").trim();
   if (!cleaned) return null;
-
-  // Recognize a documented date, including natural wording such as "Am 06.10.2026".
   const dateMatch = cleaned.match(/^(?:Am |Vom |Zum )?(\\d{2}\\.\\d{2}\\.\\d{4})(?:\\s*[·:–-]\\s*|\\s+)/i);
   let date: string | null = null;
   let body = cleaned;
@@ -58,21 +55,17 @@ function formatLatestDevelopment(value: string | null): { date: string | null; h
       body = cleaned.slice(dateMatch[0].length).trim();
     }
   }
-
-  // Use a compact headline only when the underlying development supports it.
-  // The explanatory text remains complete and is never reduced to a 190-character snippet.
-  const invoiceEvent = /(?:Ablöse(?:rechnung|betrag)|Ablöserechnung)/i.test(body)
+  const invoiceEvent = /Ablöserechnung/i.test(body)
     && /(?:übersand|übermittelt|gestellt|erhalten|zugesandt)/i.test(body);
   const headline = invoiceEvent
     ? "Ablöserechnung übermittelt"
     : (body.match(/^(.+?[.!?])(?:\\s|$)/)?.[1] || body).slice(0, 110).trim();
-  const detail = body;
-  return { date, headline, detail };
+  return { date, headline, detail: body };
 }
 
 function LatestDevelopmentCard({ value }: { value: string | null }) {
   const event = formatLatestDevelopment(value);
-  return <div className="min-w-0 self-start rounded-xl border border-slate-200 bg-white p-4">
+  return <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Was ist neu?</p>
     {!event ? <p className="mt-2 text-sm text-slate-600">Keine neue bestätigte Entwicklung</p> : <div className="mt-2 space-y-2">
       <p className="break-words text-sm font-semibold leading-6 text-slate-950">{event.date && <span className="mr-1 text-slate-500">{event.date} ·</span>}{event.headline}</p>
@@ -81,24 +74,26 @@ function LatestDevelopmentCard({ value }: { value: string | null }) {
   </div>;
 }
 
+function riskDisplay(reason: string | null): { headline: string; explanation: string } {
+  const text = cleanApprovedDisplayText(reason).replace(/^(?:Das aktuelle )?(?:Rest)?risiko ist (?:hoch|mittel|niedrig)\\.?\\s*/i, "").trim();
+  if (!text) return { headline: "Keine Risikobegründung hinterlegt", explanation: "" };
+  // Derive a short issue headline only when the stored explanation mentions both topics.
+  const payment = /(?:zahl|begleich|rechnung)/i.test(text);
+  const dismantling = /(?:abbau|demontage)/i.test(text);
+  if (payment && dismantling) return { headline: "Zahlung und Geräteabbau ungeklärt", explanation: text };
+  const firstSentence = text.match(/^(.+?[.!?])(?:\\s|$)/)?.[1] || text;
+  return { headline: compact(firstSentence, 110) || firstSentence, explanation: text };
+}
 
-// Display the stored risk level unchanged; explain it without repeating the badge.
-// Do not turn an unverified risk explanation into a confirmed fact.
-function CriticalRiskCard({ risk, reason, alert }: { risk: CaseItem["risk"]; reason: string | null; alert: boolean }) {
-  const text = cleanApprovedDisplayText(reason);
-  const withoutRepeatedLevel = text.replace(/^(?:Das aktuelle )?(?:Rest)?risiko ist (?:hoch|mittel|niedrig)\.?\s*/i, "").trim();
-  const sentence = withoutRepeatedLevel.match(/^(.+?[.!?])(?:\s|$)/)?.[1] ?? withoutRepeatedLevel;
-  const headline = compact(sentence, 95) || (alert ? "Kritischer Fallstand" : "Keine akute Risikobegründung hinterlegt");
-  const remaining = withoutRepeatedLevel.slice(sentence.length).trim();
-  const explanation = remaining || (sentence.length > 95 ? sentence : "");
+function CriticalRiskCard({ risk, headline, summary, alert, onExplain }: {
+  risk: CaseItem["risk"]; headline: string; summary: string; alert: boolean; onExplain: () => void;
+}) {
   return <div className={`min-w-0 rounded-xl border p-4 ${alert ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white"}`}>
     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Was ist kritisch?</p>
     <div className="mt-2"><RiskBadge value={risk} /></div>
     <p className="mt-3 break-words text-sm font-semibold leading-6 text-slate-950">{headline}</p>
-    {explanation && <details className="mt-2 text-sm text-slate-600">
-      <summary className="cursor-pointer">Risikobegründung anzeigen</summary>
-      <p className="mt-2 whitespace-pre-wrap break-words leading-6">{withoutRepeatedLevel}</p>
-    </details>}
+    {summary && <p className="mt-2 text-sm leading-6 text-slate-600">{summary}</p>}
+    {summary && <button type="button" onClick={onExplain} className="mt-2 text-left text-sm font-medium text-slate-600 hover:text-slate-900">Risikobegründung anzeigen</button>}
   </div>;
 }
 
@@ -107,6 +102,7 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
   const [latestApprovedSuggestion, setLatestApprovedSuggestion] = useState<AISuggestion | null>(null);
   const [confirmingRisk, setConfirmingRisk] = useState(false);
   const [riskError, setRiskError] = useState("");
+  const [expandedDetail, setExpandedDetail] = useState<"risk" | "action" | "reason" | "sources" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +152,7 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
     ? [...new Map((approvedSummary?.document_fact_sources ?? []).map((source) => [source.chunk_id, source])).values()]
     : [];
 
-  const riskReason = compact(caseItem.risk_reason || caseItem.suggested_risk_reason, 240);
+  const riskInfo = riskDisplay(caseItem.risk_reason || caseItem.suggested_risk_reason);
   const missingOwner = caseItem.status !== "Completed" && !caseItem.responsible_person?.trim();
   const missingAction = caseItem.status !== "Completed" && !nextAction;
   const isCritical = caseItem.risk === "High" || caseItem.status === "Critical" || deadlineOverdue || overdueTasks.length > 0;
@@ -181,41 +177,38 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
         {canEdit && <button type="button" onClick={onEditCase} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Fall bearbeiten</button>}
       </div>
       <div className="mt-5 grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <CriticalRiskCard risk={caseItem.risk} reason={riskReason} alert={isCritical} />
+        <CriticalRiskCard risk={caseItem.risk} headline={riskInfo.headline}
+          summary={riskInfo.explanation && riskInfo.headline !== riskInfo.explanation ? (compact(riskInfo.explanation, 165) || "") : ""}
+          alert={isCritical} onExplain={() => setExpandedDetail(expandedDetail === "risk" ? null : "risk")} />
         <LatestDevelopmentCard value={latestDevelopment} />
-        <div className="min-w-0 self-start rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
-          {caseItem.status === "Completed" ? (
-            <p className="mt-2 text-sm font-semibold text-slate-900">Fall abgeschlossen</p>
-          ) : nextAction ? (
+          {caseItem.status === "Completed" ? <p className="mt-2 text-sm font-semibold">Fall abgeschlossen</p> : nextAction ? (
             <div className="mt-2 space-y-3">
-              <p className="break-words text-sm font-semibold leading-6 text-slate-950">{compact(nextAction, 150)}</p>
-              {cleanApprovedDisplayText(nextAction).length > 150 && (
-                <details className="text-sm text-slate-700">
-                  <summary className="cursor-pointer font-medium text-slate-600">Vollständige Maßnahme anzeigen</summary>
-                  <p className="mt-2 whitespace-pre-wrap break-words leading-6">{cleanApprovedDisplayText(nextAction)}</p>
-                </details>
-              )}
-              {actionReason && <details className="border-t border-slate-100 pt-3 text-sm text-slate-700">
-                <summary className="cursor-pointer font-medium text-slate-600">Begründung anzeigen</summary>
-                <p className="mt-2 whitespace-pre-wrap break-words leading-6">{actionReason}</p>
-              </details>}
-              {contextSources.length > 0 && <details className="border-t border-slate-100 pt-3 text-xs text-slate-600">
-                <summary className="cursor-pointer font-medium">Belege zum Fallkontext anzeigen ({contextSources.length})</summary>
-                <ul className="mt-2 space-y-2">
-                  {contextSources.map((source) => <li key={source.chunk_id} className="rounded-lg bg-slate-50 p-2">
-                    <span className="font-medium text-slate-800">{source.file_name}</span>
-                    {source.page_number != null && <span> · Seite {source.page_number}</span>}
-                    {source.document_date && <span> · {source.document_date}</span>}
-                  </li>)}
-                </ul>
-              </details>}
+              <p className="break-words text-sm font-semibold leading-6 text-slate-950">{nextAction}</p>
+              {actionReason && <button type="button" onClick={() => setExpandedDetail(expandedDetail === "reason" ? null : "reason")} className="block text-left text-sm font-medium text-slate-600 hover:text-slate-900">Begründung anzeigen</button>}
+              {contextSources.length > 0 && <button type="button" onClick={() => setExpandedDetail(expandedDetail === "sources" ? null : "sources")} className="block text-left text-xs font-medium text-slate-600 hover:text-slate-900">Belege zum Fallkontext anzeigen ({contextSources.length})</button>}
             </div>
           ) : <p className="mt-2 text-sm text-slate-600">Nicht definiert</p>}
         </div>
         <SignalCard label="Verantwortlich" value={caseItem.responsible_person?.trim() || "Nicht zugewiesen"} alert={missingOwner} />
         <SignalCard label="Relevante Frist" value={caseItem.status === "Completed" ? "Keine offene Frist" : caseItem.primary_deadline || "Keine klare Frist"} detail={deadlineOverdue ? "Frist ist überfällig." : undefined} alert={deadlineOverdue} />
       </div>
+      {expandedDetail && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-slate-900">{expandedDetail === "risk" ? "Risikobegründung" : expandedDetail === "reason" ? "Begründung der Maßnahme" : "Belege zum Fallkontext"}</p>
+          <button type="button" onClick={() => setExpandedDetail(null)} className="text-sm text-slate-600 hover:text-slate-900">Schließen</button>
+        </div>
+        {expandedDetail === "risk" && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{riskInfo.explanation}</p>}
+        {expandedDetail === "reason" && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{actionReason}</p>}
+        {expandedDetail === "sources" && <ul className="mt-2 space-y-2 text-sm text-slate-700">
+          {contextSources.map(source => <li key={source.chunk_id} className="rounded-lg bg-slate-50 p-2">
+            <span className="font-medium">{source.file_name}</span>
+            {source.page_number != null && <span> · Seite {source.page_number}</span>}
+            {source.document_date && <span> · {source.document_date}</span>}
+          </li>)}
+        </ul>}
+      </div>}
     </section>
 
     {(deadlineOverdue || overdueTasks.length > 0 || missingOwner || missingAction) && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
