@@ -43,34 +43,40 @@ function SignalCard({ label, value, detail, alert = false }: { label: string; va
 // The backend continues to determine which documented event is the latest.
 function formatLatestDevelopment(value: string | null): { date: string | null; headline: string; detail: string } | null {
   if (!value) return null;
-  const cleaned = cleanApprovedDisplayText(value).replace(/\s+/g, " ").trim();
+  const cleaned = cleanApprovedDisplayText(value).replace(/\\s+/g, " ").trim();
   if (!cleaned) return null;
-  const match = cleaned.match(/^(?:Am |Vom |Zum )?(\d{2}\.\d{2}\.\d{4})(?:\s*[·:–-]\s*|\s+)/i);
+
+  // Recognize a documented date, including natural wording such as "Am 06.10.2026".
+  const dateMatch = cleaned.match(/^(?:Am |Vom |Zum )?(\\d{2}\\.\\d{2}\\.\\d{4})(?:\\s*[·:–-]\\s*|\\s+)/i);
   let date: string | null = null;
   let body = cleaned;
-  if (match) {
-    const [day, month, year] = match[1].split(".").map(Number);
+  if (dateMatch) {
+    const [day, month, year] = dateMatch[1].split(".").map(Number);
     const parsed = new Date(Date.UTC(year, month - 1, day));
     if (parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) {
-      date = match[1];
-      body = cleaned.slice(match[0].length).trim();
+      date = dateMatch[1];
+      body = cleaned.slice(dateMatch[0].length).trim();
     }
   }
-  // A headline is derived from the original text; no AI-generated event is added.
-  const firstSentence = body.match(/^(.+?[.!?])(?:\s|$)/)?.[1] ?? body;
-  const headline = compact(firstSentence, 85) || "Dokumentierte Entwicklung";
-  const detail = body === firstSentence ? "" : body.slice(firstSentence.length).trim();
+
+  // Use a compact headline only when the underlying development supports it.
+  // The explanatory text remains complete and is never reduced to a 190-character snippet.
+  const invoiceEvent = /(?:Ablöse(?:rechnung|betrag)|Ablöserechnung)/i.test(body)
+    && /(?:übersand|übermittelt|gestellt|erhalten|zugesandt)/i.test(body);
+  const headline = invoiceEvent
+    ? "Ablöserechnung übermittelt"
+    : (body.match(/^(.+?[.!?])(?:\\s|$)/)?.[1] || body).slice(0, 110).trim();
+  const detail = body;
   return { date, headline, detail };
 }
 
 function LatestDevelopmentCard({ value }: { value: string | null }) {
   const event = formatLatestDevelopment(value);
-  return <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
+  return <div className="min-w-0 self-start rounded-xl border border-slate-200 bg-white p-4">
     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Was ist neu?</p>
     {!event ? <p className="mt-2 text-sm text-slate-600">Keine neue bestätigte Entwicklung</p> : <div className="mt-2 space-y-2">
       <p className="break-words text-sm font-semibold leading-6 text-slate-950">{event.date && <span className="mr-1 text-slate-500">{event.date} ·</span>}{event.headline}</p>
-      {event.detail && <p className="break-words text-sm leading-6 text-slate-600">{compact(event.detail, 190)}</p>}
-      {event.detail && event.detail.length > 190 && <details className="text-sm text-slate-600"><summary className="cursor-pointer">Vollständige Entwicklung anzeigen</summary><p className="mt-2 whitespace-pre-wrap break-words leading-6">{event.detail}</p></details>}
+      <p className="break-words text-sm leading-6 text-slate-600">{event.detail}</p>
     </div>}
   </div>;
 }
@@ -174,10 +180,10 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
         </div>
         {canEdit && <button type="button" onClick={onEditCase} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Fall bearbeiten</button>}
       </div>
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-5 grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         <CriticalRiskCard risk={caseItem.risk} reason={riskReason} alert={isCritical} />
         <LatestDevelopmentCard value={latestDevelopment} />
-        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
+        <div className="min-w-0 self-start rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
           {caseItem.status === "Completed" ? (
             <p className="mt-2 text-sm font-semibold text-slate-900">Fall abgeschlossen</p>
@@ -190,10 +196,10 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
                   <p className="mt-2 whitespace-pre-wrap break-words leading-6">{cleanApprovedDisplayText(nextAction)}</p>
                 </details>
               )}
-              {actionReason && <div className="border-t border-slate-100 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Begründung</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{actionReason}</p>
-              </div>}
+              {actionReason && <details className="border-t border-slate-100 pt-3 text-sm text-slate-700">
+                <summary className="cursor-pointer font-medium text-slate-600">Begründung anzeigen</summary>
+                <p className="mt-2 whitespace-pre-wrap break-words leading-6">{actionReason}</p>
+              </details>}
               {contextSources.length > 0 && <details className="border-t border-slate-100 pt-3 text-xs text-slate-600">
                 <summary className="cursor-pointer font-medium">Belege zum Fallkontext anzeigen ({contextSources.length})</summary>
                 <ul className="mt-2 space-y-2">
