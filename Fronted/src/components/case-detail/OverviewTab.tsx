@@ -87,10 +87,6 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
   );
 
   const actionFromApprovedSummary = Boolean(approvedSummary?.next_required_action);
-  const actionFromApprovedSuggestion = !actionFromApprovedSummary && Boolean(latestApprovedSuggestion?.suggested_next_action);
-  const actionOrigin = actionFromApprovedSummary || actionFromApprovedSuggestion
-    ? "Freigegebene KI-Empfehlung"
-    : "Im Fall hinterlegte Maßnahme";
   const actionReason = actionFromApprovedSummary ? cleanApprovedDisplayText(approvedSummary?.action_justification) : "";
   // Fact citations support the underlying context; they are not automatically proof of the proposed action.
   const contextSources = actionFromApprovedSummary
@@ -150,11 +146,7 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
                     {source.document_date && <span> · {source.document_date}</span>}
                   </li>)}
                 </ul>
-                <p className="mt-2">Diese Fundstellen belegen Fallfakten; die Empfehlung selbst ist eine fachlich zu prüfende Ableitung.</p>
               </details>}
-              <p className="border-t border-slate-100 pt-2 text-xs text-slate-500">
-                {actionOrigin} · {actionFromApprovedSummary || actionFromApprovedSuggestion ? "KI-Vorschlag freigegeben" : "Freigabestatus nicht gesondert ausgewiesen"} · Keine Aufgabe erstellt
-              </p>
             </div>
           ) : <p className="mt-2 text-sm text-slate-600">Nicht definiert</p>}
         </div>
