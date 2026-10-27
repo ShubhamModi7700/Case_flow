@@ -1,7 +1,5 @@
-
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-
 import { api } from "../../api";
 import type {
   AISuggestion,
@@ -17,7 +15,6 @@ import {
 } from "../../services/ai";
 import { cleanAIText } from "../../utils/aiText";
 import { RiskBadge } from "./Badges";
-
 interface OverviewTabProps {
   caseItem: CaseItem;
   tasks: TaskItem[];
@@ -28,15 +25,12 @@ interface OverviewTabProps {
   onEditCase: () => void;
   onRiskConfirmed: (updatedCase: CaseItem) => void;
 }
-
 type ExpandedDetail = "risk" | "reason" | "sources" | null;
-
 interface Development {
   date: string | null;
   headline: string;
   detail: string;
 }
-
 function cleanApprovedDisplayText(
   value: string | null | undefined,
 ): string {
@@ -44,7 +38,6 @@ function cleanApprovedDisplayText(
     .replace(/^KI[- ]Vorschlag\s*:\s*/i, "")
     .trim();
 }
-
 function compact(
   value: string | null | undefined,
   limit = 320,
@@ -52,22 +45,17 @@ function compact(
   const cleaned = cleanApprovedDisplayText(value)
     .replace(/\s+/g, " ")
     .trim();
-
   if (!cleaned) return null;
   if (cleaned.length <= limit) return cleaned;
-
   const cut = cleaned.slice(0, limit);
   const lastStop = Math.max(
     cut.lastIndexOf(". "),
     cut.lastIndexOf("; "),
   );
-
   const result =
     lastStop > 120 ? cut.slice(0, lastStop + 1) : cut;
-
   return `${result.trim()}…`;
 }
-
 function SignalCard({
   label,
   value,
@@ -90,11 +78,9 @@ function SignalCard({
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
         {label}
       </p>
-
       <div className="mt-2 break-words text-sm font-semibold leading-6 text-slate-950">
         {value}
       </div>
-
       {detail && (
         <div className="mt-2 text-sm leading-6 text-slate-600">
           {detail}
@@ -103,21 +89,16 @@ function SignalCard({
     </div>
   );
 }
-
 function isValidGermanDate(value: string): boolean {
   const [day, month, year] = value.split(".").map(Number);
-
   if (!day || !month || !year) return false;
-
   const parsed = new Date(Date.UTC(year, month - 1, day));
-
   return (
     parsed.getUTCFullYear() === year &&
     parsed.getUTCMonth() === month - 1 &&
     parsed.getUTCDate() === day
   );
 }
-
 /**
  * Formats an approved development without changing its factual meaning.
  *
@@ -130,41 +111,39 @@ function formatLatestDevelopment(
   const cleaned = cleanApprovedDisplayText(value)
     .replace(/\s+/g, " ")
     .trim();
-
   if (!cleaned) return null;
-
   const leadingDateMatch = cleaned.match(
     /^(?:(?:Am|Vom|Zum)\s+)?(\d{2}\.\d{2}\.\d{4})(?=\s|[·:–-]|$)/i,
   );
-
   let date: string | null = null;
   let detail = cleaned;
-
   if (
     leadingDateMatch &&
     isValidGermanDate(leadingDateMatch[1])
   ) {
     date = leadingDateMatch[1];
-
-    detail = cleaned
+    const remaining = cleaned
       .slice(leadingDateMatch[0].length)
       .replace(/^\s*[·:–-]\s*/, "")
       .trim();
+
+    const verbFirst = remaining.match(
+      /^(übersandte|übermittelte|sandte|stellte|teilte)\s+(printvision)\b(.*)$/i,
+    );
+    detail = verbFirst
+      ? `${verbFirst[2].charAt(0).toLocaleUpperCase("de-DE")}${verbFirst[2].slice(1)} ${verbFirst[1].toLowerCase()}${verbFirst[3]}`
+      : remaining;
   } else {
     const openingText = cleaned.slice(0, 200);
-
     const embeddedDate = openingText.match(
       /\b(?:am|vom|zum)\s+(\d{2}\.\d{2}\.\d{4})\b/i,
     );
-
     if (
       embeddedDate &&
       isValidGermanDate(embeddedDate[1])
     ) {
       date = embeddedDate[1];
-
       const position = cleaned.indexOf(embeddedDate[0]);
-
       if (position >= 0) {
         detail = (
           cleaned.slice(0, position) +
@@ -175,47 +154,39 @@ function formatLatestDevelopment(
       }
     }
   }
-
   if (detail && /^[a-zäöü]/.test(detail)) {
     detail =
       detail.charAt(0).toLocaleUpperCase("de-DE") +
       detail.slice(1);
   }
-
   const invoiceEvent =
     /Ablöserechnung/i.test(cleaned) &&
     /(?:übersand|übermittelt|gestellt|erhalten|zugesandt)/i.test(
       cleaned,
     );
-
   const firstSentence =
     detail.match(/^(.+?[.!?])(?:\s|$)/)?.[1] || detail;
-
   const headline = invoiceEvent
     ? "Ablöserechnung übermittelt"
     : compact(firstSentence, 110) ||
       "Neue Entwicklung dokumentiert";
-
   return {
     date,
     headline,
     detail,
   };
 }
-
 function LatestDevelopmentCard({
   value,
 }: {
   value: string | null;
 }) {
   const event = formatLatestDevelopment(value);
-
   return (
     <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
         Was ist neu?
       </p>
-
       {!event ? (
         <p className="mt-2 text-sm text-slate-600">
           Keine neue bestätigte Entwicklung
@@ -230,7 +201,6 @@ function LatestDevelopmentCard({
             )}
             {event.headline}
           </p>
-
           <p className="break-words text-sm leading-6 text-slate-600">
             {event.detail}
           </p>
@@ -239,7 +209,6 @@ function LatestDevelopmentCard({
     </div>
   );
 }
-
 function riskDisplay(
   reason: string | null | undefined,
 ): {
@@ -249,46 +218,38 @@ function riskDisplay(
   const original = cleanApprovedDisplayText(reason)
     .replace(/\s+/g, " ")
     .trim();
-
   const explanation = original
     .replace(
       /^(?:(?:Das\s+aktuelle|Das\s+derzeitige|Das\s+bestehende)\s+)?(?:Rest)?risiko\s+ist\s+(?:hoch|mittel|niedrig)\s*[.!:]?\s*/i,
       "",
     )
     .trim();
-
   if (!explanation) {
     return {
       headline: "Keine Risikobegründung hinterlegt",
       explanation: "",
     };
   }
-
   const payment = /(?:zahl|begleich|rechnung)/i.test(
     explanation,
   );
-
   const dismantling = /(?:abbau|demontage)/i.test(
     explanation,
   );
-
   if (payment && dismantling) {
     return {
       headline: "Zahlung und Geräteabbau ungeklärt",
       explanation,
     };
   }
-
   const firstSentence =
     explanation.match(/^(.+?[.!?])(?:\s|$)/)?.[1] ||
     explanation;
-
   return {
     headline: compact(firstSentence, 110) || firstSentence,
     explanation,
   };
 }
-
 function CriticalRiskCard({
   risk,
   headline,
@@ -313,21 +274,17 @@ function CriticalRiskCard({
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
         Was ist kritisch?
       </p>
-
       <div className="mt-2">
         <RiskBadge value={risk} />
       </div>
-
       <p className="mt-3 break-words text-sm font-semibold leading-6 text-slate-950">
         {headline}
       </p>
-
       {summary && (
         <>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             {summary}
           </p>
-
           <button
             type="button"
             onClick={onExplain}
@@ -340,7 +297,6 @@ function CriticalRiskCard({
     </div>
   );
 }
-
 export default function OverviewTab({
   caseItem,
   tasks,
@@ -353,28 +309,21 @@ export default function OverviewTab({
 }: OverviewTabProps) {
   const [approvedSummary, setApprovedSummary] =
     useState<CaseAISummary | null>(null);
-
   const [latestApprovedSuggestion, setLatestApprovedSuggestion] =
     useState<AISuggestion | null>(null);
-
   const [confirmingRisk, setConfirmingRisk] = useState(false);
   const [riskError, setRiskError] = useState("");
-
   const [expandedDetail, setExpandedDetail] =
     useState<ExpandedDetail>(null);
-
   useEffect(() => {
     let cancelled = false;
-
     void Promise.all([
       getLatestApprovedManagementSummary(caseItem.id),
       getCaseAISuggestions(caseItem.id),
     ])
       .then(([summary, suggestions]) => {
         if (cancelled) return;
-
         setApprovedSummary(summary);
-
         const latestSuggestion =
           suggestions
             .filter((item) =>
@@ -387,7 +336,6 @@ export default function OverviewTab({
                 new Date(b.created_at).getTime() -
                 new Date(a.created_at).getTime(),
             )[0] ?? null;
-
         setLatestApprovedSuggestion(latestSuggestion);
       })
       .catch(() => {
@@ -396,56 +344,45 @@ export default function OverviewTab({
           setLatestApprovedSuggestion(null);
         }
       });
-
     return () => {
       cancelled = true;
     };
   }, [caseItem.id, caseItem.updated_at]);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const deadline = caseItem.primary_deadline
     ? new Date(`${caseItem.primary_deadline}T00:00:00`)
     : null;
-
   const deadlineOverdue = Boolean(
     deadline &&
       deadline < today &&
       caseItem.status !== "Completed",
   );
-
   const openTasks = tasks.filter(
     (task) => task.status !== "Completed",
   );
-
   const overdueTasks = openTasks.filter(
     (task) =>
       task.due_date &&
       new Date(`${task.due_date}T00:00:00`) < today,
   );
-
   const latestDevelopment = cleanApprovedDisplayText(
     approvedSummary?.latest_development ||
       latestApprovedSuggestion?.suggested_latest_development,
   );
-
   const nextAction = cleanApprovedDisplayText(
     approvedSummary?.next_required_action ||
       latestApprovedSuggestion?.suggested_next_action ||
       caseItem.next_action,
   );
-
   const actionFromApprovedSummary = Boolean(
     approvedSummary?.next_required_action,
   );
-
   const actionReason = actionFromApprovedSummary
     ? cleanApprovedDisplayText(
         approvedSummary?.action_justification,
       )
     : "";
-
   const contextSources = actionFromApprovedSummary
     ? [
         ...new Map(
@@ -455,39 +392,31 @@ export default function OverviewTab({
         ).values(),
       ]
     : [];
-
   const riskInfo = riskDisplay(
     caseItem.risk_reason || caseItem.suggested_risk_reason,
   );
-
   const missingOwner =
     caseItem.status !== "Completed" &&
     !caseItem.responsible_person?.trim();
-
   const missingAction =
     caseItem.status !== "Completed" && !nextAction;
-
   const isCritical =
     caseItem.risk === "High" ||
     caseItem.status === "Critical" ||
     deadlineOverdue ||
     overdueTasks.length > 0;
-
   function toggleDetail(detail: Exclude<ExpandedDetail, null>) {
     setExpandedDetail((current) =>
       current === detail ? null : detail,
     );
   }
-
   async function confirmSuggestedRisk() {
     try {
       setConfirmingRisk(true);
       setRiskError("");
-
       const response = await api.post<CaseItem>(
         `/cases/${caseItem.id}/confirm-risk`,
       );
-
       onRiskConfirmed(response.data);
     } catch {
       setRiskError(
@@ -497,7 +426,6 @@ export default function OverviewTab({
       setConfirmingRisk(false);
     }
   }
-
   return (
     <div className="space-y-6">
       <section
@@ -512,12 +440,10 @@ export default function OverviewTab({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
               Management-Blick
             </p>
-
             <h2 className="mt-2 text-xl font-semibold text-slate-950">
               Was braucht jetzt Aufmerksamkeit?
             </h2>
           </div>
-
           {canEdit && (
             <button
               type="button"
@@ -528,7 +454,6 @@ export default function OverviewTab({
             </button>
           )}
         </div>
-
         <div className="mt-5 grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
           <CriticalRiskCard
             risk={caseItem.risk}
@@ -542,14 +467,11 @@ export default function OverviewTab({
             alert={isCritical}
             onExplain={() => toggleDetail("risk")}
           />
-
           <LatestDevelopmentCard value={latestDevelopment} />
-
           <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Nächste Maßnahme
             </p>
-
             {caseItem.status === "Completed" ? (
               <p className="mt-2 text-sm font-semibold">
                 Fall abgeschlossen
@@ -559,7 +481,6 @@ export default function OverviewTab({
                 <p className="break-words text-sm font-semibold leading-6 text-slate-950">
                   {nextAction}
                 </p>
-
                 {actionReason && (
                   <button
                     type="button"
@@ -569,7 +490,6 @@ export default function OverviewTab({
                     Begründung anzeigen
                   </button>
                 )}
-
                 {contextSources.length > 0 && (
                   <button
                     type="button"
@@ -587,7 +507,6 @@ export default function OverviewTab({
               </p>
             )}
           </div>
-
           <SignalCard
             label="Verantwortlich"
             value={
@@ -596,7 +515,6 @@ export default function OverviewTab({
             }
             alert={missingOwner}
           />
-
           <SignalCard
             label="Relevante Frist"
             value={
@@ -610,7 +528,6 @@ export default function OverviewTab({
             alert={deadlineOverdue}
           />
         </div>
-
         {expandedDetail && (
           <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between gap-3">
@@ -621,7 +538,6 @@ export default function OverviewTab({
                     ? "Begründung der Maßnahme"
                     : "Belege zum Fallkontext"}
               </p>
-
               <button
                 type="button"
                 onClick={() => setExpandedDetail(null)}
@@ -630,19 +546,16 @@ export default function OverviewTab({
                 Schließen
               </button>
             </div>
-
             {expandedDetail === "risk" && (
               <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                 {riskInfo.explanation}
               </p>
             )}
-
             {expandedDetail === "reason" && (
               <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                 {actionReason}
               </p>
             )}
-
             {expandedDetail === "sources" && (
               <ul className="mt-2 space-y-2 text-sm text-slate-700">
                 {contextSources.map((source) => (
@@ -653,11 +566,9 @@ export default function OverviewTab({
                     <span className="font-medium">
                       {source.file_name}
                     </span>
-
                     {source.page_number != null && (
                       <span> · Seite {source.page_number}</span>
                     )}
-
                     {source.document_date && (
                       <span> · {source.document_date}</span>
                     )}
@@ -668,7 +579,6 @@ export default function OverviewTab({
           </div>
         )}
       </section>
-
       {(deadlineOverdue ||
         overdueTasks.length > 0 ||
         missingOwner ||
@@ -677,26 +587,22 @@ export default function OverviewTab({
           <h3 className="font-semibold text-amber-950">
             Offener Handlungsbedarf
           </h3>
-
           <div className="mt-3 flex flex-wrap gap-2 text-sm text-amber-950">
             {deadlineOverdue && (
               <span className="rounded-lg bg-white px-3 py-2">
                 Hauptfrist überfällig
               </span>
             )}
-
             {overdueTasks.length > 0 && (
               <span className="rounded-lg bg-white px-3 py-2">
                 {overdueTasks.length} Aufgabe(n) überfällig
               </span>
             )}
-
             {missingOwner && (
               <span className="rounded-lg bg-white px-3 py-2">
                 Verantwortung offen
               </span>
             )}
-
             {missingAction && (
               <span className="rounded-lg bg-white px-3 py-2">
                 Nächste Maßnahme offen
@@ -705,13 +611,11 @@ export default function OverviewTab({
           </div>
         </section>
       )}
-
       <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Kurzkontext
           </p>
-
           <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
             {compact(
               caseItem.management_summary || caseItem.description,
@@ -719,12 +623,10 @@ export default function OverviewTab({
             ) || "Noch keine bestätigte Zusammenfassung vorhanden."}
           </p>
         </div>
-
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Arbeitsstand
           </p>
-
           <dl className="mt-3 space-y-3 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">
@@ -734,7 +636,6 @@ export default function OverviewTab({
                 {openTasks.length}
               </dd>
             </div>
-
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">
                 Dokumente
@@ -743,7 +644,6 @@ export default function OverviewTab({
                 {documents.length}
               </dd>
             </div>
-
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">
                 Verlaufseinträge
@@ -755,7 +655,6 @@ export default function OverviewTab({
           </dl>
         </div>
       </section>
-
       {caseItem.suggested_risk &&
         caseItem.suggested_risk !== caseItem.risk && (
           <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
@@ -764,11 +663,9 @@ export default function OverviewTab({
                 <p className="text-xs font-semibold uppercase text-blue-600">
                   KI-Vorschlag zur Risikobewertung
                 </p>
-
                 <div className="mt-2">
                   <RiskBadge value={caseItem.suggested_risk} />
                 </div>
-
                 <p className="mt-2 text-sm text-blue-900">
                   {compact(
                     caseItem.suggested_risk_reason,
@@ -776,7 +673,6 @@ export default function OverviewTab({
                   ) || "Keine Begründung vorhanden."}
                 </p>
               </div>
-
               {isManager && (
                 <button
                   type="button"
@@ -790,7 +686,6 @@ export default function OverviewTab({
                 </button>
               )}
             </div>
-
             {riskError && (
               <p className="mt-3 text-sm text-red-700">
                 {riskError}
