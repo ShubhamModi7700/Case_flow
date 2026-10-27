@@ -4,7 +4,7 @@ import { api } from "../../api";
 import type { AISuggestion, CaseAISummary, CaseItem, DocumentItem, TaskItem, TimelineEvent } from "../../types";
 import { getCaseAISuggestions, getLatestApprovedManagementSummary } from "../../services/ai";
 import { cleanAIText } from "../../utils/aiText";
-import { RiskBadge, StatusBadge } from "./Badges";
+import { RiskBadge } from "./Badges";
 
 interface OverviewTabProps {
   caseItem: CaseItem;
@@ -35,6 +35,64 @@ function SignalCard({ label, value, detail, alert = false }: { label: string; va
     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
     <div className="mt-2 break-words text-sm font-semibold leading-6 text-slate-950">{value}</div>
     {detail ? <div className="mt-2 text-sm leading-6 text-slate-600">{detail}</div> : null}
+  </div>;
+}
+
+
+// Format the approved development without inventing an event date or headline.
+// The backend continues to determine which documented event is the latest.
+function formatLatestDevelopment(value: string | null): { date: string | null; headline: string; detail: string } | null {
+  if (!value) return null;
+  const cleaned = cleanApprovedDisplayText(value).replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+  const match = cleaned.match(/^(?:Am |Vom |Zum )?(\d{2}\.\d{2}\.\d{4})(?:\s*[·:–-]\s*|\s+)/i);
+  let date: string | null = null;
+  let body = cleaned;
+  if (match) {
+    const [day, month, year] = match[1].split(".").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) {
+      date = match[1];
+      body = cleaned.slice(match[0].length).trim();
+    }
+  }
+  // A headline is derived from the original text; no AI-generated event is added.
+  const firstSentence = body.match(/^(.+?[.!?])(?:\s|$)/)?.[1] ?? body;
+  const headline = compact(firstSentence, 85) || "Dokumentierte Entwicklung";
+  const detail = body === firstSentence ? "" : body.slice(firstSentence.length).trim();
+  return { date, headline, detail };
+}
+
+function LatestDevelopmentCard({ value }: { value: string | null }) {
+  const event = formatLatestDevelopment(value);
+  return <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
+    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Was ist neu?</p>
+    {!event ? <p className="mt-2 text-sm text-slate-600">Keine neue bestätigte Entwicklung</p> : <div className="mt-2 space-y-2">
+      <p className="break-words text-sm font-semibold leading-6 text-slate-950">{event.date && <span className="mr-1 text-slate-500">{event.date} ·</span>}{event.headline}</p>
+      {event.detail && <p className="break-words text-sm leading-6 text-slate-600">{compact(event.detail, 190)}</p>}
+      {event.detail && event.detail.length > 190 && <details className="text-sm text-slate-600"><summary className="cursor-pointer">Vollständige Entwicklung anzeigen</summary><p className="mt-2 whitespace-pre-wrap break-words leading-6">{event.detail}</p></details>}
+    </div>}
+  </div>;
+}
+
+
+// Display the stored risk level unchanged; explain it without repeating the badge.
+// Do not turn an unverified risk explanation into a confirmed fact.
+function CriticalRiskCard({ risk, reason, alert }: { risk: CaseItem["risk"]; reason: string | null; alert: boolean }) {
+  const text = cleanApprovedDisplayText(reason);
+  const withoutRepeatedLevel = text.replace(/^(?:Das aktuelle )?(?:Rest)?risiko ist (?:hoch|mittel|niedrig)\.?\s*/i, "").trim();
+  const sentence = withoutRepeatedLevel.match(/^(.+?[.!?])(?:\s|$)/)?.[1] ?? withoutRepeatedLevel;
+  const headline = compact(sentence, 95) || (alert ? "Kritischer Fallstand" : "Keine akute Risikobegründung hinterlegt");
+  const remaining = withoutRepeatedLevel.slice(sentence.length).trim();
+  const explanation = remaining || (sentence.length > 95 ? sentence : "");
+  return <div className={`min-w-0 rounded-xl border p-4 ${alert ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white"}`}>
+    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Was ist kritisch?</p>
+    <div className="mt-2"><RiskBadge value={risk} /></div>
+    <p className="mt-3 break-words text-sm font-semibold leading-6 text-slate-950">{headline}</p>
+    {explanation && <details className="mt-2 text-sm text-slate-600">
+      <summary className="cursor-pointer">Risikobegründung anzeigen</summary>
+      <p className="mt-2 whitespace-pre-wrap break-words leading-6">{withoutRepeatedLevel}</p>
+    </details>}
   </div>;
 }
 
@@ -72,10 +130,9 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
   // technical timeline/audit entry such as "risk: Low -> High".
   // The approved case-level management summary is the primary source because
   // it is generated from the indexed documents of the whole case.
-  const latestDevelopment = compact(
+  const latestDevelopment = cleanApprovedDisplayText(
     approvedSummary?.latest_development ||
     latestApprovedSuggestion?.suggested_latest_development,
-    360,
   );
 
   // Prefer the approved case-level management recommendation. An approved
@@ -118,8 +175,8 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
         {canEdit && <button type="button" onClick={onEditCase} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Fall bearbeiten</button>}
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <SignalCard label="Was ist kritisch?" value={<><RiskBadge value={caseItem.risk} /> <span className="ml-2"><StatusBadge value={caseItem.status} /></span></>} detail={riskReason || (isCritical ? "Aktiver Handlungsbedarf erkannt." : "Kein akutes Warnsignal.")} alert={isCritical} />
-        <SignalCard label="Was ist neu?" value={latestDevelopment || "Keine neue bestätigte Entwicklung"} />
+        <CriticalRiskCard risk={caseItem.risk} reason={riskReason} alert={isCritical} />
+        <LatestDevelopmentCard value={latestDevelopment} />
         <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
           {caseItem.status === "Completed" ? (

@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.prompts.common import CORE_RULES, HUMAN_REVIEW_RULE
 
 
-MANAGEMENT_PROMPT_VERSION = "management-v16-natural-german"
+MANAGEMENT_PROMPT_VERSION = "management-v18-compact-critical-risk"
 
 
 SYSTEM_PROMPT = f"""
@@ -33,6 +33,10 @@ Für `latest_development`:
 - Keine Empfehlung oder zukünftige Handlung aufnehmen.
 - Berücksichtige, ob neuere bestätigte Evidenz einen älteren Stand ersetzt, erledigt oder verändert.
 - Wenn keine jüngste Entwicklung belastbar bestimmbar ist, verwende null.
+- Formuliere für die kompakte Übersicht: Beginne nur bei belegtem Ereignisdatum mit „TT.MM.JJJJ · “, danach ein kurzer, sachlicher Ereignissatz und höchstens ein weiterer Satz mit der unmittelbaren Bedeutung.
+- Wenn das genaue Ereignisdatum nicht belegt ist, erfinde keines und beginne direkt mit dem Ereignis.
+- Vermeide technische Audit- oder Statuswechsel, doppelte Aussagen und bloße Dokument-Upload-Meldungen.
+- Bezeichne ein Ereignis nur als „neueste Entwicklung“, wenn die zugängliche Evidenz den zeitlichen Vergleich trägt.
 
 `next_required_action`
 = genau der unmittelbar nächste noch auszuführende, evidenzgestützte Schritt aus dem aktuellen Fallstand.
@@ -70,6 +74,7 @@ Beide Felder dürfen nicht dasselbe Ereignis oder dieselbe Handlung lediglich un
 Eine nicht belastbar belegte Handlung oder Frist ist null.
 
 Bewerte `suggested_risk` als aktuelles Restrisiko (High/Medium/Low), nicht als historisches Maximum, und begründe es.
+Die Risikobegründung soll den konkreten kritischen Sachverhalt und dessen mögliche Auswirkung sachlich benennen, ohne den Risikograd („hoch“, „mittel“, „niedrig“) im Text zu wiederholen. Trenne belegte Tatsachen von Unsicherheiten: eine nicht gefundene Zahlungsbestätigung ist kein Beweis für Nichtzahlung. Keine neue Frist oder Verpflichtung erfinden. Formuliere möglichst knapp, damit der Management-Blick gut lesbar bleibt.
 
 Bestimme `suggested_status` aus der neuesten Evidenz (New/Under Review/In Progress/Waiting/Completed/Critical). Ein Vergleich mit wesentlicher offener Erfüllung ist noch nicht Completed.
 
