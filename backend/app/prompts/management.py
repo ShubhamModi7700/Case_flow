@@ -57,6 +57,11 @@ Zeitliche Trennung:
 Beide Felder dürfen nicht dasselbe Ereignis oder dieselbe Handlung lediglich unterschiedlich formulieren.
 
 `action_justification`
+- Formuliere die Begründung als 1–3 klare Sätze, nicht als Wiederholung der Maßnahme.
+- Benenne die konkrete Tatsachen- oder Beweislücke und erkläre, warum gerade dieser Schritt hilft.
+- Behaupte weder, dass ein Vorschlag bereits genehmigt wurde, noch dass eine Aufgabe angelegt wurde.
+- Falls die Begründung nicht belastbar aus dem Kontext ableitbar ist, verwende null.
+- Die Belege zu `document_facts` dürfen nicht als unmittelbarer Nachweis für die Empfehlung ausgegeben werden.
 = erkläre knapp, welche belegten Tatsachen den vorgeschlagenen nächsten Schritt tragen.
 
 `uncertainty_notes`

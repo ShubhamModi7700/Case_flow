@@ -80,12 +80,22 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
 
   // Prefer the approved case-level management recommendation. An approved
   // individual-document suggestion and the stored case action are fallbacks.
-  const nextAction = compact(
+  const nextAction = cleanApprovedDisplayText(
     approvedSummary?.next_required_action ||
     latestApprovedSuggestion?.suggested_next_action ||
     caseItem.next_action,
-    260,
   );
+
+  const actionFromApprovedSummary = Boolean(approvedSummary?.next_required_action);
+  const actionFromApprovedSuggestion = !actionFromApprovedSummary && Boolean(latestApprovedSuggestion?.suggested_next_action);
+  const actionOrigin = actionFromApprovedSummary || actionFromApprovedSuggestion
+    ? "Freigegebene KI-Empfehlung"
+    : "Im Fall hinterlegte Maßnahme";
+  const actionReason = actionFromApprovedSummary ? cleanApprovedDisplayText(approvedSummary?.action_justification) : "";
+  // Fact citations support the underlying context; they are not automatically proof of the proposed action.
+  const contextSources = actionFromApprovedSummary
+    ? [...new Map((approvedSummary?.document_fact_sources ?? []).map((source) => [source.chunk_id, source])).values()]
+    : [];
 
   const riskReason = compact(caseItem.risk_reason || caseItem.suggested_risk_reason, 240);
   const missingOwner = caseItem.status !== "Completed" && !caseItem.responsible_person?.trim();
@@ -114,7 +124,40 @@ export default function OverviewTab({ caseItem, tasks, documents, timeline, canE
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <SignalCard label="Was ist kritisch?" value={<><RiskBadge value={caseItem.risk} /> <span className="ml-2"><StatusBadge value={caseItem.status} /></span></>} detail={riskReason || (isCritical ? "Aktiver Handlungsbedarf erkannt." : "Kein akutes Warnsignal.")} alert={isCritical} />
         <SignalCard label="Was ist neu?" value={latestDevelopment || "Keine neue bestätigte Entwicklung"} />
-        <SignalCard label="Nächste Maßnahme" value={caseItem.status === "Completed" ? "Fall abgeschlossen" : nextAction || "Nicht definiert"} alert={missingAction} />
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 xl:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nächste Maßnahme</p>
+          {caseItem.status === "Completed" ? (
+            <p className="mt-2 text-sm font-semibold text-slate-900">Fall abgeschlossen</p>
+          ) : nextAction ? (
+            <div className="mt-2 space-y-3">
+              <p className="break-words text-sm font-semibold leading-6 text-slate-950">{compact(nextAction, 150)}</p>
+              {cleanApprovedDisplayText(nextAction).length > 150 && (
+                <details className="text-sm text-slate-700">
+                  <summary className="cursor-pointer font-medium text-slate-600">Vollständige Maßnahme anzeigen</summary>
+                  <p className="mt-2 whitespace-pre-wrap break-words leading-6">{cleanApprovedDisplayText(nextAction)}</p>
+                </details>
+              )}
+              {actionReason && <div className="border-t border-slate-100 pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Begründung</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{actionReason}</p>
+              </div>}
+              {contextSources.length > 0 && <details className="border-t border-slate-100 pt-3 text-xs text-slate-600">
+                <summary className="cursor-pointer font-medium">Belege zum Fallkontext anzeigen ({contextSources.length})</summary>
+                <ul className="mt-2 space-y-2">
+                  {contextSources.map((source) => <li key={source.chunk_id} className="rounded-lg bg-slate-50 p-2">
+                    <span className="font-medium text-slate-800">{source.file_name}</span>
+                    {source.page_number != null && <span> · Seite {source.page_number}</span>}
+                    {source.document_date && <span> · {source.document_date}</span>}
+                  </li>)}
+                </ul>
+                <p className="mt-2">Diese Fundstellen belegen Fallfakten; die Empfehlung selbst ist eine fachlich zu prüfende Ableitung.</p>
+              </details>}
+              <p className="border-t border-slate-100 pt-2 text-xs text-slate-500">
+                {actionOrigin} · {actionFromApprovedSummary || actionFromApprovedSuggestion ? "KI-Vorschlag freigegeben" : "Freigabestatus nicht gesondert ausgewiesen"} · Keine Aufgabe erstellt
+              </p>
+            </div>
+          ) : <p className="mt-2 text-sm text-slate-600">Nicht definiert</p>}
+        </div>
         <SignalCard label="Verantwortlich" value={caseItem.responsible_person?.trim() || "Nicht zugewiesen"} alert={missingOwner} />
         <SignalCard label="Relevante Frist" value={caseItem.status === "Completed" ? "Keine offene Frist" : caseItem.primary_deadline || "Keine klare Frist"} detail={deadlineOverdue ? "Frist ist überfällig." : undefined} alert={deadlineOverdue} />
       </div>
