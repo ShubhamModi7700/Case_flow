@@ -84,6 +84,47 @@ def retrieve_case_evidence(
                     del by_document[document_id]
         return selected
 
+    # Chat questions benefit from evidence covering both the user's exact question
+    # and potential contractual/accounting counter-evidence. Keep all retrieval
+    # calls case-scoped and permission-checked by retrieve_chunks.
+    if task_type == "question":
+        latest_question = retrieval_question(question, task_type)
+        search_queries = [latest_question]
+        if re.search(r"rechnung|forderung|zahlung|ablöse|doppel|betrag|kosten|vertrag|rechtlich|abwehr|bestreit|fällig", latest_question, re.I):
+            search_queries.append(
+                f"{latest_question[:450]}\nVertrag AGB Nachtrag Vereinbarung Rechnungsposition "
+                "Anrechnung Gutschrift Zahlungsnachweis Fälligkeit Gegenargument Widerspruch"
+            )
+        candidates: dict[int, dict[str, Any]] = {}
+        for search_text in search_queries:
+            embedding = create_query_embedding(search_text)
+            for chunk in retrieve_chunks(
+                db=db, user=user, query_embedding=embedding,
+                case_id=case_id, threshold=0.30, limit=24,
+            ):
+                chunk_id = int(chunk["chunk_id"])
+                existing = candidates.get(chunk_id)
+                if existing is None or float(chunk["similarity"]) > float(existing["similarity"]):
+                    candidates[chunk_id] = chunk
+        # Round-robin across documents prevents a long email or one invoice
+        # from crowding out evidence in other documents.
+        by_document: dict[int, list[dict[str, Any]]] = {}
+        for chunk in candidates.values():
+            by_document.setdefault(int(chunk["document_id"]), []).append(chunk)
+        for rows in by_document.values():
+            rows.sort(key=lambda row: float(row["similarity"]), reverse=True)
+        document_order = sorted(by_document, key=lambda doc: float(by_document[doc][0]["similarity"]), reverse=True)
+        selected: list[dict[str, Any]] = []
+        max_chunks = min(limit if limit is not None else 24, 30)
+        while len(selected) < max_chunks and document_order:
+            for document_id in list(document_order):
+                if len(selected) >= max_chunks:
+                    break
+                selected.append(by_document[document_id].pop(0))
+                if not by_document[document_id]:
+                    document_order.remove(document_id)
+        return selected
+
     query_embedding = create_query_embedding(retrieval_question(question, task_type))
     task_limit = limit if limit is not None else (35 if task_type in {"intelligence", "report"} else (30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review"} else 20))
     task_threshold = 0.30 if task_type in {"chronology", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"} else 0.40

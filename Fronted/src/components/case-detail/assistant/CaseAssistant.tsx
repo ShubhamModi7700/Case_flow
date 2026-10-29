@@ -170,6 +170,17 @@ const financeGroups = [
   { key: "other", label: "Sonstige / nicht eindeutig zugeordnet" },
 ] as const;
 
+// Fallbericht only: remove duplicate wording without merging different evidentiary gaps.
+function uniqueReportIssues(items: string[]): string[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const normalized = item.trim().replace(/\s+/g, " ").replace(/[.!?;:]+$/g, "").toLocaleLowerCase("de-DE");
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
 function deadlineSortKey(value: string | null): string {
   if (!value) return "9999-12-31";
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
@@ -962,8 +973,20 @@ export default function CaseAssistant({ caseId }: Props) {
               <p className="mt-2 text-xs text-slate-500">Dieser Abschnitt zeigt dokumentierte Angaben, nicht automatisch die aktuellen Aufgaben aus der Fall-Datenbank.</p>
               <button type="button" disabled={workStatusLoading} onClick={() => { void loadWorkStatus(); }} className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-500 disabled:opacity-50">{workStatusLoading ? "Arbeitsstand wird geladen..." : "Aktuelle Fristen & Aufgaben aus Case Flow anzeigen"}</button>
             </div>
-            <div><h4 className="mb-2 font-semibold">7. Widersprüche</h4>{result.contradictions.length ? <EvidenceList items={result.contradictions} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Widersprüche identifiziert.</p>}</div>
-            <div><h4 className="mb-2 font-semibold">8. Offene Fragen und fehlende Nachweise</h4>{result.missing_information.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{result.missing_information.map((item, i) => <li key={i}>{item}</li>)}</ul> : <p className="text-sm text-slate-500">Keine weiteren offenen Punkte identifiziert.</p>}</div>
+            {result.contradictions.length > 0 && (
+              <div>
+                <h4 className="mb-2 font-semibold">7. Widersprüche</h4>
+                <EvidenceList items={result.contradictions} sourcesById={sourcesById} />
+              </div>
+            )}
+            {uniqueReportIssues(result.missing_information).length > 0 && (
+              <div>
+                <h4 className="mb-2 font-semibold">{result.contradictions.length > 0 ? "8" : "7"}. Offene Fragen und fehlende Nachweise</h4>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {uniqueReportIssues(result.missing_information).map((item, i) => <li key={i}>{item}</li>)}
+                </ul>
+              </div>
+            )}
           </section>}
           {result.task_type === "chronology" && <ChronologyView items={result.chronology} sourcesById={sourcesById} />}
           {result.task_type === "evidence" && <EvidenceOverview items={result.evidence} sourcesById={sourcesById} />}

@@ -61,10 +61,19 @@ class OpenAIProvider:
         return int(value)
 
     def structured_parse(self, *, input: Any, text_format: Any, model: str | None = None) -> Any:
+        options: dict[str, Any] = {}
+        # Optional: set OPENAI_REASONING_EFFORT to a value supported by the
+        # configured model. Unset preserves the previous provider behavior.
+        effort = os.getenv("OPENAI_REASONING_EFFORT", "").strip().lower()
+        if effort:
+            if effort not in {"minimal", "low", "medium", "high", "xhigh"}:
+                raise ValueError("Invalid OPENAI_REASONING_EFFORT setting")
+            options["reasoning"] = {"effort": effort}
         return self._client.responses.parse(
             model=model or self.analysis_model(),
             input=input,
             text_format=text_format,
+            **options,
         )
 
     def create_embeddings(self, texts: list[str]) -> list[list[float]]:
