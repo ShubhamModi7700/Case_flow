@@ -9,7 +9,7 @@ from app import models, schemas
 from app.services.embeddings import create_query_embedding
 from app.services.ai_provider import get_ai_provider
 from app.services.retrieval import retrieve_chunks
-from app.prompts.case_assistant import CASE_ASSISTANT_PROMPT_VERSION, BASE_SYSTEM_PROMPT, TASK_PROMPTS
+from app.prompts.case_assistant import CASE_ASSISTANT_PROMPT_VERSION, BASE_SYSTEM_PROMPT, CHAT_CONVERSATIONAL_PROMPT, TASK_PROMPTS
 
 
 TaskType = Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"]
@@ -493,7 +493,7 @@ def answer_case_question(
         task_type=task_type,
         brief_context=brief_context,
     )
-    system_prompt = f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}"
+    system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
     response = get_ai_provider().structured_parse(
                 input=[
             {"role": "system", "content": system_prompt},

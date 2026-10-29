@@ -202,6 +202,10 @@ def chat_case_assistant(case_id: int, payload: ChatTurnRequest, db: Session = De
                            if context else payload.message)[:5000]
     
     result = query_case_assistant(case_id, schemas.CaseAssistantQueryRequest(question=contextual_question, task_type="question"), db, current_user)
+    # Keep structured source references for audit, but never expose citation codes in chat text.
+    import re
+    result.answer = re.sub(r"\s*\[S\d+\]", "", result.answer).strip()
+    result.answer = re.sub(r"[ \t]{2,}", " ", result.answer)
     db.add(models.AssistantChatMessage(case_id=case_id, user_id=current_user.id, role="user", content=payload.message))
     db.add(models.AssistantChatMessage(case_id=case_id, user_id=current_user.id, role="assistant", content=result.answer, response_json=result.model_dump(mode="json")))
     db.commit()

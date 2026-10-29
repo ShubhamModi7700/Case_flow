@@ -825,11 +825,7 @@ export default function CaseAssistant({ caseId }: Props) {
               <div key={turn.id} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`min-w-0 ${turn.role === "user" ? "max-w-[92%] sm:max-w-[80%]" : "w-full max-w-full"} rounded-2xl px-4 py-3 text-sm ${turn.role === "user" ? "bg-slate-100 text-slate-900" : "border border-slate-100 bg-white text-slate-800"}`}>
                   <div className="mb-2 text-xs font-semibold text-slate-500">{turn.role === "user" ? "Sie" : "Case Flow"}</div>
-                  <AssistantMarkdown content={turn.content} sources={turn.response?.sources} sourcePrefix={`chat-${turn.id}`} />
-                  {turn.response && turn.response.sources.length > 0 && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-600">
-                    <summary className="cursor-pointer font-medium">Dokumentquellen ({turn.response.sources.length})</summary>
-                    <ul className="mt-2 space-y-1">{turn.response.sources.map((source) => <li id={`chat-${turn.id}-source-${source.source_id}`} key={source.source_id} className="scroll-mt-5 rounded px-1 py-0.5 target:bg-amber-100">[{source.source_id}] {source.filename}{source.page_number ? ` · Seite ${source.page_number}` : ""}{source.sheet_name ? ` · Blatt ${source.sheet_name}` : ""}{source.document_date ? ` · ${source.document_date}` : ""}</li>)}</ul>
-                  </details>}
+                  <AssistantMarkdown content={turn.role === "assistant" ? turn.content.replace(/\s*\[S\d+\]/g, "") : turn.content} />
                 </div>
               </div>
             ))}
