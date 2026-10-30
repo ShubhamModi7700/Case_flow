@@ -618,13 +618,15 @@ export default function CaseAssistant({ caseId }: Props) {
         }
       })
       .finally(() => {
-        if (generation === chatGenerationRef.current && historyRequest === chatHistoryRequestRef.current) setChatHistoryLoading(false);
+        // A send can invalidate the history request; it must not leave
+        // chatHistoryLoading stuck true until the next page refresh.
+        if (generation === chatGenerationRef.current) setChatHistoryLoading(false);
       });
     return () => { ++chatGenerationRef.current; };
   }, [caseId, chatReloadKey]);
   async function sendChat(explicitMessage?: string): Promise<void> {
     const message = (explicitMessage ?? chatText).trim();
-    if (message.length < 2 || chatSendingRef.current || chatHistoryLoading) return;
+    if (message.length < 2 || chatSendingRef.current) return;
     chatSendingRef.current = true;
     const generation = chatGenerationRef.current;
     const sendingCaseId = caseId;
