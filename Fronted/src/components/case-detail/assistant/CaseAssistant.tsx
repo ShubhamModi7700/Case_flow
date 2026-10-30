@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AssistantMarkdown from "./AssistantMarkdown";
 
 import {
@@ -591,28 +591,64 @@ export default function CaseAssistant({ caseId }: Props) {
   const [chatError, setChatError] = useState("");
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
   const [chatReloadKey, setChatReloadKey] = useState(0);
+  // Refs guard against rapid Enter/click submissions and outdated async responses.
+  const chatSendingRef = useRef(false);
+  const chatGenerationRef = useRef(0);
+  const chatHistoryRequestRef = useRef(0);
+  const currentCaseRef = useRef(caseId);
+  currentCaseRef.current = caseId;
   useEffect(() => {
-    let alive = true;
     setChatHistory([]);
     setChatText("");
+  }, [caseId]);
+  useEffect(() => {
+    const generation = ++chatGenerationRef.current;
+    const historyRequest = ++chatHistoryRequestRef.current;
     setChatError("");
     setChatHistoryLoading(true);
     getCaseChat(caseId)
-      .then((rows) => { if (alive) setChatHistory(rows); })
-      .catch((error) => { if (alive) setChatError(`Chatverlauf konnte nicht geladen werden: ${errorMessage(error)}`); })
-      .finally(() => { if (alive) setChatHistoryLoading(false); });
-    return () => { alive = false; };
+      .then((rows) => {
+        if (generation === chatGenerationRef.current && historyRequest === chatHistoryRequestRef.current && !chatSendingRef.current) {
+          setChatHistory(rows);
+        }
+      })
+      .catch((error) => {
+        if (generation === chatGenerationRef.current && historyRequest === chatHistoryRequestRef.current) {
+          setChatError(`Chatverlauf konnte nicht geladen werden: ${errorMessage(error)}`);
+        }
+      })
+      .finally(() => {
+        if (generation === chatGenerationRef.current && historyRequest === chatHistoryRequestRef.current) setChatHistoryLoading(false);
+      });
+    return () => { ++chatGenerationRef.current; };
   }, [caseId, chatReloadKey]);
   async function sendChat(explicitMessage?: string): Promise<void> {
     const message = (explicitMessage ?? chatText).trim();
-    if (message.length < 2 || chatLoading || chatHistoryLoading) return;
-    setChatLoading(true); setChatError("");
+    if (message.length < 2 || chatSendingRef.current || chatHistoryLoading) return;
+    chatSendingRef.current = true;
+    const generation = chatGenerationRef.current;
+    const sendingCaseId = caseId;
+    // Invalidate any earlier history response that could overwrite this send.
+    ++chatHistoryRequestRef.current;
+    setChatLoading(true);
+    setChatError("");
+    let sent = false;
     try {
-      await sendCaseChat(caseId, message);
-      setChatText("");
-      setChatHistory(await getCaseChat(caseId));
-    } catch (e) { setChatError(errorMessage(e)); }
-    finally { setChatLoading(false); }
+      await sendCaseChat(sendingCaseId, message);
+      sent = true;
+      if (generation === chatGenerationRef.current && currentCaseRef.current === sendingCaseId) setChatText("");
+      const rows = await getCaseChat(sendingCaseId);
+      if (generation === chatGenerationRef.current && currentCaseRef.current === sendingCaseId) setChatHistory(rows);
+    } catch (e) {
+      if (generation === chatGenerationRef.current && currentCaseRef.current === sendingCaseId) {
+        setChatError(sent
+          ? `Antwort wurde gesendet, aber der Verlauf konnte nicht geladen werden: ${errorMessage(e)}`
+          : errorMessage(e));
+      }
+    } finally {
+      chatSendingRef.current = false;
+      if (generation === chatGenerationRef.current && currentCaseRef.current === sendingCaseId) setChatLoading(false);
+    }
   }
   const [result, setResult] = useState<CaseAssistantResponse | null>(null);
   const [loading, setLoading] = useState(false);
