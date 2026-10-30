@@ -92,7 +92,7 @@ def retrieve_case_evidence(
         broad_question = bool(re.search(
             r"\b(widerspr\w*|unstimmig\w*|abweichung\w*|"
             r"gesamten? fall|gesamtbild|überblick|ueberblick|"
-            r"chronolog|risiken|offene punkte|was ist passiert|what happened|root cause|contradiction|"
+            r"chronolog|risiken|offene punkte|fehlend\w*|nachweis\w*|beleg\w*|dokument\w*|unbekannt\w*|ungeklärt\w*|unklar\w*|lücken|luecken|was ist passiert|what happened|root cause|contradiction|"
             r"inconsisten|entire case|whole case|timeline)\b",
             latest_question, re.IGNORECASE,
         ))
