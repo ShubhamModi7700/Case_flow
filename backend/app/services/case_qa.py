@@ -86,51 +86,79 @@ def retrieve_case_evidence(
 
     if task_type == "question":
         latest_question = retrieval_question(question, task_type)[:1200]
-        primary_embedding = create_query_embedding(latest_question)
-        primary = retrieve_chunks(
-            db=db, user=user, query_embedding=primary_embedding,
-            case_id=case_id, threshold=0.30, limit=18,
-        )
-        candidates: dict[int, dict[str, Any]] = {
-            int(chunk["chunk_id"]): chunk for chunk in primary
-        }
-        
-        if len(primary) < 12:
+        # Broad analytical questions need coverage across case events, not only
+        # semantically similar passages (e.g. generic marketing claims).
+        broad_question = bool(re.search(
+            r"\b(widerspr\w*|unstimmig\w*|abweichung\w*|"
+            r"gesamten? fall|gesamtbild|überblick|ueberblick|"
+            r"chronolog|risiken|offene punkte|was ist passiert|what happened|root cause|contradiction|"
+            r"inconsisten|entire case|whole case|timeline)\b",
+            latest_question, re.IGNORECASE,
+        ))
+        search_texts = [latest_question]
+        if broad_question:
+            # Domain-neutral evidence angles: case events and decisions, then
+            # competing versions/changes. Only three bounded searches total.
+            search_texts.extend([
+                "Fallverlauf wichtige Ereignisse Beteiligte Kommunikation "
+                "Entscheidungen Zusagen Ergebnisse Dokumentation",
+                "frühere spätere Aussagen Änderungen abweichende Angaben "
+                "Termine Beträge Zuständigkeiten Bedingungen tatsächliche Umsetzung",
+            ])
+        candidates: dict[int, dict[str, Any]] = {}
+        groups: list[list[int]] = []
+        for index, search_text in enumerate(search_texts):
             try:
-                secondary_embedding = create_query_embedding(
-                    f"{latest_question[:300]} Vorgeschichte Verlauf Entscheidungen "
-                    "Ergebnisse Nachweise Gegenposition offene Punkte"
+                embedding = create_query_embedding(search_text)
+                hits = retrieve_chunks(
+                    db=db, user=user, query_embedding=embedding,
+                    case_id=case_id, threshold=0.25 if broad_question else 0.30,
+                    limit=16 if index == 0 else 12,
                 )
-                secondary = retrieve_chunks(
-                    db=db, user=user, query_embedding=secondary_embedding,
-                    case_id=case_id, threshold=0.30, limit=12,
-                )
-                for chunk in secondary:
-                    key = int(chunk["chunk_id"])
-                    if key not in candidates or float(chunk["similarity"]) > float(candidates[key]["similarity"]):
-                        candidates[key] = chunk
             except Exception:
-                # Primary evidence is sufficient to continue safely.
-                pass
-        by_document: dict[int, list[dict[str, Any]]] = {}
-        for chunk in candidates.values():
-            by_document.setdefault(int(chunk["document_id"]), []).append(chunk)
-        for rows in by_document.values():
-            rows.sort(key=lambda row: float(row["similarity"]), reverse=True)
-        document_order = sorted(
-            by_document,
-            key=lambda doc: float(by_document[doc][0]["similarity"]),
-            reverse=True,
-        )
-        selected: list[dict[str, Any]] = []
+                if index == 0:
+                    raise  # Never mask failure of the primary retrieval.
+                continue  # Supplementary search is best-effort.
+            ids: list[int] = []
+            for hit in hits:
+                key = int(hit["chunk_id"])
+                ids.append(key)
+                previous = candidates.get(key)
+                if previous is None or float(hit["similarity"]) > float(previous["similarity"]):
+                    candidates[key] = hit
+            groups.append(ids)
+
         max_chunks = min(limit if limit is not None else 18, 24)
-        while len(selected) < max_chunks and document_order:
-            for document_id in list(document_order):
+        selected: list[dict[str, Any]] = []
+        seen: set[int] = set()
+
+        def add(key: int) -> None:
+            if key not in seen and key in candidates and len(selected) < max_chunks:
+                selected.append(candidates[key])
+                seen.add(key)
+
+        # Guarantee coverage of the direct question and each supplementary
+        # angle. A generic passage cannot fill the entire evidence budget.
+        per_angle = 4 if broad_question else max_chunks
+        for group in groups:
+            for key in group[:per_angle]:
+                add(key)
+        # Fill the remaining slots with diverse documents and stable ordering.
+        remaining = sorted(
+            (hit for key, hit in candidates.items() if key not in seen),
+            key=lambda hit: (-float(hit["similarity"]), int(hit["document_id"]), int(hit["chunk_id"])),
+        )
+        by_document: dict[int, list[dict[str, Any]]] = {}
+        for hit in remaining:
+            by_document.setdefault(int(hit["document_id"]), []).append(hit)
+        doc_ids = sorted(by_document, key=lambda doc: (-float(by_document[doc][0]["similarity"]), doc))
+        while doc_ids and len(selected) < max_chunks:
+            for doc_id in list(doc_ids):
                 if len(selected) >= max_chunks:
                     break
-                selected.append(by_document[document_id].pop(0))
-                if not by_document[document_id]:
-                    document_order.remove(document_id)
+                add(int(by_document[doc_id].pop(0)["chunk_id"]))
+                if not by_document[doc_id]:
+                    doc_ids.remove(doc_id)
         return selected
 
     query_embedding = create_query_embedding(retrieval_question(question, task_type))

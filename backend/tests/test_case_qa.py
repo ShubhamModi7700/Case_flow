@@ -402,3 +402,37 @@ class ChatConsistencyRetrievalTests(unittest.TestCase):
             )
         self.assertEqual([item["chunk_id"] for item in result[:4]], [1, 2, 3, 4])
         self.assertEqual(len(result), 8)
+
+
+class BroadChatRetrievalTests(unittest.TestCase):
+    def test_contradiction_question_covers_multiple_evidence_angles(self):
+        from unittest.mock import patch
+        from app.services.case_qa import retrieve_case_evidence
+
+        def hit(chunk_id, document_id, score):
+            return {"chunk_id": chunk_id, "document_id": document_id,
+                    "similarity": score, "content": "Beleg"}
+
+        primary = [hit(i, 1, .95 - i * .01) for i in range(1, 13)]
+        history = [hit(i, 2, .80 - i * .001) for i in range(20, 26)]
+        changes = [hit(i, 3, .79 - i * .001) for i in range(30, 36)]
+        with patch("app.services.case_qa.create_query_embedding", return_value=[.1]), \
+             patch("app.services.case_qa.retrieve_chunks", side_effect=[primary, history, changes]) as retrieval:
+            result = retrieve_case_evidence(
+                db=None, user=None, case_id=1,
+                question="Welche Aussagen widersprechen sich tatsächlich?",
+                task_type="question", limit=18,
+            )
+        self.assertEqual(retrieval.call_count, 3)
+        self.assertTrue({1, 2, 3}.issubset({row["document_id"] for row in result}))
+        self.assertEqual(len(result), len({row["chunk_id"] for row in result}))
+        self.assertLessEqual(len(result), 18)
+
+    def test_specific_question_uses_only_primary_search(self):
+        from unittest.mock import patch
+        from app.services.case_qa import retrieve_case_evidence
+        with patch("app.services.case_qa.create_query_embedding", return_value=[.1]), \
+             patch("app.services.case_qa.retrieve_chunks", return_value=[]) as retrieval:
+            retrieve_case_evidence(db=None, user=None, case_id=1,
+                question="Wie hoch ist die Rechnung?", task_type="question")
+        self.assertEqual(retrieval.call_count, 1)
