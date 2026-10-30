@@ -90,15 +90,15 @@ def retrieve_case_evidence(
     if task_type == "question":
         latest_question = retrieval_question(question, task_type)
         search_queries = [latest_question]
-        if re.search(r"rechnung|forderung|zahlung|ablöse|doppel|betrag|kosten|vertrag|rechtlich|abwehr|bestreit|fällig", latest_question, re.I):
-            # Separate narrow searches retrieve different kinds of proof rather than
-            # allowing one generic legal query to dominate the context.
-            search_queries.extend([
-                f"{latest_question[:250]} Vertrag Vereinbarung Nachtrag Zustimmung Vertragsbeginn Laufzeit Bedingungen",
-                f"{latest_question[:250]} Rechnung Rechnungsdatum Fälligkeit Zahlungsziel Abrechnung Position",
-                f"{latest_question[:250]} Zahlung Zahlungseingang Gutschrift Anrechnung Quartalsrate Doppelberechnung",
-                f"{latest_question[:250]} Leistung erbracht Abbau Entsorgung Abholung Durchführung Bestätigung Nachweis",
-            ])
+        # General-purpose evidence angles, independent of the case domain.
+        # Retain the user's exact question as the primary retrieval query.
+        topic = latest_question[:350]
+        search_queries.extend([
+            f"{topic} Hintergrund beteiligte Personen Organisationen Vereinbarungen Kontext",
+            f"{topic} Ereignisse zeitlicher Ablauf Änderungen Kommunikation Entscheidungen",
+            f"{topic} Nachweise Dokumentation Durchführung Ergebnisse Status",
+            f"{topic} Abweichungen Widersprüche Ursachen alternative Erklärungen offene Fragen",
+        ])
         candidates: dict[int, dict[str, Any]] = {}
         for search_text in search_queries:
             embedding = create_query_embedding(search_text)
@@ -541,24 +541,24 @@ def answer_case_question(
     system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
     # This is an analysis lens, not a factual finding. It is scoped to legal/
     # financial chat questions and never applied to reports or drafting.
-    chat_analysis_lens = ""
-    if task_type == "question" and re.search(
-        r"rechnung|forderung|zahlung|ablöse|doppel|betrag|kosten|vertrag|rechtlich|abwehr|bestreit|fällig",
-        retrieval_question(question, task_type), re.I,
-    ):
-        chat_analysis_lens = (
-            "\\n\\nPRÜFRAHMEN FÜR DIESE FRAGE (keine zusätzlichen Tatsachen)\\n"
-            "Prüfe für jede entscheidende Position getrennt: (1) vereinbart/beansprucht, "
-            "(2) Rechnung ausgestellt, (3) Fälligkeit nach Vertragsbedingungen, "
-            "(4) Zahlung bzw. Anrechnung tatsächlich nachgewiesen, "
-            "(5) Leistung tatsächlich erbracht, (6) Nachweis dafür vorhanden. "
-            "Markiere einen Status nur bei konkretem Beleg als bestätigt; andernfalls offen. "
-            "Rechnerische Übereinstimmung beweist weder Buchung noch fehlende Doppelbelastung. "
-            "Fehlender Leistungsnachweis beweist nicht die Nichtleistung. "
-            "Unterscheide verfrühte Rechnungsstellung von fehlender Fälligkeit. "
-            "Berücksichtige auch die stärkste dokumentierte Gegenposition. "
-            "Nenne nur für die Frage relevante Punkte und keine ungefragten Maßnahmen."
-        )
+    # Domain-neutral reasoning applies only to conversational questions.
+    chat_analysis_lens = (
+        "\\n\\nANALYSERAHMEN FÜR DEN KI-CHAT\\n"
+        "Erkenne das tatsächliche Thema und die Absicht der Frage; unterstelle "
+        "weder einen Rechtsstreit noch eine Rechnungsfrage. "
+        "Analysiere die relevanten Dokumente fallbezogen: Was ist belegt, "
+        "was ist eine plausible Schlussfolgerung, was ist offen oder widersprüchlich? "
+        "Unterscheide Aussagen, Absichten, Vereinbarungen, tatsächliche Handlungen "
+        "und deren Nachweise. Prüfe Zeitablauf, Ursachen und Folgen nur soweit relevant. "
+        "Berücksichtige wichtige Gegenbelege und alternative Erklärungen. "
+        "Fehlende Nachweise sind nicht automatisch Beweise für das Gegenteil. "
+        "Wenn Zahlen relevant sind, prüfe Rechnung und tatsächliche Verbuchung getrennt. "
+        "Bei rechtlichen, finanziellen, technischen oder organisatorischen Fragen "
+        "nutze die jeweils passende fachliche Perspektive, ohne andere Themen aufzuzwingen. "
+        "Beantworte komplexe Fragen substanziell und mit konkreten Details; "
+        "einfache Fragen direkt und kurz. Keine erfundenen Fakten oder Quellen, "
+        "keine routinemäßige Empfehlung oder Liste offener Fragen ohne Nutzerwunsch."
+    ) if task_type == "question" else ""
     response = get_ai_provider().structured_parse(
                 input=[
             {"role": "system", "content": system_prompt},
@@ -567,7 +567,7 @@ def answer_case_question(
                 "content": (
                     f"AUFGABENTYP\n===========\n{task_type}\n\n"
                     "ANFRAGE\n=======\n"
-                    f"{request_text}\n\n"
+                    f"{request_text}{chat_analysis_lens}\n\n"
                     "FREIGEGEBENE EVIDENZ\n====================\n"
                     f"{evidence_context}"
                 ),
