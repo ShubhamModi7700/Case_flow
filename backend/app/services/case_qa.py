@@ -91,16 +91,20 @@ def retrieve_case_evidence(
         latest_question = retrieval_question(question, task_type)
         search_queries = [latest_question]
         if re.search(r"rechnung|forderung|zahlung|ablöse|doppel|betrag|kosten|vertrag|rechtlich|abwehr|bestreit|fällig", latest_question, re.I):
-            search_queries.append(
-                f"{latest_question[:450]}\nVertrag AGB Nachtrag Vereinbarung Rechnungsposition "
-                "Anrechnung Gutschrift Zahlungsnachweis Fälligkeit Gegenargument Widerspruch"
-            )
+            # Separate narrow searches retrieve different kinds of proof rather than
+            # allowing one generic legal query to dominate the context.
+            search_queries.extend([
+                f"{latest_question[:250]} Vertrag Vereinbarung Nachtrag Zustimmung Vertragsbeginn Laufzeit Bedingungen",
+                f"{latest_question[:250]} Rechnung Rechnungsdatum Fälligkeit Zahlungsziel Abrechnung Position",
+                f"{latest_question[:250]} Zahlung Zahlungseingang Gutschrift Anrechnung Quartalsrate Doppelberechnung",
+                f"{latest_question[:250]} Leistung erbracht Abbau Entsorgung Abholung Durchführung Bestätigung Nachweis",
+            ])
         candidates: dict[int, dict[str, Any]] = {}
         for search_text in search_queries:
             embedding = create_query_embedding(search_text)
             for chunk in retrieve_chunks(
                 db=db, user=user, query_embedding=embedding,
-                case_id=case_id, threshold=0.30, limit=24,
+                case_id=case_id, threshold=0.30, limit=16,
             ):
                 chunk_id = int(chunk["chunk_id"])
                 existing = candidates.get(chunk_id)
@@ -115,7 +119,7 @@ def retrieve_case_evidence(
             rows.sort(key=lambda row: float(row["similarity"]), reverse=True)
         document_order = sorted(by_document, key=lambda doc: float(by_document[doc][0]["similarity"]), reverse=True)
         selected: list[dict[str, Any]] = []
-        max_chunks = min(limit if limit is not None else 24, 30)
+        max_chunks = min(limit if limit is not None else 28, 30)
         while len(selected) < max_chunks and document_order:
             for document_id in list(document_order):
                 if len(selected) >= max_chunks:
@@ -535,6 +539,26 @@ def answer_case_question(
         brief_context=brief_context,
     )
     system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
+    # This is an analysis lens, not a factual finding. It is scoped to legal/
+    # financial chat questions and never applied to reports or drafting.
+    chat_analysis_lens = ""
+    if task_type == "question" and re.search(
+        r"rechnung|forderung|zahlung|ablöse|doppel|betrag|kosten|vertrag|rechtlich|abwehr|bestreit|fällig",
+        retrieval_question(question, task_type), re.I,
+    ):
+        chat_analysis_lens = (
+            "\\n\\nPRÜFRAHMEN FÜR DIESE FRAGE (keine zusätzlichen Tatsachen)\\n"
+            "Prüfe für jede entscheidende Position getrennt: (1) vereinbart/beansprucht, "
+            "(2) Rechnung ausgestellt, (3) Fälligkeit nach Vertragsbedingungen, "
+            "(4) Zahlung bzw. Anrechnung tatsächlich nachgewiesen, "
+            "(5) Leistung tatsächlich erbracht, (6) Nachweis dafür vorhanden. "
+            "Markiere einen Status nur bei konkretem Beleg als bestätigt; andernfalls offen. "
+            "Rechnerische Übereinstimmung beweist weder Buchung noch fehlende Doppelbelastung. "
+            "Fehlender Leistungsnachweis beweist nicht die Nichtleistung. "
+            "Unterscheide verfrühte Rechnungsstellung von fehlender Fälligkeit. "
+            "Berücksichtige auch die stärkste dokumentierte Gegenposition. "
+            "Nenne nur für die Frage relevante Punkte und keine ungefragten Maßnahmen."
+        )
     response = get_ai_provider().structured_parse(
                 input=[
             {"role": "system", "content": system_prompt},
