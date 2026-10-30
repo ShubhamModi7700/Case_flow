@@ -381,3 +381,24 @@ class ReportClassificationTests(unittest.TestCase):
             "filename": "rechnung.pdf", "content": "Rechnung",
         }])
         self.assertEqual(validated.report_finances[0].category, "invoice")
+
+
+class ChatConsistencyRetrievalTests(unittest.TestCase):
+    def test_primary_evidence_anchors_survive_secondary_search(self):
+        from unittest.mock import patch
+        from app.services.case_qa import retrieve_case_evidence
+
+        def chunk(chunk_id, document_id, similarity):
+            return {"chunk_id": chunk_id, "document_id": document_id,
+                    "similarity": similarity, "content": "evidence"}
+
+        primary = [chunk(i, 1, 0.90 - i * 0.01) for i in range(1, 5)]
+        secondary = [chunk(i, i, 0.99 - i * 0.01) for i in range(5, 17)]
+        with patch("app.services.case_qa.create_query_embedding", return_value=[0.1]), \
+             patch("app.services.case_qa.retrieve_chunks", side_effect=[primary, secondary]):
+            result = retrieve_case_evidence(
+                db=None, user=None, case_id=1, question="Was ist passiert?",
+                task_type="question", limit=8,
+            )
+        self.assertEqual([item["chunk_id"] for item in result[:4]], [1, 2, 3, 4])
+        self.assertEqual(len(result), 8)
