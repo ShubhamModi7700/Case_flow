@@ -191,15 +191,61 @@ def clear_chat_history(case_id: int, db: Session = Depends(get_db), current_user
     db.commit()
 
 
+def build_chat_context(message: str, previous: list) -> str:
+    """Bounded conversational context; older answers are not case evidence."""
+    import re
+
+    current = message.strip()
+    if not previous:
+        return current
+
+    # Standalone questions must not inherit old, repeated model answers.
+    followup = bool(re.match(
+        r"^(und |aber |dazu |davon |warum |wieso |wie (sieht|ist|wäre)|"
+        r"was (ist|wäre|bedeutet)|kannst du (das|dies)|"
+        r"erkläre (das|dies)|bitte (das|dies)|"
+        r"what about|why |how about|and |but |this |that )",
+        current, flags=re.IGNORECASE,
+    ))
+    if not followup:
+        return current
+
+    selected = []
+    seen = set()
+    budget = 1800
+    for row in previous:  # newest first
+        if row.role not in {"user", "assistant"}:
+            continue
+        normalized = " ".join(row.content.lower().split())
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        excerpt = row.content.strip()[:700 if row.role == "assistant" else 450]
+        if not excerpt:
+            continue
+        if len(excerpt) > budget:
+            excerpt = excerpt[:budget]
+        selected.append(f"{row.role}: {excerpt}")
+        budget -= len(excerpt)
+        if budget <= 0 or len(selected) >= 3:
+            break
+    if not selected:
+        return current
+    context = "\\n".join(reversed(selected))
+    return (
+        "Bisheriger Dialog (nur zum Verständnis von Verweisen, keine "
+        "Tatsachenbelege):\\n" + context + "\\n\\nAktuelle Frage: " + current
+    )
+
+
 @router.post("/cases/{case_id}/assistant/chat", response_model=schemas.CaseAssistantResponse)
 def chat_case_assistant(case_id: int, payload: ChatTurnRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     require_case_view(db, current_user, case_id)
+
     previous = (db.query(models.AssistantChatMessage)
                 .filter_by(case_id=case_id, user_id=current_user.id)
-                .order_by(models.AssistantChatMessage.id.desc()).limit(10).all())
-    context = "\n".join(f"{row.role}: {row.content[:900]}" for row in reversed(previous))
-    contextual_question = (f"Bisheriger Dialog (nur Kontext, keine Belege; Fakten stets anhand der freigegebenen Dokumente prüfen):\n{context}\n\nAktuelle Frage: {payload.message}"
-                           if context else payload.message)[:10000]
+                .order_by(models.AssistantChatMessage.id.desc()).limit(16).all())
+    contextual_question = build_chat_context(payload.message, previous)
     
     result = query_case_assistant(case_id, schemas.CaseAssistantQueryRequest(question=contextual_question, task_type="question"), db, current_user)
     import re

@@ -94,8 +94,7 @@ def retrieve_case_evidence(
         candidates: dict[int, dict[str, Any]] = {
             int(chunk["chunk_id"]): chunk for chunk in primary
         }
-        # The optional supplementary search must never break a successful
-        # primary search. No additional search for a small evidence set.
+        
         if len(primary) < 12:
             try:
                 secondary_embedding = create_query_embedding(
@@ -537,7 +536,13 @@ def answer_case_question(
             ],
         )
 
-    evidence_context = build_evidence_context(sources)
+    if task_type == "question":
+        evidence_context = build_evidence_context([
+            {**source, "content": source["content"][:2400]}
+            for source in sources[:18]
+        ])
+    else:
+        evidence_context = build_evidence_context(sources)
     request_text = build_task_request_text(
         question=question,
         task_type=task_type,
@@ -556,6 +561,14 @@ def answer_case_question(
         "Berücksichtige wichtige Gegenbelege und alternative Erklärungen. "
         "Fehlende Nachweise sind nicht automatisch Beweise für das Gegenteil. "
         "Wenn Zahlen relevant sind, prüfe Rechnung und tatsächliche Verbuchung getrennt. "
+        "Unterscheide einen dokumentierten Klärungsbedarf von einer belastbaren Einwendung. "
+        "Leite aus fehlenden Worten wie netto/brutto keine Steuerrechtsfolge ab; "
+        "Steuerfragen hängen von Leistungsart und Rechtsgrund ab. "
+        "Unterscheide verfrühte Rechnungsstellung, vertragliche Fälligkeit und "
+        "bestehende Zahlungspflicht; eine spätere Bitte um Rechnungsstellung "
+        "ändert frühere Bedingungen nicht automatisch. "
+        "Ordne die Stärke wesentlicher Argumente nach konkreten Belegen und "
+        "berücksichtige jeweils die wichtigste Gegenposition. "
         "Bei rechtlichen, finanziellen, technischen oder organisatorischen Fragen "
         "nutze die jeweils passende fachliche Perspektive, ohne andere Themen aufzuzwingen. "
         "Beantworte komplexe Fragen substanziell und mit konkreten Details; "
