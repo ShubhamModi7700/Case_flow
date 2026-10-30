@@ -84,42 +84,47 @@ def retrieve_case_evidence(
                     del by_document[document_id]
         return selected
 
-    # Chat questions benefit from evidence covering both the user's exact question
-    # and potential contractual/accounting counter-evidence. Keep all retrieval
-    # calls case-scoped and permission-checked by retrieve_chunks.
     if task_type == "question":
-        latest_question = retrieval_question(question, task_type)
-        search_queries = [latest_question]
-        # General-purpose evidence angles, independent of the case domain.
-        # Retain the user's exact question as the primary retrieval query.
-        topic = latest_question[:350]
-        search_queries.extend([
-            f"{topic} Hintergrund beteiligte Personen Organisationen Vereinbarungen Kontext",
-            f"{topic} Ereignisse zeitlicher Ablauf Änderungen Kommunikation Entscheidungen",
-            f"{topic} Nachweise Dokumentation Durchführung Ergebnisse Status",
-            f"{topic} Abweichungen Widersprüche Ursachen alternative Erklärungen offene Fragen",
-        ])
-        candidates: dict[int, dict[str, Any]] = {}
-        for search_text in search_queries:
-            embedding = create_query_embedding(search_text)
-            for chunk in retrieve_chunks(
-                db=db, user=user, query_embedding=embedding,
-                case_id=case_id, threshold=0.30, limit=16,
-            ):
-                chunk_id = int(chunk["chunk_id"])
-                existing = candidates.get(chunk_id)
-                if existing is None or float(chunk["similarity"]) > float(existing["similarity"]):
-                    candidates[chunk_id] = chunk
-        # Round-robin across documents prevents a long email or one invoice
-        # from crowding out evidence in other documents.
+        latest_question = retrieval_question(question, task_type)[:1200]
+        primary_embedding = create_query_embedding(latest_question)
+        primary = retrieve_chunks(
+            db=db, user=user, query_embedding=primary_embedding,
+            case_id=case_id, threshold=0.30, limit=18,
+        )
+        candidates: dict[int, dict[str, Any]] = {
+            int(chunk["chunk_id"]): chunk for chunk in primary
+        }
+        # The optional supplementary search must never break a successful
+        # primary search. No additional search for a small evidence set.
+        if len(primary) < 12:
+            try:
+                secondary_embedding = create_query_embedding(
+                    f"{latest_question[:300]} Vorgeschichte Verlauf Entscheidungen "
+                    "Ergebnisse Nachweise Gegenposition offene Punkte"
+                )
+                secondary = retrieve_chunks(
+                    db=db, user=user, query_embedding=secondary_embedding,
+                    case_id=case_id, threshold=0.30, limit=12,
+                )
+                for chunk in secondary:
+                    key = int(chunk["chunk_id"])
+                    if key not in candidates or float(chunk["similarity"]) > float(candidates[key]["similarity"]):
+                        candidates[key] = chunk
+            except Exception:
+                # Primary evidence is sufficient to continue safely.
+                pass
         by_document: dict[int, list[dict[str, Any]]] = {}
         for chunk in candidates.values():
             by_document.setdefault(int(chunk["document_id"]), []).append(chunk)
         for rows in by_document.values():
             rows.sort(key=lambda row: float(row["similarity"]), reverse=True)
-        document_order = sorted(by_document, key=lambda doc: float(by_document[doc][0]["similarity"]), reverse=True)
+        document_order = sorted(
+            by_document,
+            key=lambda doc: float(by_document[doc][0]["similarity"]),
+            reverse=True,
+        )
         selected: list[dict[str, Any]] = []
-        max_chunks = min(limit if limit is not None else 28, 30)
+        max_chunks = min(limit if limit is not None else 18, 24)
         while len(selected) < max_chunks and document_order:
             for document_id in list(document_order):
                 if len(selected) >= max_chunks:
@@ -539,11 +544,9 @@ def answer_case_question(
         brief_context=brief_context,
     )
     system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
-    # This is an analysis lens, not a factual finding. It is scoped to legal/
-    # financial chat questions and never applied to reports or drafting.
-    # Domain-neutral reasoning applies only to conversational questions.
+
     chat_analysis_lens = (
-        "\\n\\nANALYSERAHMEN FÜR DEN KI-CHAT\\n"
+        "\n\nANALYSERAHMEN FÜR DEN KI-CHAT\n"
         "Erkenne das tatsächliche Thema und die Absicht der Frage; unterstelle "
         "weder einen Rechtsstreit noch eine Rechnungsfrage. "
         "Analysiere die relevanten Dokumente fallbezogen: Was ist belegt, "
