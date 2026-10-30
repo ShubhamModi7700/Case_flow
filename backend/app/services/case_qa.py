@@ -9,6 +9,7 @@ from app import models, schemas
 from app.services.embeddings import create_query_embedding
 from app.services.ai_provider import get_ai_provider
 from app.services.retrieval import retrieve_chunks
+from app.services.findings_ledger import build_findings_ledger
 from app.prompts.case_assistant import CASE_ASSISTANT_PROMPT_VERSION, BASE_SYSTEM_PROMPT, CHAT_CONVERSATIONAL_PROMPT, TASK_PROMPTS
 
 
@@ -626,7 +627,9 @@ def answer_case_question(
     )
     if response.output_parsed is None:
         raise RuntimeError("Die strukturierte KI-Antwort konnte nicht gelesen werden.")
-    return validate_answer_sources(response.output_parsed, sources)
+    validated = validate_answer_sources(response.output_parsed, sources)
+    build_findings_ledger(validated, sources)
+    return validated
 
 
 def public_sources(sources: list[dict[str, Any]]) -> list[schemas.AssistantSource]:
