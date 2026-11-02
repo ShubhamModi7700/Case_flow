@@ -62,8 +62,6 @@ class OpenAIProvider:
 
     def structured_parse(self, *, input: Any, text_format: Any, model: str | None = None) -> Any:
         options: dict[str, Any] = {}
-        # Optional: set OPENAI_REASONING_EFFORT to a value supported by the
-        # configured model. Unset preserves the previous provider behavior.
         effort = os.getenv("OPENAI_REASONING_EFFORT", "").strip().lower()
         if effort:
             if effort not in {"minimal", "low", "medium", "high", "xhigh"}:

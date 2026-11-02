@@ -87,19 +87,15 @@ def retrieve_case_evidence(
 
     if task_type == "question":
         latest_question = retrieval_question(question, task_type)[:1200]
-        # Broad analytical questions need coverage across case events, not only
-        # semantically similar passages (e.g. generic marketing claims).
         broad_question = bool(re.search(
             r"\b(widerspr\w*|unstimmig\w*|abweichung\w*|"
             r"gesamten? fall|gesamtbild|überblick|ueberblick|"
-            r"chronolog|risiken|offene punkte|fehlend\w*|nachweis\w*|beleg\w*|dokument\w*|unbekannt\w*|ungeklärt\w*|unklar\w*|lücken|luecken|was ist passiert|what happened|root cause|contradiction|"
-            r"ursach\w*|warum|wieso|weshalb|grund|gründe|gruende|vergleich\w*|gegenüberstell\w*|zusammenhäng\w*|ausführlich|detailliert|analysier\w*|bewert\w*|empfehl\w*|what caused|why did|compare|analy[sz]e|inconsisten|entire case|whole case|timeline)\b",
+            r"chronolog\w*|risik\w*|offene punkte|fehlend\w*|nachweis\w*|beleg\w*|dokument\w*|unbekannt\w*|ungeklärt\w*|unklar\w*|lücken|luecken|was ist passiert|what happened|root cause|contradiction|"
+            r"ursach\w*|warum|wieso|weshalb|grund|gründe|gruende|vergleich\w*|gegenüberstell\w*|zusammenhäng\w*|ausführlich|detailliert|analysier\w*|bewert\w*|empfehl\w*|stör\w*|stoer\w*|ausfäll\w*|ausfall|verzöger\w*|verzoeger\w*|schad\w*|vorfall\w*|konflikt\w*|abweich\w*|what caused|why did|compare|analy[sz]e|inconsisten|entire case|whole case|timeline)\b",
             latest_question, re.IGNORECASE,
         ))
         search_texts = [latest_question]
         if broad_question:
-            # Domain-neutral evidence angles: case events and decisions, then
-            # competing versions/changes. Only three bounded searches total.
             search_texts.extend([
                 "Fallverlauf wichtige Ereignisse Beteiligte Kommunikation "
                 "Entscheidungen Zusagen Ergebnisse Dokumentation",
@@ -138,13 +134,10 @@ def retrieve_case_evidence(
                 selected.append(candidates[key])
                 seen.add(key)
 
-        # Guarantee coverage of the direct question and each supplementary
-        # angle. A generic passage cannot fill the entire evidence budget.
         per_angle = 4 if broad_question else max_chunks
         for group in groups:
             for key in group[:per_angle]:
                 add(key)
-        # Fill the remaining slots with diverse documents and stable ordering.
         remaining = sorted(
             (hit for key, hit in candidates.items() if key not in seen),
             key=lambda hit: (-float(hit["similarity"]), int(hit["document_id"]), int(hit["chunk_id"])),

@@ -199,7 +199,6 @@ def build_chat_context(message: str, previous: list) -> str:
     if not previous:
         return current
 
-    # Standalone questions must not inherit old, repeated model answers.
     followup = bool(re.match(
         r"^(und |aber |dazu |davon |warum |wieso |wie (sieht|ist|wäre)|"
         r"was (ist|wäre|bedeutet)|kannst du (das|dies)|"
