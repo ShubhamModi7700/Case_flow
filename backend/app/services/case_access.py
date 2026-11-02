@@ -1,5 +1,4 @@
 from fastapi import HTTPException, status
-from sqlalchemy import and_, exists
 from sqlalchemy.orm import Query, Session
 
 from app import models
@@ -19,37 +18,13 @@ def has_global_case_access(user: models.User) -> bool:
 
 
 def scope_case_query(query: Query, user: models.User) -> Query:
-    """Limit a Case query to cases visible to the current user."""
-    if has_global_case_access(user):
-        return query
-
-    # Use a correlated EXISTS instead of JOIN + DISTINCT. PostgreSQL does
-    # not allow ORDER BY a computed priority expression with SELECT DISTINCT
-    # unless that expression is included in the select list. EXISTS also
-    # avoids duplicate cases if access rows are duplicated.
-    return query.filter(
-        exists().where(
-            and_(
-                models.CaseAccess.case_id == models.Case.id,
-                models.CaseAccess.user_id == user.id,
-            )
-        )
-    )
+    """All authenticated users can discover cases; editing remains restricted."""
+    return query
 
 
 def can_view_case(db: Session, user: models.User, case_id: int) -> bool:
-    if has_global_case_access(user):
-        return True
-
-    return (
-        db.query(models.CaseAccess.id)
-        .filter(
-            models.CaseAccess.case_id == case_id,
-            models.CaseAccess.user_id == user.id,
-        )
-        .first()
-        is not None
-    )
+    """Shared workspace: case visibility does not imply editing permission."""
+    return True
 
 
 def can_edit_case(db: Session, user: models.User, case_id: int) -> bool:

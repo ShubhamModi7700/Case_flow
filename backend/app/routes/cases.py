@@ -69,6 +69,10 @@ def create_case(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_editor),
 ):
+    if not has_global_case_access(current_user) and case_data.responsible_person:
+        if case_data.responsible_person.strip().casefold() != current_user.full_name.strip().casefold():
+            raise HTTPException(status_code=403, detail="Nur Administratoren dürfen Fälle zuweisen")
+
     values = case_data.model_dump(exclude={"access"})
     new_case = models.Case(**values)
 
@@ -86,11 +90,12 @@ def create_case(
             )
         )
 
-    ensure_responsible_access(
-        db,
-        new_case.id,
-        new_case.responsible_person,
-    )
+    if has_global_case_access(current_user):
+        ensure_responsible_access(
+            db,
+            new_case.id,
+            new_case.responsible_person,
+        )
     refresh_risk_suggestion(new_case)
 
     db.add(

@@ -294,12 +294,10 @@ def list_all_documents(
     current_user: models.User = Depends(get_current_user),
 ):
     query = db.query(models.Document)
+    # Shared workspace: all linked-case documents are readable. Documents
+    # without a case remain visible only to global roles.
     if not has_global_case_access(current_user):
-        allowed_case_ids = (
-            db.query(models.CaseAccess.case_id)
-            .filter(models.CaseAccess.user_id == current_user.id)
-        )
-        query = query.filter(models.Document.case_id.in_(allowed_case_ids))
+        query = query.filter(models.Document.case_id.isnot(None))
 
     documents = (
         query
