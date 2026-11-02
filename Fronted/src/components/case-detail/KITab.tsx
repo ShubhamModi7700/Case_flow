@@ -188,7 +188,7 @@ export default function KITab({
       action_justification: cleanAIText(visibleSummary.action_justification),
       uncertainty_notes: (visibleSummary.uncertainty_notes || []).join("\n"),
       latest_development: cleanAIText(visibleSummary.latest_development),
-      next_required_action: cleanAIText(visibleSummary.next_required_action),
+      next_required_action: cleanAIText(visibleSummary.next_required_action).replace(/^(?:Als\s+)?KI[- ]Vorschlag\s*:\s*/i, ""),
       open_deadline: visibleSummary.open_deadline || "",
       deadline_comment: cleanAIText(visibleSummary.deadline_comment),
       risk: (visibleSummary.suggested_risk || "") as "" | RiskLevel,
@@ -205,7 +205,7 @@ export default function KITab({
       latest_development:
         cleanAIText(pendingSuggestion.suggested_latest_development),
       deadline: pendingSuggestion.suggested_deadline || "",
-      next_action: cleanAIText(pendingSuggestion.suggested_next_action),
+      next_action: cleanAIText(pendingSuggestion.suggested_next_action).replace(/^(?:Als\s+)?KI[- ]Vorschlag\s*:\s*/i, ""),
       risk: (pendingSuggestion.suggested_risk || "") as "" | RiskLevel,
       risk_reason: cleanAIText(pendingSuggestion.suggested_risk_reason),
     });

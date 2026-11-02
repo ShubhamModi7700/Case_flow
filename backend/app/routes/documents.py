@@ -1,4 +1,10 @@
 from pathlib import Path
+from io import BytesIO
+from html import escape
+
+from fastapi.responses import Response, HTMLResponse
+from docx import Document as WordDocument
+from openpyxl import load_workbook
 import re
 import unicodedata
 from uuid import uuid4
@@ -24,6 +30,7 @@ from app.services.case_access import (
 )
 from app.storage import (
     create_signed_url,
+    download_object,
     delete_object,
     upload_object,
 )
@@ -608,6 +615,85 @@ def get_processing_status(document_id: int, db: Session = Depends(get_db)):
         embedding_status=document.embedding_status,
         chunk_count=document.chunk_count,
         processing_error=document.processing_error,
+    )
+
+
+def _preview_html(file_name: str, content: bytes) -> str:
+    """Render supported Office files as escaped, read-only HTML."""
+    extension = Path(file_name).suffix.lower()
+    body: list[str] = []
+    if extension == ".docx":
+        document = WordDocument(BytesIO(content))
+        for paragraph in document.paragraphs:
+            if paragraph.text.strip():
+                body.append(f"<p>{escape(paragraph.text)}</p>")
+        for table in document.tables:
+            body.append("<table>")
+            for row in table.rows:
+                body.append("<tr>" + "".join(f"<td>{escape(cell.text)}</td>" for cell in row.cells) + "</tr>")
+            body.append("</table>")
+    elif extension == ".xlsx":
+        workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+        try:
+            for sheet in workbook.worksheets:
+                body.append(f"<h2>{escape(sheet.title)}</h2><table>")
+                for row in sheet.iter_rows():
+                    body.append("<tr>" + "".join(
+                        f"<td>{escape(str(cell.value)) if cell.value is not None else ''}</td>"
+                        for cell in row
+                    ) + "</tr>")
+                body.append("</table>")
+        finally:
+            workbook.close()
+    else:
+        raise ValueError("Für diesen Dateityp ist keine Vorschau verfügbar")
+    title = escape(file_name)
+    return ("<!doctype html><html lang='de'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<title>{title}</title><style>body{{font:16px system-ui,sans-serif;max-width:1100px;"
+            "margin:36px auto;padding:0 20px;line-height:1.6;color:#172033}}"
+            "table{border-collapse:collapse;display:block;overflow-x:auto;margin:20px 0}"
+            "td{border:1px solid #ccd4df;padding:6px 10px;white-space:pre-wrap}"
+            "p{white-space:pre-wrap}</style></head><body>"
+            f"<h1>{title}</h1>" + "".join(body) + "</body></html>")
+
+
+@router.get("/documents/{document_id}/preview")
+def preview_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_view(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
+
+    extension = Path(document.file_name).suffix.lower()
+    if extension not in {".pdf", ".docx", ".xlsx"}:
+        raise HTTPException(status_code=415, detail="Vorschau für diesen Dateityp nicht verfügbar")
+    try:
+        content = download_object(document.storage_path)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail="Dokument konnte nicht geladen werden") from exc
+    if extension == ".pdf":
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "inline", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
+    try:
+        preview = _preview_html(document.file_name, content)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="Dokumentvorschau konnte nicht erstellt werden") from exc
+    return HTMLResponse(
+        content=preview,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        },
     )
 
 

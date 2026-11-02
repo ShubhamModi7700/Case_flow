@@ -35,7 +35,7 @@ function cleanApprovedDisplayText(
   value: string | null | undefined,
 ): string {
   return cleanAIText(value)
-    .replace(/^KI[- ]Vorschlag\s*:\s*/i, "")
+    .replace(/^(?:Als\s+)?KI[- ]Vorschlag\s*:\s*/i, "")
     .trim();
 }
 function compact(
@@ -312,6 +312,7 @@ export default function OverviewTab({
   const [latestApprovedSuggestion, setLatestApprovedSuggestion] =
     useState<AISuggestion | null>(null);
   const [confirmingRisk, setConfirmingRisk] = useState(false);
+  const [refreshingRisk, setRefreshingRisk] = useState(false);
   const [riskError, setRiskError] = useState("");
   const [expandedDetail, setExpandedDetail] =
     useState<ExpandedDetail>(null);
@@ -409,6 +410,20 @@ export default function OverviewTab({
     setExpandedDetail((current) =>
       current === detail ? null : detail,
     );
+  }
+  async function refreshSuggestedRisk() {
+    try {
+      setRefreshingRisk(true);
+      setRiskError("");
+      const response = await api.post<CaseItem>(
+        `/cases/${caseItem.id}/refresh-risk-suggestion`,
+      );
+      onRiskConfirmed(response.data);
+    } catch {
+      setRiskError("Der Risikovorschlag konnte nicht aktualisiert werden.");
+    } finally {
+      setRefreshingRisk(false);
+    }
   }
   async function confirmSuggestedRisk() {
     try {
@@ -655,6 +670,18 @@ export default function OverviewTab({
           </dl>
         </div>
       </section>
+      {isManager && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            disabled={refreshingRisk || confirmingRisk}
+            onClick={() => void refreshSuggestedRisk()}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+          >
+            {refreshingRisk ? "Risiko wird geprüft…" : "Risikovorschlag aktualisieren"}
+          </button>
+        </div>
+      )}
       {caseItem.suggested_risk &&
         caseItem.suggested_risk !== caseItem.risk && (
           <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">

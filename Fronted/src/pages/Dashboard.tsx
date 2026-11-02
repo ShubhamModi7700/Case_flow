@@ -74,7 +74,7 @@ export default function Dashboard() {
                   <tr key={item.case_id} className="align-top hover:bg-slate-50">
                     <td className="px-6 py-4"><Link to={`/cases/${item.case_id}`} className="font-semibold text-slate-950 hover:underline">{formatCaseNumber(item.case_id)} — {item.title}</Link></td>
                     <td className="px-4 py-4"><span className={item.risk === "High" ? "font-medium text-red-700" : "font-medium text-slate-700"}>{item.reason}</span></td>
-                    <td className="max-w-md px-4 py-4 leading-6 text-slate-600">{compact(item.next_action, "Noch nicht festgelegt")}</td>
+                    <td className="max-w-md px-4 py-4 leading-6 text-slate-600">{compact(item.next_action, item.has_pending_ai_action ? "KI-Vorschlag wartet auf Freigabe" : "Noch nicht festgelegt")}</td>
                     <td className="px-4 py-4 text-slate-700">{item.responsible_person?.trim() || "Nicht zugewiesen"}</td>
                     <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-700">{formatDeadline(item.deadline)}</td>
                   </tr>

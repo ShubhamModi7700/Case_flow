@@ -213,6 +213,27 @@ def dashboard_summary(
             reasons.append("Nächste Maßnahme offen")
         return " · ".join(reasons)
 
+    pending_action_case_ids = set()
+    if attention_cases:
+        ids = [case.id for case in attention_cases if not (case.next_action or "").strip()]
+        if ids:
+            pending_action_case_ids.update(
+                case_id for (case_id,) in db.query(models.CaseAISummary.case_id)
+                .filter(models.CaseAISummary.case_id.in_(ids),
+                        models.CaseAISummary.status == "Pending",
+                        models.CaseAISummary.next_required_action.isnot(None),
+                        models.CaseAISummary.next_required_action != "")
+                .all()
+            )
+            pending_action_case_ids.update(
+                case_id for (case_id,) in db.query(models.AIDocumentSuggestion.current_case_id)
+                .filter(models.AIDocumentSuggestion.current_case_id.in_(ids),
+                        models.AIDocumentSuggestion.status == "Pending",
+                        models.AIDocumentSuggestion.suggested_next_action.isnot(None),
+                        models.AIDocumentSuggestion.suggested_next_action != "")
+                .all()
+            )
+
     return {
         "open_cases": open_cases,
         "completed_cases": completed_cases,
@@ -242,6 +263,7 @@ def dashboard_summary(
                 "reason": attention_reason(item),
                 "risk": item.risk,
                 "next_action": item.next_action,
+                "has_pending_ai_action": item.id in pending_action_case_ids,
                 "responsible_person": item.responsible_person,
                 "deadline": item.primary_deadline,
             }

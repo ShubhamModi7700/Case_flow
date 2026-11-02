@@ -502,6 +502,26 @@ def update_case(
 
 
 @router.post(
+    "/{case_id}/refresh-risk-suggestion",
+    response_model=schemas.CaseResponse,
+)
+def refresh_case_risk_suggestion(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_manager),
+):
+    """Recalculate the proposed risk without changing the confirmed case risk."""
+    case = db.query(models.Case).filter(models.Case.id == case_id).first()
+    if case is None:
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
+    require_case_view(db, current_user, case_id)
+    refresh_risk_suggestion(case)
+    db.commit()
+    db.refresh(case)
+    return _serialize_case(case, current_user, db)
+
+
+@router.post(
     "/{case_id}/confirm-risk",
     response_model=schemas.CaseResponse,
 )

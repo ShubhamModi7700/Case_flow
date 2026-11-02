@@ -11,6 +11,7 @@ export interface DashboardAttentionItem {
   reason: string;
   risk: string;
   next_action: string | null;
+  has_pending_ai_action?: boolean;
   responsible_person: string | null;
   deadline: string | null;
 }
