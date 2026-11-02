@@ -512,6 +512,28 @@ def validate_answer_sources(
     return result
 
 
+
+def _correct_unproven_payment_wording(answer: str) -> str:
+    """Resolve a narrow internal contradiction without inventing payment status.
+
+    Only correct a speculative 'separat bezahlt' statement when the same
+    answer explicitly says payment is not evidenced. This is not a general
+    payment verifier: source-backed payment claims must remain untouched.
+    """
+    import re
+
+    if not re.search(
+        r"(?:zahlung(?:seingang)?|bezahlt|beglichen).{0,100}(?:nicht nachgewiesen|nicht belegt)"
+        r"|(?:nicht nachgewiesen|nicht belegt).{0,100}(?:zahlung(?:seingang)?|bezahlt|beglichen)",
+        answer, flags=re.IGNORECASE | re.DOTALL,
+    ):
+        return answer
+    return re.sub(
+        r"(offenbar\s+nicht\s+storniert,\s+sondern\s+separat\s+)bezahlt",
+        r"\1abgerechnet",
+        answer, flags=re.IGNORECASE,
+    )
+
 def build_brief_context_text(brief_context: schemas.AssistantBriefContext | None) -> str:
     if brief_context is None:
         return ""
@@ -622,6 +644,8 @@ def answer_case_question(
         raise RuntimeError("Die strukturierte KI-Antwort konnte nicht gelesen werden.")
     validated = validate_answer_sources(response.output_parsed, sources)
     build_findings_ledger(validated, sources)
+    if task_type == "question":
+        validated.answer = _correct_unproven_payment_wording(validated.answer)
     return validated
 
 
