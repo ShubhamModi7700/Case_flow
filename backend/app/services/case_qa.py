@@ -93,7 +93,7 @@ def retrieve_case_evidence(
             r"\b(widerspr\w*|unstimmig\w*|abweichung\w*|"
             r"gesamten? fall|gesamtbild|überblick|ueberblick|"
             r"chronolog|risiken|offene punkte|fehlend\w*|nachweis\w*|beleg\w*|dokument\w*|unbekannt\w*|ungeklärt\w*|unklar\w*|lücken|luecken|was ist passiert|what happened|root cause|contradiction|"
-            r"inconsisten|entire case|whole case|timeline)\b",
+            r"ursach\w*|warum|wieso|weshalb|grund|gründe|gruende|vergleich\w*|gegenüberstell\w*|zusammenhäng\w*|ausführlich|detailliert|analysier\w*|bewert\w*|empfehl\w*|what caused|why did|compare|analy[sz]e|inconsisten|entire case|whole case|timeline)\b",
             latest_question, re.IGNORECASE,
         ))
         search_texts = [latest_question]
