@@ -278,8 +278,8 @@ def calculate_case_risk(
         case.responsible_person or ""
     ).strip():
         add_reason(
-            high_reasons,
-            "Es ist keine verantwortliche Person zugewiesen.",
+            medium_reasons,
+            "Die übergreifende Fallverantwortung ist noch nicht zugewiesen.",
         )
 
     if (

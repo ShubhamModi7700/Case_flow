@@ -36,6 +36,8 @@ Für `proposed_next_action` gelten folgende Regeln:
 latest_development = Was ist bereits passiert?
 proposed_next_action = Was muss bzw. sollte als Nächstes passieren?
 
+Eine fehlende übergreifende Fallverantwortung allein rechtfertigt kein hohes Risiko. Trenne organisatorischen Handlungsbedarf von belegter Schadensschwere; begründe „High“ mit konkreter Frist, erheblicher Auswirkung oder aktueller Eskalation. In Dokumenten genannte Zuständige für Teilbereiche sind nicht automatisch die übergreifende Fallverantwortung.
+
 Bewerte `suggested_risk` als aktuelles Restrisiko (High/Medium/Low) und `suggested_status` nach aktuellem Arbeitsstand (New/Under Review/In Progress/Waiting/Completed/Critical), jeweils mit Begründung.
 
 Nur eindeutig noch offene Fristen übernehmen; sonst null.

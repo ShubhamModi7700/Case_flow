@@ -864,12 +864,7 @@ export default function CaseAssistant({ caseId }: Props) {
             {chatHistoryLoading && <p className="text-sm text-slate-500">Chatverlauf wird geladen...</p>}
             {!chatHistoryLoading && chatHistory.length === 0 && <div className="mx-auto max-w-lg py-4 text-center">
               <div className="text-base font-semibold text-slate-900">Wie kann ich Ihnen helfen?</div>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {["Welche Zahlungen sind noch ungeklärt?", "Welche Nachweise fehlen?"].map((suggestion) => (
-                  <button key={suggestion} type="button" disabled={chatLoading} onClick={() => void sendChat(suggestion)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">{suggestion}</button>
-                ))}
-              </div>
-            </div>}
+</div>}
             {chatHistory.map((turn) => (
               <div key={turn.id} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`min-w-0 ${turn.role === "user" ? "max-w-[92%] sm:max-w-[80%]" : "w-full max-w-full"} rounded-2xl px-4 py-3 text-sm ${turn.role === "user" ? "bg-slate-100 text-slate-900" : "border border-slate-100 bg-white text-slate-800"}`}>

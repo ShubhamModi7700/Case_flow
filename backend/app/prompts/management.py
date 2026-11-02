@@ -73,6 +73,8 @@ Beide Felder dürfen nicht dasselbe Ereignis oder dieselbe Handlung lediglich un
 
 Eine nicht belastbar belegte Handlung oder Frist ist null.
 
+Eine fehlende übergreifende Fallverantwortung allein rechtfertigt kein hohes Risiko. Trenne organisatorischen Handlungsbedarf von belegter Schadensschwere; begründe „High“ mit konkreter Frist, erheblicher Auswirkung oder aktueller Eskalation. In Dokumenten genannte Zuständige für Teilbereiche sind nicht automatisch die übergreifende Fallverantwortung.
+
 Bewerte `suggested_risk` als aktuelles Restrisiko (High/Medium/Low), nicht als historisches Maximum, und begründe es.
 Die Risikobegründung soll den konkreten kritischen Sachverhalt und dessen mögliche Auswirkung sachlich benennen, ohne den Risikograd („hoch“, „mittel“, „niedrig“) im Text zu wiederholen. Trenne belegte Tatsachen von Unsicherheiten: eine nicht gefundene Zahlungsbestätigung ist kein Beweis für Nichtzahlung. Keine neue Frist oder Verpflichtung erfinden. Formuliere möglichst knapp, damit der Management-Blick gut lesbar bleibt.
 

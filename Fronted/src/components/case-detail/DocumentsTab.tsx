@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -47,20 +48,85 @@ export default function DocumentsTab({
 }: DocumentsTabProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+
+  // Preserve the existing component interface.
   void canEdit;
   void onOpenAI;
 
-  async function openDocument(document: DocumentItem): Promise<void> {
-    const documentWindow = window.open("", "_blank");
+  async function openDocument(
+    document: DocumentItem,
+  ): Promise<void> {
+    // Open the tab before the async request to avoid popup blocking.
+    const previewWindow = window.open("", "_blank");
 
-    if (!documentWindow) {
-      setError("Das Dokument konnte nicht geöffnet werden. Bitte erlauben Sie Pop-ups für Case Flow.");
+    if (!previewWindow) {
+      setError(
+        "Bitte erlauben Sie Pop-ups für Case Flow.",
+      );
       return;
     }
 
     try {
       setOpeningId(document.id);
+      setError("");
+
+      const response = await api.get<Blob>(
+        `/documents/${document.id}/preview`,
+        {
+          responseType: "blob",
+        },
+      );
+
+      // Compatible with Axios versions where headers.get()
+      // is not guaranteed to be callable.
+      const rawContentType =
+        response.headers["content-type"];
+
+      const contentType =
+        typeof rawContentType === "string" &&
+        rawContentType.length > 0
+          ? rawContentType
+          : "application/octet-stream";
+
+      const blob = new Blob([response.data], {
+        type: contentType,
+      });
+
+      const previewUrl = URL.createObjectURL(blob);
+
+      previewWindow.opener = null;
+      previewWindow.location.replace(previewUrl);
+
+      // Keep the object URL available while the preview tab
+      // is open. Release it when the parent page unloads.
+      window.addEventListener(
+        "pagehide",
+        () => URL.revokeObjectURL(previewUrl),
+        { once: true },
+      );
+    } catch (requestError) {
+      previewWindow.close();
+
+      console.error(
+        "Dokumentvorschau fehlgeschlagen:",
+        requestError,
+      );
+
+      setError(
+        `Die Vorschau für „${document.file_name}“ konnte nicht geöffnet werden.`,
+      );
+    } finally {
+      setOpeningId(null);
+    }
+  }
+
+  async function downloadDocument(
+    document: DocumentItem,
+  ): Promise<void> {
+    try {
+      setDownloadingId(document.id);
       setError("");
 
       const response = await api.get<{
@@ -69,21 +135,28 @@ export default function DocumentsTab({
         expires_in: number;
       }>(`/documents/${document.id}/download`);
 
-      documentWindow.opener = null;
-      documentWindow.location.href = response.data.download_url;
-    } catch (requestError: any) {
-      documentWindow.close();
-      const detail = requestError?.response?.data?.detail;
+      const anchor = window.document.createElement("a");
+
+      anchor.href = response.data.download_url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+
+      window.document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch (requestError) {
+      console.error(
+        "Dokument konnte nicht heruntergeladen werden:",
+        requestError,
+      );
+
       setError(
-        typeof detail === "string"
-          ? detail
-          : `Das Dokument „${document.file_name}“ konnte nicht geöffnet werden.`,
+        `„${document.file_name}“ konnte nicht heruntergeladen werden.`,
       );
     } finally {
-      setOpeningId(null);
+      setDownloadingId(null);
     }
   }
-
 
   async function deleteDocument(
     documentId: number,
@@ -100,9 +173,7 @@ export default function DocumentsTab({
       setDeletingId(documentId);
       setError("");
 
-      await api.delete(
-        `/documents/${documentId}`,
-      );
+      await api.delete(`/documents/${documentId}`);
 
       await reload();
     } catch (requestError) {
@@ -148,8 +219,6 @@ export default function DocumentsTab({
         </div>
       )}
 
-
-
       {documents.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center">
           <p className="text-sm text-slate-500">
@@ -167,8 +236,10 @@ export default function DocumentsTab({
       ) : (
         <div className="mt-6 divide-y divide-slate-200">
           {documents.map((document) => {
-            const isDeleting =
-              deletingId === document.id;
+            const isDeleting = deletingId === document.id;
+            const isOpening = openingId === document.id;
+            const isDownloading =
+              downloadingId === document.id;
 
             return (
               <article
@@ -186,23 +257,22 @@ export default function DocumentsTab({
                   </p>
 
                   <p className="mt-1 text-xs text-slate-400">
-                    {formatFileSize(
-                      document.file_size,
-                    )}
+                    {formatFileSize(document.file_size)}
 
                     {document.uploaded_by
                       ? ` · Hochgeladen von ${document.uploaded_by}`
                       : ""}
 
                     {document.uploaded_at
-                      ? ` · ${formatDate(
-                          document.uploaded_at,
-                        )}`
+                      ? ` · ${formatDate(document.uploaded_at)}`
                       : ""}
                   </p>
 
                   <p className="mt-2 text-xs font-medium text-slate-500">
-                    Verarbeitung: {document.processing_status} · Embedding: {document.embedding_status}
+                    Verarbeitung: {document.processing_status}
+                    {" · "}
+                    Embedding: {document.embedding_status}
+
                     {document.chunk_count > 0
                       ? ` · ${document.chunk_count} Textabschnitte`
                       : ""}
@@ -218,13 +288,26 @@ export default function DocumentsTab({
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={openingId === document.id}
+                    disabled={isOpening}
                     onClick={() => void openDocument(document)}
                     className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {openingId === document.id
+                    {isOpening
                       ? "Wird geöffnet..."
                       : "Öffnen"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isDownloading}
+                    onClick={() =>
+                      void downloadDocument(document)
+                    }
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isDownloading
+                      ? "Wird heruntergeladen..."
+                      : "Herunterladen"}
                   </button>
 
                   {isManager && (
@@ -232,9 +315,7 @@ export default function DocumentsTab({
                       type="button"
                       disabled={isDeleting}
                       onClick={() =>
-                        void deleteDocument(
-                          document.id,
-                        )
+                        void deleteDocument(document.id)
                       }
                       className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
