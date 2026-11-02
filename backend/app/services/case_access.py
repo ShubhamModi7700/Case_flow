@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy import and_, exists
 from sqlalchemy.orm import Query, Session
 
 from app import models
@@ -22,13 +23,17 @@ def scope_case_query(query: Query, user: models.User) -> Query:
     if has_global_case_access(user):
         return query
 
-    return (
-        query.join(
-            models.CaseAccess,
-            models.CaseAccess.case_id == models.Case.id,
+    # Use a correlated EXISTS instead of JOIN + DISTINCT. PostgreSQL does
+    # not allow ORDER BY a computed priority expression with SELECT DISTINCT
+    # unless that expression is included in the select list. EXISTS also
+    # avoids duplicate cases if access rows are duplicated.
+    return query.filter(
+        exists().where(
+            and_(
+                models.CaseAccess.case_id == models.Case.id,
+                models.CaseAccess.user_id == user.id,
+            )
         )
-        .filter(models.CaseAccess.user_id == user.id)
-        .distinct()
     )
 
 
