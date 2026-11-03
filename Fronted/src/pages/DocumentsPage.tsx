@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api";
 import {
@@ -10,7 +10,6 @@ import {
   type DocumentCaseRouteSuggestion,
 } from "../services/ai";
 import { useAuth } from "../AuthContext";
-import DocumentFilePicker from "../components/documents/DocumentFilePicker";
 import type { CaseItem, DocumentItem } from "../types";
 import { formatCaseNumber } from "../types/case";
 import { formatFileSize } from "../utils/fileHelpers";
@@ -63,12 +62,15 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 export default function DocumentsPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const canEdit = user?.role === "Manager" || user?.role === "User";
   const isManager = user?.role === "Manager";
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadResults, setUploadResults] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -93,9 +95,12 @@ export default function DocumentsPage() {
         api.get<DocumentItem[]>("/documents"),
       ]);
 
-      setCases(
-        caseResponse.data.filter((item) => !item.is_archived),
-      );
+      const availableCases = caseResponse.data.filter((item) => !item.is_archived);
+      setCases(availableCases);
+      const requestedCaseId = searchParams.get("case_id");
+      if (requestedCaseId && availableCases.some((item) => String(item.id) === requestedCaseId)) {
+        setSelectedCaseId(requestedCaseId);
+      }
       setDocuments(documentResponse.data);
     } catch (requestError) {
       console.error("Loading documents failed:", requestError);
@@ -148,51 +153,58 @@ export default function DocumentsPage() {
     }
   }
 
-  async function uploadDocument(
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  async function uploadDocument(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-
-    if (!file) {
-      setError("Bitte wählen Sie eine Datei aus.");
+    if (files.length === 0) {
+      setError("Bitte wählen Sie mindestens eine Datei aus.");
+      return;
+    }
+    // Unassigned uploads retain the existing AI case-routing review for a single file.
+    // Batch uploads require a selected case to prevent unreviewed automatic routing.
+    if (files.length > 1 && !selectedCaseId) {
+      setError("Bitte wählen Sie für den Mehrfach-Upload einen Fall aus.");
       return;
     }
 
-    try {
-      setUploading(true);
-      setError("");
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      if (description.trim()) {
-        formData.append("description", description.trim());
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadResults([]);
+    setError("");
+    setNotice("");
+    const failed: File[] = [];
+    const results: string[] = [];
+    let succeeded = 0;
+    let singleUploaded: DocumentItem | null = null;
+    for (const currentFile of files) {
+      try {
+        const formData = new FormData();
+        formData.append("file", currentFile);
+        if (description.trim()) formData.append("description", description.trim());
+        if (selectedCaseId) formData.append("case_id", selectedCaseId);
+        const response = await api.post<DocumentItem>("/documents", formData);
+        succeeded += 1;
+        singleUploaded = response.data;
+        results.push(`✓ ${currentFile.name}`);
+      } catch (requestError) {
+        failed.push(currentFile);
+        results.push(`✗ ${currentFile.name}: ${getErrorMessage(requestError, "Upload fehlgeschlagen.")}`);
       }
-
-      if (selectedCaseId) {
-        formData.append("case_id", selectedCaseId);
+      setUploadProgress(results.length);
+      setUploadResults([...results]);
+    }
+    setFiles(failed);
+    setUploading(false);
+    if (succeeded > 0) {
+      setNotice(`${succeeded} von ${results.length} Dokumenten hochgeladen und dem ausgewählten Fall zugeordnet, sofern gewählt.`);
+      try { await loadData(); } catch (refreshError) { console.error(refreshError); }
+      // Keep the existing interactive AI routing for a single unassigned document.
+      if (results.length === 1 && singleUploaded && !singleUploaded.case_id) {
+        try { await startAIWorkflow(singleUploaded); }
+        catch (workflowError) { setError(getErrorMessage(workflowError, "Die KI-Fallzuordnung konnte nicht gestartet werden.")); }
       }
-
-      const response = await api.post<DocumentItem>("/documents", formData);
-
-      setFile(null);
-      setDescription("");
-      setSelectedCaseId("");
-      setWorkflowStage("uploaded");
-      setNotice("Dokument hochgeladen. Die KI bereitet jetzt die Fallzuordnung und Handlungsvorschläge vor.");
-
-      await loadData();
-      await startAIWorkflow(response.data);
-    } catch (requestError) {
-      console.error("Document upload failed:", requestError);
-      setError(
-        getErrorMessage(
-          requestError,
-          "Das Dokument konnte nicht hochgeladen werden.",
-        ),
-      );
-    } finally {
-      setUploading(false);
+    }
+    if (failed.length > 0) {
+      setError(`${failed.length} Dokument(e) fehlgeschlagen. Sie können die fehlgeschlagenen Dateien erneut hochladen.`);
     }
   }
 
@@ -341,7 +353,7 @@ export default function DocumentsPage() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Dokument hochladen → Fall zuordnen → KI-Vorschläge prüfen → durch Benutzer freigeben.
+          Dokumente auswählen → Fall zuordnen → gesammelt hochladen → KI-Vorschläge prüfen.
         </p>
       </header>
 
@@ -466,7 +478,7 @@ export default function DocumentsPage() {
       <div className="mt-8 grid gap-6 xl:grid-cols-[380px_1fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">
-            Dokument hochladen
+            Dokumente hochladen
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
@@ -507,12 +519,27 @@ export default function DocumentsPage() {
                 Datei
               </label>
 
-              <DocumentFilePicker
-                file={file}
-                onFileChange={setFile}
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.eml,.msg"
                 disabled={uploading}
-                onError={setError}
+                onChange={(event) => {
+                  setFiles(Array.from(event.target.files ?? []));
+                  setUploadResults([]);
+                  setUploadProgress(0);
+                  setError("");
+                }}
+                className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm"
               />
+              <p className="mt-2 text-xs text-slate-500">Mehrere Dateien mit Strg+A auswählen. PDF, Word, Excel, E-Mail; maximal 10 MB je Datei.</p>
+              {files.length > 0 && <p className="mt-2 text-sm text-slate-700">{files.length} Datei(en) ausgewählt</p>}
+              {uploadResults.length > 0 && (
+                <ul className="mt-3 max-h-36 overflow-y-auto text-xs" aria-label="Upload-Ergebnisse">
+                  {uploadResults.map((result, index) => <li key={index} className="py-1">{result}</li>)}
+                </ul>
+              )}
+              {uploading && <p role="status" className="mt-2 text-sm">{uploadProgress} von {files.length} verarbeitet</p>}
             </div>
 
             <div>
@@ -532,12 +559,12 @@ export default function DocumentsPage() {
 
             <button
               type="submit"
-              disabled={uploading || !file}
+              disabled={uploading || files.length === 0}
               className="w-full rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploading
                 ? "Wird hochgeladen..."
-                : "Dokument hochladen"}
+                : `Alle hochladen (${files.length})`}
             </button>
           </form>
         </section>
