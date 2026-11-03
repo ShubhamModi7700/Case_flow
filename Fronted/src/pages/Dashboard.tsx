@@ -7,7 +7,10 @@ import { type DashboardData, formatCaseNumber } from "../types";
 const PREVIEW_MAX = 150;
 
 function compact(value: string | null | undefined, fallback: string) {
-  const text = value?.replace(/\s+/g, " ").trim();
+  const text = value
+    ?.replace(/^(?:Als\s+)?KI[- ]Vorschlag\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!text) return fallback;
   return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX).trim()}…` : text;
 }
