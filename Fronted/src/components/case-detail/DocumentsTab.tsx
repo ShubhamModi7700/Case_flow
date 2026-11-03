@@ -1,11 +1,12 @@
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../../api";
 import type { DocumentItem } from "../../types";
 
 type DocumentsTabProps = {
+  caseId: number;
   documents: DocumentItem[];
   reload: () => Promise<void>;
   canEdit: boolean;
@@ -40,6 +41,7 @@ function formatDate(value: string): string {
 }
 
 export default function DocumentsTab({
+  caseId,
   documents,
   reload,
   canEdit,
@@ -50,9 +52,54 @@ export default function DocumentsTab({
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [uploadResults, setUploadResults] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Preserve the existing component interface.
-  void canEdit;
+  async function uploadAll(): Promise<void> {
+    if (uploading || selectedFiles.length === 0) return;
+    setUploading(true);
+    setCompletedCount(0);
+    setError("");
+    setUploadResults([]);
+    const failed: File[] = [];
+    const results: string[] = [];
+    let successCount = 0;
+    try {
+      // Each file uses the existing case-specific endpoint and its access checks.
+      // Continue with remaining files even when one upload fails.
+      for (const file of selectedFiles) {
+        try {
+          const form = new FormData();
+          form.append("file", file);
+          await api.post(`/cases/${caseId}/documents`, form);
+          successCount += 1;
+          results.push(`✓ ${file.name}`);
+        } catch (uploadError) {
+          console.error("Dokument-Upload fehlgeschlagen:", file.name, uploadError);
+          failed.push(file);
+          results.push(`✗ ${file.name} – Upload fehlgeschlagen`);
+        }
+        setCompletedCount(results.length);
+        setUploadResults([...results]);
+      }
+      setSelectedFiles(failed);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (successCount > 0) await reload();
+      if (failed.length > 0) {
+        setError(`${failed.length} von ${results.length} Dokumenten konnten nicht hochgeladen werden. Fehlgeschlagene Dateien können erneut hochgeladen werden.`);
+      }
+    } catch (refreshError) {
+      console.error("Dokumentenliste konnte nicht aktualisiert werden:", refreshError);
+      setError("Die Dokumentenliste konnte nicht aktualisiert werden. Bitte laden Sie die Seite neu.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // Preserve the existing AI navigation callback.
   void onOpenAI;
 
   async function openDocument(
@@ -199,9 +246,7 @@ export default function DocumentsTab({
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Die diesem Fall zugeordneten Dokumente
-            werden auf der zentralen Dokumentenseite
-            verwaltet.
+            Dokumente für diesen Fall hochladen und verwalten.
           </p>
         </div>
 
@@ -212,6 +257,45 @@ export default function DocumentsTab({
           Dokumente öffnen
         </Link>
       </div>
+
+      {canEdit && (
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <label htmlFor="case-document-files" className="block text-sm font-semibold text-slate-800">
+            Mehrere Dokumente auswählen
+          </label>
+          <input
+            id="case-document-files"
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg"
+            disabled={uploading}
+            onChange={(event) => {
+              setSelectedFiles(Array.from(event.target.files ?? []));
+              setCompletedCount(0);
+              setUploadResults([]);
+              setError("");
+            }}
+            className="mt-2 block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:font-semibold"
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={uploading || selectedFiles.length === 0}
+              onClick={() => void uploadAll()}
+              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? "Wird hochgeladen..." : `Alle hochladen (${selectedFiles.length})`}
+            </button>
+            {uploading && <span role="status" className="text-sm text-slate-600">{completedCount} von {selectedFiles.length} verarbeitet</span>}
+          </div>
+          {uploadResults.length > 0 && (
+            <ul className="mt-3 max-h-36 overflow-y-auto text-xs text-slate-700" aria-label="Upload-Ergebnisse">
+              {uploadResults.map((result, index) => <li key={`${index}-${result}`} className="py-0.5">{result}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">

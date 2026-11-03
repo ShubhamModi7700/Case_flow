@@ -404,6 +404,7 @@ export default function CaseDetail() {
 
         {activeTab === "documents" && (
           <DocumentsTab
+            caseId={caseItem.id}
             documents={documents}
             reload={loadCaseDetail}
             canEdit={canEdit}
