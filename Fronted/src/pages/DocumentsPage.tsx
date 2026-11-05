@@ -1,3 +1,4 @@
+
 import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -19,40 +20,25 @@ function getErrorMessage(error: unknown, fallback: string): string {
     const status = error.response?.status;
     const detail = error.response?.data?.detail;
 
-    if (typeof detail === "string") {
-      return detail;
-    }
+    if (typeof detail === "string") return detail;
 
     if (Array.isArray(detail)) {
       const messages = detail
         .map((item) => item?.msg)
         .filter(Boolean)
         .join("; ");
-
-      if (messages) {
-        return messages;
-      }
+      if (messages) return messages;
     }
 
-    if (status === 401) {
+    if (status === 401)
       return "Anmeldung erforderlich. Bitte melden Sie sich erneut an.";
-    }
-
-    if (status === 403) {
+    if (status === 403)
       return "Sie haben keine Berechtigung für diese Aktion.";
-    }
-
-    if (status === 404) {
+    if (status === 404)
       return "Die angeforderte Dokumentressource wurde nicht gefunden.";
-    }
-
-    if (status === 405) {
+    if (status === 405)
       return "Die Dokument-API-Route ist nicht korrekt konfiguriert.";
-    }
-
-    if (status) {
-      return `${fallback} Server returned ${status}.`;
-    }
+    if (status) return `${fallback} Server returned ${status}.`;
 
     return "Das Backend konnte nicht erreicht werden.";
   }
@@ -60,11 +46,28 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// Show case number, title and company consistently in every selector.
+function getCaseLabel(item: CaseItem): string {
+  const caseNumber = formatCaseNumber(item.id);
+  const title = item.title?.trim();
+  const company = item.company?.trim();
+
+  return [
+    caseNumber,
+    title,
+    company && company !== title ? company : null,
+  ]
+    .filter(Boolean)
+    .join(" — ");
+}
+
 export default function DocumentsPage() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+
   const canEdit = user?.role === "Manager" || user?.role === "User";
   const isManager = user?.role === "Manager";
+
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
@@ -78,7 +81,8 @@ export default function DocumentsPage() {
   const [busyDocumentId, setBusyDocumentId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [routeSuggestion, setRouteSuggestion] = useState<DocumentCaseRouteSuggestion | null>(null);
+  const [routeSuggestion, setRouteSuggestion] =
+    useState<DocumentCaseRouteSuggestion | null>(null);
   const [routeCaseId, setRouteCaseId] = useState("");
   const [workflowCaseId, setWorkflowCaseId] = useState<number | null>(null);
   const [workflowStage, setWorkflowStage] = useState<
@@ -95,12 +99,21 @@ export default function DocumentsPage() {
         api.get<DocumentItem[]>("/documents"),
       ]);
 
-      const availableCases = caseResponse.data.filter((item) => !item.is_archived);
+      const availableCases = caseResponse.data
+        .filter((item) => !item.is_archived)
+        .sort((a, b) => a.id - b.id);
+
       setCases(availableCases);
+
       const requestedCaseId = searchParams.get("case_id");
-      if (requestedCaseId && availableCases.some((item) => String(item.id) === requestedCaseId)) {
+
+      if (
+        requestedCaseId &&
+        availableCases.some((item) => String(item.id) === requestedCaseId)
+      ) {
         setSelectedCaseId(requestedCaseId);
       }
+
       setDocuments(documentResponse.data);
     } catch (requestError) {
       console.error("Loading documents failed:", requestError);
@@ -129,21 +142,34 @@ export default function DocumentsPage() {
     try {
       if (!document.case_id) {
         setWorkflowStage("routing");
+
         const suggestion = await suggestDocumentCase(document.id);
+
         setRouteSuggestion(suggestion);
-        setRouteCaseId(suggestion.suggested_case_id ? String(suggestion.suggested_case_id) : "");
+        setRouteCaseId(
+          suggestion.suggested_case_id
+            ? String(suggestion.suggested_case_id)
+            : "",
+        );
         setWorkflowStage("route-review");
-        setNotice("Die KI hat die Fallzuordnung vorbereitet. Bitte bestätigen Sie den passenden Fall, bevor weitere Ergebnisse übernommen werden.");
+        setNotice(
+          "Die KI hat die Fallzuordnung vorbereitet. Bitte bestätigen Sie den passenden Fall, bevor weitere Ergebnisse übernommen werden.",
+        );
         return;
       }
 
       setWorkflowStage("analyzing");
+
       if (document.embedding_status !== "Ready") {
         await processDocument(document.id);
       }
+
       setWorkflowCaseId(document.case_id);
       setWorkflowStage("review-ready");
-      setNotice("Dokument hochgeladen und für die fallweite KI-Zusammenfassung indexiert.");
+      setNotice(
+        "Dokument hochgeladen und für die fallweite KI-Zusammenfassung indexiert.",
+      );
+
       await loadData();
     } catch (requestError) {
       setWorkflowStage("idle");
@@ -153,14 +179,17 @@ export default function DocumentsPage() {
     }
   }
 
-  async function uploadDocument(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function uploadDocument(
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> {
     event.preventDefault();
+
     if (files.length === 0) {
       setError("Bitte wählen Sie mindestens eine Datei aus.");
       return;
     }
-    // Unassigned uploads retain the existing AI case-routing review for a single file.
-    // Batch uploads require a selected case to prevent unreviewed automatic routing.
+
+    // Multiple unassigned files must not be routed automatically.
     if (files.length > 1 && !selectedCaseId) {
       setError("Bitte wählen Sie für den Mehrfach-Upload einen Fall aus.");
       return;
@@ -171,40 +200,83 @@ export default function DocumentsPage() {
     setUploadResults([]);
     setError("");
     setNotice("");
+
     const failed: File[] = [];
     const results: string[] = [];
     let succeeded = 0;
     let singleUploaded: DocumentItem | null = null;
+
     for (const currentFile of files) {
       try {
         const formData = new FormData();
         formData.append("file", currentFile);
-        if (description.trim()) formData.append("description", description.trim());
-        if (selectedCaseId) formData.append("case_id", selectedCaseId);
-        const response = await api.post<DocumentItem>("/documents", formData);
+
+        if (description.trim()) {
+          formData.append("description", description.trim());
+        }
+
+        if (selectedCaseId) {
+          formData.append("case_id", selectedCaseId);
+        }
+
+        const response = await api.post<DocumentItem>(
+          "/documents",
+          formData,
+        );
+
         succeeded += 1;
         singleUploaded = response.data;
         results.push(`✓ ${currentFile.name}`);
       } catch (requestError) {
         failed.push(currentFile);
-        results.push(`✗ ${currentFile.name}: ${getErrorMessage(requestError, "Upload fehlgeschlagen.")}`);
+        results.push(
+          `✗ ${currentFile.name}: ${getErrorMessage(
+            requestError,
+            "Upload fehlgeschlagen.",
+          )}`,
+        );
       }
+
       setUploadProgress(results.length);
       setUploadResults([...results]);
     }
+
     setFiles(failed);
     setUploading(false);
+
     if (succeeded > 0) {
-      setNotice(`${succeeded} von ${results.length} Dokumenten hochgeladen und dem ausgewählten Fall zugeordnet, sofern gewählt.`);
-      try { await loadData(); } catch (refreshError) { console.error(refreshError); }
-      // Keep the existing interactive AI routing for a single unassigned document.
-      if (results.length === 1 && singleUploaded && !singleUploaded.case_id) {
-        try { await startAIWorkflow(singleUploaded); }
-        catch (workflowError) { setError(getErrorMessage(workflowError, "Die KI-Fallzuordnung konnte nicht gestartet werden.")); }
+      setNotice(
+        `${succeeded} von ${results.length} Dokumenten hochgeladen und dem ausgewählten Fall zugeordnet, sofern gewählt.`,
+      );
+
+      try {
+        await loadData();
+      } catch (refreshError) {
+        console.error(refreshError);
+      }
+
+      if (
+        results.length === 1 &&
+        singleUploaded &&
+        !singleUploaded.case_id
+      ) {
+        try {
+          await startAIWorkflow(singleUploaded);
+        } catch (workflowError) {
+          setError(
+            getErrorMessage(
+              workflowError,
+              "Die KI-Fallzuordnung konnte nicht gestartet werden.",
+            ),
+          );
+        }
       }
     }
+
     if (failed.length > 0) {
-      setError(`${failed.length} Dokument(e) fehlgeschlagen. Sie können die fehlgeschlagenen Dateien erneut hochladen.`);
+      setError(
+        `${failed.length} Dokument(e) fehlgeschlagen. Sie können die fehlgeschlagenen Dateien erneut hochladen.`,
+      );
     }
   }
 
@@ -234,16 +306,12 @@ export default function DocumentsPage() {
     }
   }
 
-  async function deleteDocument(
-    documentId: number,
-  ): Promise<void> {
+  async function deleteDocument(documentId: number): Promise<void> {
     const confirmed = window.confirm(
       "Möchten Sie dieses Dokument wirklich dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setBusyDocumentId(documentId);
@@ -264,7 +332,6 @@ export default function DocumentsPage() {
     }
   }
 
-
   async function confirmSuggestedExistingCase(): Promise<void> {
     if (!routeSuggestion || !routeCaseId) {
       setError("Bitte wählen Sie einen bestehenden Fall aus.");
@@ -274,19 +341,32 @@ export default function DocumentsPage() {
     try {
       setBusyDocumentId(routeSuggestion.document_id);
       setError("");
-      const result = await confirmDocumentCaseRoute(routeSuggestion.document_id, {
-        action: "assign_existing",
-        case_id: Number(routeCaseId),
-      });
+
+      const result = await confirmDocumentCaseRoute(
+        routeSuggestion.document_id,
+        {
+          action: "assign_existing",
+          case_id: Number(routeCaseId),
+        },
+      );
+
       setWorkflowStage("analyzing");
       setWorkflowCaseId(result.case_id);
       setWorkflowStage("review-ready");
       setRouteSuggestion(null);
       setRouteCaseId("");
-      setNotice(`${result.message} Das Dokument ist für die fallweite KI-Zusammenfassung bereit.`);
+      setNotice(
+        `${result.message} Das Dokument ist für die fallweite KI-Zusammenfassung bereit.`,
+      );
+
       await loadData();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Die Fallzuordnung konnte nicht bestätigt werden."));
+      setError(
+        getErrorMessage(
+          requestError,
+          "Die Fallzuordnung konnte nicht bestätigt werden.",
+        ),
+      );
     } finally {
       setBusyDocumentId(null);
     }
@@ -301,19 +381,32 @@ export default function DocumentsPage() {
     try {
       setBusyDocumentId(routeSuggestion.document_id);
       setError("");
-      const result = await confirmDocumentCaseRoute(routeSuggestion.document_id, {
-        action: "create_new",
-        new_case: routeSuggestion.new_case,
-      });
+
+      const result = await confirmDocumentCaseRoute(
+        routeSuggestion.document_id,
+        {
+          action: "create_new",
+          new_case: routeSuggestion.new_case,
+        },
+      );
+
       setWorkflowStage("analyzing");
       setWorkflowCaseId(result.case_id);
       setWorkflowStage("review-ready");
       setRouteSuggestion(null);
       setRouteCaseId("");
-      setNotice(`${result.message} Das Dokument ist für die fallweite KI-Zusammenfassung bereit.`);
+      setNotice(
+        `${result.message} Das Dokument ist für die fallweite KI-Zusammenfassung bereit.`,
+      );
+
       await loadData();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Der neue Fall konnte nicht angelegt werden."));
+      setError(
+        getErrorMessage(
+          requestError,
+          "Der neue Fall konnte nicht angelegt werden.",
+        ),
+      );
     } finally {
       setBusyDocumentId(null);
     }
@@ -322,9 +415,7 @@ export default function DocumentsPage() {
   const filteredDocuments = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return documents;
-    }
+    if (!query) return documents;
 
     return documents.filter((item) =>
       [
@@ -353,7 +444,8 @@ export default function DocumentsPage() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Dokumente auswählen → Fall zuordnen → gesammelt hochladen → KI-Vorschläge prüfen.
+          Dokumente auswählen → Fall zuordnen → gesammelt hochladen →
+          KI-Vorschläge prüfen.
         </p>
       </header>
 
@@ -361,15 +453,24 @@ export default function DocumentsPage() {
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Dokument-Workflow</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-950">Vom Dokument zur bestätigten Maßnahme</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Dokument-Workflow
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                Vom Dokument zur bestätigten Maßnahme
+              </h2>
             </div>
+
             {workflowStage === "review-ready" && workflowCaseId && (
-              <Link to={`/cases/${workflowCaseId}`} className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-600">
+              <Link
+                to={`/cases/${workflowCaseId}`}
+                className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-600"
+              >
                 KI-Vorschläge im Fall prüfen
               </Link>
             )}
           </div>
+
           <div className="mt-4 grid gap-2 md:grid-cols-5">
             {[
               ["uploaded", "1. Upload"],
@@ -378,15 +479,42 @@ export default function DocumentsPage() {
               ["analyzing", "4. Frist & Maßnahme"],
               ["review-ready", "5. Freigabe durch Benutzer"],
             ].map(([stage, label]) => {
-              const order = ["uploaded", "routing", "route-review", "analyzing", "review-ready"];
+              const order = [
+                "uploaded",
+                "routing",
+                "route-review",
+                "analyzing",
+                "review-ready",
+              ];
+
               const current = order.indexOf(workflowStage);
               const item = order.indexOf(stage);
-              const done = item < current || (workflowStage === "review-ready" && item === current);
+              const done =
+                item < current ||
+                (workflowStage === "review-ready" && item === current);
               const active = item === current;
-              return <div key={stage} className={`rounded-xl border px-3 py-3 text-sm font-medium ${active ? "border-violet-300 bg-violet-50 text-violet-900" : done ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-400"}`}>{label}</div>;
+
+              return (
+                <div
+                  key={stage}
+                  className={`rounded-xl border px-3 py-3 text-sm font-medium ${
+                    active
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : done
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border-slate-200 bg-slate-50 text-slate-400"
+                  }`}
+                >
+                  {label}
+                </div>
+              );
             })}
           </div>
-          <p className="mt-3 text-xs text-slate-500">KI-Ergebnisse bleiben Vorschläge. Falldaten werden erst nach ausdrücklicher Benutzerbestätigung übernommen.</p>
+
+          <p className="mt-3 text-xs text-slate-500">
+            KI-Ergebnisse bleiben Vorschläge. Falldaten werden erst
+            nach ausdrücklicher Benutzerbestätigung übernommen.
+          </p>
         </section>
       )}
 
@@ -409,6 +537,7 @@ export default function DocumentsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">
                 KI-Fallzuordnung
               </p>
+
               <h2 className="mt-1 text-xl font-semibold text-slate-950">
                 {routeSuggestion.decision === "new_case"
                   ? "Neuer Fall vorgeschlagen"
@@ -417,8 +546,10 @@ export default function DocumentsPage() {
                     : "Fallzuordnung ist nicht eindeutig"}
               </h2>
             </div>
+
             <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-violet-700">
-              KI-Sicherheit {Math.round(routeSuggestion.confidence * 100)} %
+              KI-Sicherheit{" "}
+              {Math.round(routeSuggestion.confidence * 100)} %
             </span>
           </div>
 
@@ -428,40 +559,97 @@ export default function DocumentsPage() {
 
           {routeSuggestion.new_case && (
             <div className="mt-5 grid gap-3 rounded-xl border border-violet-100 bg-white p-4 md:grid-cols-2">
-              <div><span className="text-xs text-slate-500">Titel</span><p className="font-medium">{routeSuggestion.new_case.title}</p></div>
-              <div><span className="text-xs text-slate-500">Unternehmen</span><p className="font-medium">{routeSuggestion.new_case.company ?? "Zu prüfen"}</p></div>
-              <div><span className="text-xs text-slate-500">Kategorie</span><p>{routeSuggestion.new_case.category}</p></div>
-              <div><span className="text-xs text-slate-500">Frist</span><p>{routeSuggestion.new_case.primary_deadline ?? "Keine erkannt"}</p></div>
-              <div className="md:col-span-2"><span className="text-xs text-slate-500">Management-Zusammenfassung</span><p>{routeSuggestion.new_case.management_summary ?? "Keine"}</p></div>
-              <div className="md:col-span-2"><span className="text-xs text-slate-500">Nächste Maßnahme</span><p>{routeSuggestion.new_case.next_action ?? "Keine"}</p></div>
+              <div>
+                <span className="text-xs text-slate-500">Titel</span>
+                <p className="font-medium">
+                  {routeSuggestion.new_case.title}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-xs text-slate-500">
+                  Unternehmen
+                </span>
+                <p className="font-medium">
+                  {routeSuggestion.new_case.company ?? "Zu prüfen"}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-xs text-slate-500">
+                  Kategorie
+                </span>
+                <p>{routeSuggestion.new_case.category}</p>
+              </div>
+
+              <div>
+                <span className="text-xs text-slate-500">Frist</span>
+                <p>
+                  {routeSuggestion.new_case.primary_deadline ??
+                    "Keine erkannt"}
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <span className="text-xs text-slate-500">
+                  Management-Zusammenfassung
+                </span>
+                <p>
+                  {routeSuggestion.new_case.management_summary ??
+                    "Keine"}
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <span className="text-xs text-slate-500">
+                  Nächste Maßnahme
+                </span>
+                <p>
+                  {routeSuggestion.new_case.next_action ?? "Keine"}
+                </p>
+              </div>
             </div>
           )}
 
           <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
             <select
               value={routeCaseId}
-              onChange={(event) => setRouteCaseId(event.target.value)}
+              onChange={(event) =>
+                setRouteCaseId(event.target.value)
+              }
               className="input"
             >
-              <option value="">Bestehenden Fall auswählen...</option>
+              <option value="">
+                Bestehenden Fall auswählen...
+              </option>
+
               {cases.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {formatCaseNumber(item.id)} — {item.title}
+                  {getCaseLabel(item)}
                 </option>
               ))}
             </select>
+
             <button
               type="button"
-              disabled={!routeCaseId || busyDocumentId === routeSuggestion.document_id}
-              onClick={() => void confirmSuggestedExistingCase()}
+              disabled={
+                !routeCaseId ||
+                busyDocumentId === routeSuggestion.document_id
+              }
+              onClick={() =>
+                void confirmSuggestedExistingCase()
+              }
               className="rounded-xl border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-800 disabled:opacity-50"
             >
               Diesem Fall zuordnen
             </button>
+
             {routeSuggestion.new_case && (
               <button
                 type="button"
-                disabled={busyDocumentId === routeSuggestion.document_id}
+                disabled={
+                  busyDocumentId === routeSuggestion.document_id
+                }
                 onClick={() => void confirmNewCase()}
                 className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
@@ -469,8 +657,10 @@ export default function DocumentsPage() {
               </button>
             )}
           </div>
+
           <p className="mt-3 text-xs text-slate-500">
-            Es wird nichts automatisch zugeordnet oder angelegt. Erst Ihre Bestätigung speichert die Entscheidung.
+            Es wird nichts automatisch zugeordnet oder angelegt.
+            Erst Ihre Bestätigung speichert die Entscheidung.
           </p>
         </section>
       )}
@@ -501,14 +691,13 @@ export default function DocumentsPage() {
                 }
                 className="input"
               >
-                <option value="">Kein verknüpfter Fall</option>
+                <option value="">
+                  Kein verknüpfter Fall
+                </option>
 
                 {cases.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {formatCaseNumber(item.id)} — {item.company}
-                    {item.department
-                      ? ` / ${item.department}`
-                      : ""}
+                    {getCaseLabel(item)}
                   </option>
                 ))}
               </select>
@@ -532,14 +721,36 @@ export default function DocumentsPage() {
                 }}
                 className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm"
               />
-              <p className="mt-2 text-xs text-slate-500">Mehrere Dateien mit Strg+A auswählen. PDF, Word, Excel, E-Mail; maximal 10 MB je Datei.</p>
-              {files.length > 0 && <p className="mt-2 text-sm text-slate-700">{files.length} Datei(en) ausgewählt</p>}
+
+              <p className="mt-2 text-xs text-slate-500">
+                Mehrere Dateien mit Strg+A auswählen. PDF, Word,
+                Excel, E-Mail; maximal 10 MB je Datei.
+              </p>
+
+              {files.length > 0 && (
+                <p className="mt-2 text-sm text-slate-700">
+                  {files.length} Datei(en) ausgewählt
+                </p>
+              )}
+
               {uploadResults.length > 0 && (
-                <ul className="mt-3 max-h-36 overflow-y-auto text-xs" aria-label="Upload-Ergebnisse">
-                  {uploadResults.map((result, index) => <li key={index} className="py-1">{result}</li>)}
+                <ul
+                  className="mt-3 max-h-36 overflow-y-auto text-xs"
+                  aria-label="Upload-Ergebnisse"
+                >
+                  {uploadResults.map((result, index) => (
+                    <li key={index} className="py-1">
+                      {result}
+                    </li>
+                  ))}
                 </ul>
               )}
-              {uploading && <p role="status" className="mt-2 text-sm">{uploadProgress} von {files.length} verarbeitet</p>}
+
+              {uploading && (
+                <p role="status" className="mt-2 text-sm">
+                  {uploadProgress} von {files.length} verarbeitet
+                </p>
+              )}
             </div>
 
             <div>
@@ -603,8 +814,7 @@ export default function DocumentsPage() {
           ) : (
             <div className="mt-6 divide-y divide-slate-100">
               {filteredDocuments.map((item) => {
-                const isBusy =
-                  busyDocumentId === item.id;
+                const isBusy = busyDocumentId === item.id;
 
                 return (
                   <div key={item.id} className="py-5">
@@ -620,12 +830,14 @@ export default function DocumentsPage() {
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
-                          {formatFileSize(item.file_size)} · Hochgeladen von{" "}
+                          {formatFileSize(item.file_size)} ·
+                          Hochgeladen von{" "}
                           {item.uploaded_by ?? "Unbekannt"}
                         </p>
 
                         <p className="mt-2 text-xs font-medium text-slate-500">
-                          Verarbeitung: {item.processing_status} · Embedding: {item.embedding_status}
+                          Verarbeitung: {item.processing_status} ·
+                          Embedding: {item.embedding_status}
                           {item.chunk_count > 0
                             ? ` · ${item.chunk_count} Textabschnitte`
                             : ""}
@@ -688,11 +900,7 @@ export default function DocumentsPage() {
                             key={caseItem.id}
                             value={caseItem.id}
                           >
-                            {formatCaseNumber(caseItem.id)} —{" "}
-                            {caseItem.company}
-                            {caseItem.department
-                              ? ` / ${caseItem.department}`
-                              : ""}
+                            {getCaseLabel(caseItem)}
                           </option>
                         ))}
                       </select>
