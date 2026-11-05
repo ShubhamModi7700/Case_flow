@@ -65,7 +65,6 @@ def extract_scanned_pdf_with_openai(
                                 "type": "input_file",
                                 "filename": file_name,
                                 "file_data": f"data:application/pdf;base64,{encoded}",
-                                "detail": "high",
                             },
                             {
                                 "type": "input_text",

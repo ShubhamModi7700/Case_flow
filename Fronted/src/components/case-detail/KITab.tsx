@@ -216,15 +216,43 @@ export default function KITab({
       setWorking("summary");
       setError("");
       setNotice("");
+      // Process and analyze every not-yet-indexed document before creating a summary.
+      // Do not silently generate an unsupported summary when a document fails.
+      const pendingDocuments = documents.filter(
+        (document) =>
+          document.processing_status !== "Ready" ||
+          document.embedding_status !== "Ready",
+      );
+      for (const document of pendingDocuments) {
+        try {
+          if (document.processing_status !== "Ready" || document.embedding_status !== "Ready") {
+            await processDocument(document.id);
+          }
+          await requestDocumentAnalysis(document.id);
+        } catch (documentError) {
+          throw new Error(
+            `Dokument „${document.file_name}“: ${messageFromError(
+              documentError,
+              "Verarbeitung oder KI-Analyse fehlgeschlagen. Bitte Backend-Protokoll prüfen.",
+            )}`,
+          );
+        }
+      }
       await generateManagementSummary(caseItem.id);
-      setNotice("Eine neue Management-Zusammenfassung wurde erstellt.");
+      setNotice(
+        pendingDocuments.length > 0
+          ? `${pendingDocuments.length} Dokument(e) verarbeitet und KI-Analysen zur Prüfung erstellt. Die Management-Zusammenfassung wurde aktualisiert. Dokumentanalysen müssen weiterhin fachlich bestätigt werden.`
+          : "Eine neue Management-Zusammenfassung wurde erstellt.",
+      );
       await loadAIData();
     } catch (requestError) {
       setError(
-        messageFromError(
-          requestError,
-          "Die Management-Zusammenfassung konnte nicht erstellt werden.",
-        ),
+        requestError instanceof Error && requestError.message.startsWith("Dokument „")
+          ? requestError.message
+          : messageFromError(
+              requestError,
+              "Die Management-Zusammenfassung konnte nicht erstellt werden.",
+            ),
       );
     } finally {
       setWorking(null);
@@ -441,8 +469,8 @@ export default function KITab({
               {working === "summary"
                 ? "Wird erstellt..."
                 : visibleSummary
-                  ? "Zusammenfassung aktualisieren"
-                  : "KI-Zusammenfassung erstellen"}
+                  ? "Dokumente analysieren & Zusammenfassung aktualisieren"
+                  : "Dokumente analysieren & KI-Zusammenfassung erstellen"}
             </button>
           )}
         </div>
