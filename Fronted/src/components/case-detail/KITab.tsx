@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { api } from "../../api";
 
 import {
   analyzeDocument as requestDocumentAnalysis,
@@ -32,6 +33,27 @@ type KITabProps = {
 function messageFromError(error: any, fallback: string): string {
   const detail = error?.response?.data?.detail;
   return typeof detail === "string" ? detail : fallback;
+}
+
+type ProcessingStatus = {
+  processing_status: string;
+  embedding_status: string;
+  processing_error: string | null;
+};
+
+async function documentFailureMessage(documentId: number, error: unknown): Promise<string> {
+  const original = messageFromError(error, "Dokumentverarbeitung fehlgeschlagen.");
+  try {
+    const { data } = await api.get<ProcessingStatus>(
+      `/documents/${documentId}/processing-status`,
+    );
+    if (data.processing_error?.trim()) {
+      return `Verarbeitung: ${data.processing_status}; Embedding: ${data.embedding_status}. Ursache: ${data.processing_error.trim()}`;
+    }
+  } catch (statusError) {
+    console.error("Dokumentstatus konnte nicht abgerufen werden:", statusError);
+  }
+  return original;
 }
 
 function formatDate(value: string | null): string {
@@ -230,12 +252,8 @@ export default function KITab({
           }
           await requestDocumentAnalysis(document.id);
         } catch (documentError) {
-          throw new Error(
-            `Dokument „${document.file_name}“: ${messageFromError(
-              documentError,
-              "Verarbeitung oder KI-Analyse fehlgeschlagen. Bitte Backend-Protokoll prüfen.",
-            )}`,
-          );
+          const reason = await documentFailureMessage(document.id, documentError);
+          throw new Error(`Dokument „${document.file_name}“: ${reason}`);
         }
       }
       await generateManagementSummary(caseItem.id);
@@ -326,12 +344,8 @@ export default function KITab({
       setNotice(`KI-Analyse für „${document.file_name}“ wurde erstellt.`);
       await Promise.all([loadAIData(), onCaseChanged()]);
     } catch (requestError) {
-      setError(
-        messageFromError(
-          requestError,
-          `Das Dokument „${document.file_name}“ konnte nicht analysiert werden.`,
-        ),
-      );
+      const reason = await documentFailureMessage(document.id, requestError);
+      setError(`Dokument „${document.file_name}“: ${reason}`);
     } finally {
       setWorking(null);
     }
