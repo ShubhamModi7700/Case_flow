@@ -37,6 +37,7 @@ def main():
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--poll-seconds", type=int, default=10)
     args = parser.parse_args()
+    log.info("Document worker started (loop=%s, poll=%ss)", args.loop, args.poll_seconds)
     while True:
         did_work = run_once()
         if not args.loop:

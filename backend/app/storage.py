@@ -128,19 +128,23 @@ def delete_object(path: str) -> None:
 
 def download_object(path: str) -> bytes:
     """Download a private object for backend processing."""
-    with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
-        response = client.get(
-            _object_url(path),
-            headers=_headers(),
-        )
-
-    if response.status_code != 200:
-        raise RuntimeError(
-            f"Supabase Storage download failed ({response.status_code}): "
-            f"{response.text}"
-        )
-
-    return response.content
+    # A large file may take minutes to transfer; keep connect timeout short but
+    # allow slow storage reads. Stream chunks rather than one httpx response body.
+    timeout = httpx.Timeout(connect=15.0, read=180.0, write=30.0, pool=30.0)
+    chunks: list[bytes] = []
+    with httpx.Client(timeout=timeout) as client:
+        with client.stream("GET", _object_url(path), headers=_headers()) as response:
+            if response.status_code != 200:
+                response.read()
+                raise RuntimeError(
+                    f"Supabase Storage download failed ({response.status_code}): "
+                    f"{response.text[:1000]}"
+                )
+            for chunk in response.iter_bytes(chunk_size=1024 * 1024):
+                chunks.append(chunk)
+    # The extractor currently requires bytes; the worker still needs enough RAM
+    # for the whole document. Streaming extraction is a separate improvement.
+    return b"".join(chunks)
 
 
 def create_signed_upload_url(path: str) -> str:

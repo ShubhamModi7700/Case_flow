@@ -226,11 +226,15 @@ def index_document(*, document: models.Document, db: Session) -> None:
         document.embedding_status = "Ready"
         document.chunk_count = len(prepared)
         document.processed_at = utc_now()
-        document.processing_error = (
-            "Warnungen bei der Anhangsverarbeitung: " + " | ".join(warnings[:20])
-            if warnings
-            else None
-        )
+        # Attachment warnings do not mean indexing failed. Keep a successful
+        # document out of the error count; log warnings for diagnosis.
+        document.processing_error = None
+        if warnings:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Document %s indexed with attachment warnings: %s",
+                document.id, " | ".join(warnings[:20]),
+            )
         db.commit()
     except Exception as exc:
         db.rollback()

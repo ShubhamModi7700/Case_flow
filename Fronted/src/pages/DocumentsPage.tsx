@@ -443,8 +443,10 @@ export default function DocumentsPage() {
         (statusFilter === "ready"
           ? item.processing_status === "Ready" && item.embedding_status === "Ready"
           : statusFilter === "failed"
-            ? Boolean(item.processing_error) || ["Failed", "Error"].includes(item.processing_status)
-            : item.processing_status !== "Ready" || item.embedding_status !== "Ready");
+            ? ["Failed", "Error"].includes(item.processing_status) || ["Failed", "Error"].includes(item.embedding_status)
+            : !(item.processing_status === "Ready" && item.embedding_status === "Ready") &&
+              !["Failed", "Error"].includes(item.processing_status) &&
+              !["Failed", "Error"].includes(item.embedding_status));
       return matchesSearch && matchesCase && matchesStatus;
     });
   }, [documents, search, caseFilter, statusFilter]);
@@ -453,7 +455,12 @@ export default function DocumentsPage() {
   const currentPage = Math.min(page, totalPages);
   const visibleDocuments = filteredDocuments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const readyCount = documents.filter((item) => item.processing_status === "Ready" && item.embedding_status === "Ready").length;
-  const failedCount = documents.filter((item) => Boolean(item.processing_error) || ["Failed", "Error"].includes(item.processing_status)).length;
+  const failedCount = documents.filter((item) => ["Failed", "Error"].includes(item.processing_status) || ["Failed", "Error"].includes(item.embedding_status)).length;
+  const pendingCount = documents.filter((item) =>
+    !(item.processing_status === "Ready" && item.embedding_status === "Ready") &&
+    !["Failed", "Error"].includes(item.processing_status) &&
+    !["Failed", "Error"].includes(item.embedding_status)
+  ).length;
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-10">
@@ -467,10 +474,6 @@ export default function DocumentsPage() {
           Dokumente
         </h1>
 
-        <p className="mt-2 text-sm text-slate-500">
-          Dokumente auswählen → Fall zuordnen → gesammelt hochladen →
-          KI-Vorschläge prüfen.
-        </p>
         </div>
         {canEdit && <button type="button" onClick={() => setShowUpload((value) => !value)} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
           {showUpload ? "Upload schließen" : "+ Dokumente hochladen"}
@@ -481,7 +484,7 @@ export default function DocumentsPage() {
         {[
           ["Alle Dokumente", documents.length],
           ["bereit", readyCount],
-          ["Verarbeitung ausstehend", documents.length - readyCount - failedCount],
+          ["Verarbeitung ausstehend", pendingCount],
           ["Fehler", failedCount],
         ].map(([label, value]) => (
           <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -834,7 +837,7 @@ export default function DocumentsPage() {
               </select>
               <select aria-label="Status filtern" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="input max-w-48">
                 <option value="all">Alle Status</option>
-                <option value="ready">KI bereit</option>
+                <option value="ready">bereit</option>
                 <option value="pending">Ausstehend</option>
                 <option value="failed">Fehler</option>
               </select>
