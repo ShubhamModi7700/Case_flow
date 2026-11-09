@@ -75,6 +75,11 @@ export default function DocumentsPage() {
   const [uploadResults, setUploadResults] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [caseFilter, setCaseFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busyDocumentId, setBusyDocumentId] = useState<number | null>(null);
@@ -426,27 +431,34 @@ export default function DocumentsPage() {
 
   const filteredDocuments = useMemo(() => {
     const query = search.trim().toLowerCase();
+    return documents.filter((item) => {
+      const matchesSearch = !query || [
+        item.file_name, item.description, item.uploaded_by,
+        item.company, item.department,
+        item.case_id ? formatCaseNumber(item.case_id) : "",
+      ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+      const matchesCase = caseFilter === "all" ||
+        (caseFilter === "none" ? !item.case_id : String(item.case_id) === caseFilter);
+      const matchesStatus = statusFilter === "all" ||
+        (statusFilter === "ready"
+          ? item.processing_status === "Ready" && item.embedding_status === "Ready"
+          : statusFilter === "failed"
+            ? Boolean(item.processing_error) || ["Failed", "Error"].includes(item.processing_status)
+            : item.processing_status !== "Ready" || item.embedding_status !== "Ready");
+      return matchesSearch && matchesCase && matchesStatus;
+    });
+  }, [documents, search, caseFilter, statusFilter]);
 
-    if (!query) return documents;
-
-    return documents.filter((item) =>
-      [
-        item.file_name,
-        item.description,
-        item.uploaded_by,
-        item.company,
-        item.department,
-      ]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(query),
-        ),
-    );
-  }, [documents, search]);
+  const totalPages = Math.max(1, Math.ceil(filteredDocuments.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleDocuments = filteredDocuments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const readyCount = documents.filter((item) => item.processing_status === "Ready" && item.embedding_status === "Ready").length;
+  const failedCount = documents.filter((item) => Boolean(item.processing_error) || ["Failed", "Error"].includes(item.processing_status)).length;
 
   return (
-    <div className="mx-auto max-w-7xl px-8 py-8">
-      <header>
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-10">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
           Case Flow
         </p>
@@ -459,7 +471,25 @@ export default function DocumentsPage() {
           Dokumente auswählen → Fall zuordnen → gesammelt hochladen →
           KI-Vorschläge prüfen.
         </p>
+        </div>
+        {canEdit && <button type="button" onClick={() => setShowUpload((value) => !value)} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+          {showUpload ? "Upload schließen" : "+ Dokumente hochladen"}
+        </button>}
       </header>
+
+      <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          ["Alle Dokumente", documents.length],
+          ["KI bereit", readyCount],
+          ["Verarbeitung ausstehend", documents.length - readyCount - failedCount],
+          ["Fehler", failedCount],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">{label}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+          </div>
+        ))}
+      </div>
 
       {workflowStage !== "idle" && (
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -677,15 +707,12 @@ export default function DocumentsPage() {
         </section>
       )}
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[380px_1fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mt-7 space-y-6">
+        {showUpload && canEdit && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">
             Dokumente hochladen
           </h2>
 
-          <p className="mt-2 text-sm text-slate-500">
-            Maximale Dateigröße: 4,5 MB.
-          </p>
 
           <form
             onSubmit={uploadDocument}
@@ -736,7 +763,7 @@ export default function DocumentsPage() {
 
               <p className="mt-2 text-xs text-slate-500">
                 Mehrere Dateien mit Strg+A auswählen. PDF, Word,
-                Excel, E-Mail; maximal 50 MB je Datei (direkt zu Supabase).
+                Excel und E-Mail. Upload direkt zu Supabase Storage.
               </p>
 
               {files.length > 0 && (
@@ -790,31 +817,29 @@ export default function DocumentsPage() {
                 : `Alle hochladen (${files.length})`}
             </button>
           </form>
-        </section>
+        </section>}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold">
-                Alle Dokumente
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {documents.length} Dokument(e)
-              </p>
+              <h2 className="text-lg font-semibold">Dokumentenübersicht</h2>
+              <p className="mt-1 text-sm text-slate-500">{filteredDocuments.length} von {documents.length} Dokumenten</p>
             </div>
-
-            <input
-              type="search"
-              value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
-              placeholder="Dokumente durchsuchen..."
-              className="input max-w-xs"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Dateiname, Unternehmen, Fall suchen..." aria-label="Dokumente suchen" className="input w-full sm:w-72" />
+              <select aria-label="Fall filtern" value={caseFilter} onChange={(event) => { setCaseFilter(event.target.value); setPage(1); }} className="input max-w-56">
+                <option value="all">Alle Fälle</option>
+                <option value="none">Ohne Fall</option>
+                {cases.map((item) => <option key={item.id} value={item.id}>{getCaseLabel(item)}</option>)}
+              </select>
+              <select aria-label="Status filtern" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="input max-w-48">
+                <option value="all">Alle Status</option>
+                <option value="ready">KI bereit</option>
+                <option value="pending">Ausstehend</option>
+                <option value="failed">Fehler</option>
+              </select>
+            </div>
           </div>
-
           {loading ? (
             <p className="mt-6 text-sm text-slate-500">
               Dokumente werden geladen...
@@ -825,7 +850,7 @@ export default function DocumentsPage() {
             </p>
           ) : (
             <div className="mt-6 divide-y divide-slate-100">
-              {filteredDocuments.map((item) => {
+              {visibleDocuments.map((item) => {
                 const isBusy = busyDocumentId === item.id;
 
                 return (
@@ -920,6 +945,25 @@ export default function DocumentsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {!loading && filteredDocuments.length > 0 && (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5 text-sm">
+              <div className="flex items-center gap-3 text-slate-500">
+                <span>{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredDocuments.length)} von {filteredDocuments.length}</span>
+                <select aria-label="Dokumente pro Seite" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-slate-700">
+                  <option value={10}>10 / Seite</option>
+                  <option value={25}>25 / Seite</option>
+                  <option value={50}>50 / Seite</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={currentPage <= 1} onClick={() => setPage(1)} className="rounded-lg border border-slate-200 px-3 py-2 disabled:opacity-40">«</button>
+                <button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} className="rounded-lg border border-slate-200 px-3 py-2 disabled:opacity-40">Zurück</button>
+                <span className="px-2 text-slate-600">Seite {currentPage} / {totalPages}</span>
+                <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} className="rounded-lg border border-slate-200 px-3 py-2 disabled:opacity-40">Weiter</button>
+                <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage(totalPages)} className="rounded-lg border border-slate-200 px-3 py-2 disabled:opacity-40">»</button>
+              </div>
             </div>
           )}
         </section>
