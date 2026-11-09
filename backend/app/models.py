@@ -263,6 +263,21 @@ class Document(Base):
     )
 
 
+
+class DocumentProcessingJob(Base):
+    """Durable queue: one indexing job per document."""
+    __tablename__ = "document_processing_jobs"
+
+    id = Column(Integer, primary_key=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    status = Column(String(24), nullable=False, default="Pending", index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    available_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    lease_until = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
 class History(Base):
     __tablename__ = "history"
 

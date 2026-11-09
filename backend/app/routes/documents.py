@@ -45,6 +45,7 @@ from app.storage import (
     get_object_size,
 )
 from app.services.document_indexing import index_document
+from app.services.document_jobs import enqueue
 from app.services.case_embeddings import refresh_case_embedding
 from app.services.document_case_routing import (
     CaseCandidate,
@@ -233,6 +234,8 @@ async def _store_document(
         db.add(document)
         db.commit()
         db.refresh(document)
+        enqueue(db, document.id)
+        db.commit()
         if document.case_id is not None:
             document.case = _get_case_or_404(document.case_id, db)
     except Exception:
@@ -337,6 +340,9 @@ def complete_direct_upload(
         raise HTTPException(status_code=403, detail="Fallzuordnung erforderlich")
     existing = db.query(models.Document).filter(models.Document.storage_path == payload["path"]).first()
     if existing:
+        if existing.embedding_status != "Ready":
+            enqueue(db, existing.id)
+            db.commit()
         existing.case = _get_case_or_404(case_id, db) if case_id is not None else None
         return _serialize_document(existing)
     try:
@@ -360,6 +366,8 @@ def complete_direct_upload(
     try:
         db.commit()
         db.refresh(document)
+        enqueue(db, document.id)
+        db.commit()
     except Exception:
         db.rollback()
         raise
@@ -496,6 +504,47 @@ def assign_document_to_case(
 
     return _serialize_document(document)
 
+
+
+@router.post("/documents/{document_id}/queue", status_code=202)
+def queue_document_processing(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_edit(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
+    if document.embedding_status == "Ready" and document.processing_status == "Ready":
+        return {"status": "Ready", "queued": False}
+    queued = enqueue(db, document_id, retry=True)
+    db.commit()
+    return {"status": "Pending" if queued else "Running", "queued": queued}
+
+
+@router.post("/documents/queue-pending", status_code=202)
+def queue_pending_documents(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_manager),
+):
+    # Only queue documents the manager can edit; don't bypass case permissions.
+    documents = db.query(models.Document).filter(
+        (models.Document.processing_status != "Ready") |
+        (models.Document.embedding_status != "Ready")
+    ).all()
+    count = 0
+    for document in documents:
+        if document.case_id is not None:
+            try:
+                require_case_edit(db, current_user, document.case_id)
+            except HTTPException:
+                continue
+        if enqueue(db, document.id):
+            count += 1
+    db.commit()
+    return {"queued": count}
 
 @router.post(
     "/documents/{document_id}/process",

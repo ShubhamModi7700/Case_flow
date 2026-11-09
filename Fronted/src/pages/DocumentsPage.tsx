@@ -480,7 +480,7 @@ export default function DocumentsPage() {
       <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ["Alle Dokumente", documents.length],
-          ["KI bereit", readyCount],
+          ["bereit", readyCount],
           ["Verarbeitung ausstehend", documents.length - readyCount - failedCount],
           ["Fehler", failedCount],
         ].map(([label, value]) => (
