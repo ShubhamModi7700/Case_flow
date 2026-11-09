@@ -8,6 +8,14 @@ from openpyxl import load_workbook
 import re
 import unicodedata
 from uuid import uuid4
+import base64
+import hashlib
+import hmac
+import json
+import os
+import time
+
+from pydantic import BaseModel, Field
 
 from fastapi import (
     APIRouter,
@@ -33,6 +41,8 @@ from app.storage import (
     download_object,
     delete_object,
     upload_object,
+    create_signed_upload_url,
+    get_object_size,
 )
 from app.services.document_indexing import index_document
 from app.services.case_embeddings import refresh_case_embedding
@@ -236,6 +246,128 @@ async def _store_document(
     return _serialize_document(document)
 
 
+# Never expose the Supabase service-role key or trust browser-supplied object paths.
+DIRECT_UPLOAD_MAX_BYTES = 1024 * 1024 * 1024
+DIRECT_UPLOAD_TTL_SECONDS = 60 * 60
+DIRECT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".eml", ".msg"}
+
+
+class UploadInitRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    file_size: int = Field(gt=0, le=DIRECT_UPLOAD_MAX_BYTES)
+    content_type: str = "application/octet-stream"
+    case_id: int | None = None
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class UploadCompleteRequest(BaseModel):
+    upload_token: str
+
+
+def _sign_upload_session(payload: dict) -> str:
+    secret = os.environ.get("DIRECT_UPLOAD_SIGNING_SECRET") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not secret:
+        raise HTTPException(status_code=503, detail="Upload-Signierung ist nicht konfiguriert")
+    encoded = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()).decode().rstrip("=")
+    signature = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}"
+
+
+def _verify_upload_session(token: str) -> dict:
+    try:
+        encoded, signature = token.split(".", 1)
+        secret = os.environ.get("DIRECT_UPLOAD_SIGNING_SECRET") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        expected = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("Invalid signature")
+        payload = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+        if int(payload["expires"]) < time.time():
+            raise ValueError("Expired")
+        if not str(payload["path"]).startswith("documents/direct/"):
+            raise ValueError("Invalid path")
+        return payload
+    except (ValueError, KeyError, TypeError, UnicodeError) as exc:
+        raise HTTPException(status_code=400, detail="Upload-Sitzung ungültig oder abgelaufen") from exc
+
+
+@router.post("/documents/upload-init")
+def initialize_direct_upload(
+    request: UploadInitRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    if Path(request.filename).suffix.lower() not in DIRECT_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="Erlaubt: PDF, DOCX, XLSX, EML, MSG")
+    if request.case_id is not None:
+        require_case_edit(db, current_user, request.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Fallzuordnung erforderlich")
+    filename = Path(request.filename).name
+    path = f"documents/direct/{uuid4().hex}_{_safe_storage_filename(filename)}"
+    payload = {
+        "path": path,
+        "filename": filename,
+        "size": request.file_size,
+        "content_type": request.content_type,
+        "case_id": request.case_id,
+        "description": request.description,
+        "user_id": current_user.id,
+        "expires": int(time.time()) + DIRECT_UPLOAD_TTL_SECONDS,
+    }
+    try:
+        url = create_signed_upload_url(path)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"upload_url": url, "upload_token": _sign_upload_session(payload)}
+
+
+@router.post("/documents/upload-complete", response_model=schemas.DocumentResponse, status_code=201)
+def complete_direct_upload(
+    request: UploadCompleteRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    payload = _verify_upload_session(request.upload_token)
+    if payload["user_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Upload gehört einem anderen Benutzer")
+    case_id = payload["case_id"]
+    if case_id is not None:
+        require_case_edit(db, current_user, case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Fallzuordnung erforderlich")
+    existing = db.query(models.Document).filter(models.Document.storage_path == payload["path"]).first()
+    if existing:
+        existing.case = _get_case_or_404(case_id, db) if case_id is not None else None
+        return _serialize_document(existing)
+    try:
+        actual_size = get_object_size(payload["path"])
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if actual_size is None:
+        raise HTTPException(status_code=409, detail="Datei wurde noch nicht in Supabase gespeichert")
+    if actual_size != payload["size"]:
+        raise HTTPException(status_code=409, detail="Dateigröße stimmt nicht mit dem Upload überein")
+    document = models.Document(
+        case_id=case_id,
+        file_name=payload["filename"],
+        storage_path=payload["path"],
+        content_type=payload["content_type"],
+        file_size=actual_size,
+        description=(payload["description"] or "").strip() or None,
+        uploaded_by=current_user.full_name,
+    )
+    db.add(document)
+    try:
+        db.commit()
+        db.refresh(document)
+    except Exception:
+        db.rollback()
+        raise
+    if case_id is not None:
+        document.case = _get_case_or_404(case_id, db)
+    return _serialize_document(document)
+
+
 @router.post(
     "/documents",
     response_model=schemas.DocumentResponse,
@@ -301,8 +433,6 @@ def list_all_documents(
     current_user: models.User = Depends(get_current_user),
 ):
     query = db.query(models.Document)
-    # Shared workspace: all linked-case documents are readable. Documents
-    # without a case remain visible only to global roles.
     if not has_global_case_access(current_user):
         query = query.filter(models.Document.case_id.isnot(None))
 

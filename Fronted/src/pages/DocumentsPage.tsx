@@ -1,4 +1,3 @@
-
 import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -206,40 +205,52 @@ export default function DocumentsPage() {
     let succeeded = 0;
     let singleUploaded: DocumentItem | null = null;
 
-    for (const currentFile of files) {
+    const selectedFiles = [...files];
+    let nextFile = 0;
+    async function uploadOne(currentFile: File): Promise<void> {
       try {
-        const formData = new FormData();
-        formData.append("file", currentFile);
-
-        if (description.trim()) {
-          formData.append("description", description.trim());
-        }
-
-        if (selectedCaseId) {
-          formData.append("case_id", selectedCaseId);
-        }
-
+        const init = await api.post<{
+          upload_url: string;
+          upload_token: string;
+        }>("/documents/upload-init", {
+          filename: currentFile.name,
+          file_size: currentFile.size,
+          content_type: currentFile.type || "application/octet-stream",
+          case_id: selectedCaseId ? Number(selectedCaseId) : null,
+          description: description.trim() || null,
+        });
+        // File bytes go straight to Supabase, never through a Vercel Function.
+        await axios.put(init.data.upload_url, currentFile, {
+          headers: { "Content-Type": currentFile.type || "application/octet-stream" },
+          timeout: 180000,
+        });
         const response = await api.post<DocumentItem>(
-          "/documents",
-          formData,
+          "/documents/upload-complete",
+          { upload_token: init.data.upload_token },
         );
 
         succeeded += 1;
         singleUploaded = response.data;
-        results.push(`✓ ${currentFile.name}`);
+        const outcome = `✓ ${currentFile.name}`;
+        results.push(outcome);
+        setUploadResults((previous) => [...previous, outcome]);
       } catch (requestError) {
         failed.push(currentFile);
-        results.push(
-          `✗ ${currentFile.name}: ${getErrorMessage(
-            requestError,
-            "Upload fehlgeschlagen.",
-          )}`,
-        );
+        const outcome = `✗ ${currentFile.name}: ${getErrorMessage(requestError, "Upload fehlgeschlagen.")}`;
+        results.push(outcome);
+        setUploadResults((previous) => [...previous, outcome]);
       }
 
-      setUploadProgress(results.length);
-      setUploadResults([...results]);
+      setUploadProgress((previous) => previous + 1);
     }
+
+    async function worker(): Promise<void> {
+      while (nextFile < selectedFiles.length) {
+        const index = nextFile++;
+        await uploadOne(selectedFiles[index]);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(3, selectedFiles.length) }, () => worker()));
 
     setFiles(failed);
     setUploading(false);
@@ -255,13 +266,14 @@ export default function DocumentsPage() {
         console.error(refreshError);
       }
 
+      const uploadedDocument = singleUploaded as DocumentItem | null;
       if (
         results.length === 1 &&
-        singleUploaded &&
-        !singleUploaded.case_id
+        uploadedDocument &&
+        !uploadedDocument.case_id
       ) {
         try {
-          await startAIWorkflow(singleUploaded);
+          await startAIWorkflow(uploadedDocument);
         } catch (workflowError) {
           setError(
             getErrorMessage(
@@ -711,7 +723,7 @@ export default function DocumentsPage() {
               <input
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.eml,.msg"
+                accept=".pdf,.docx,.xlsx,.eml,.msg"
                 disabled={uploading}
                 onChange={(event) => {
                   setFiles(Array.from(event.target.files ?? []));
@@ -724,7 +736,7 @@ export default function DocumentsPage() {
 
               <p className="mt-2 text-xs text-slate-500">
                 Mehrere Dateien mit Strg+A auswählen. PDF, Word,
-                Excel, E-Mail; maximal 10 MB je Datei.
+                Excel, E-Mail; maximal 50 MB je Datei (direkt zu Supabase).
               </p>
 
               {files.length > 0 && (
