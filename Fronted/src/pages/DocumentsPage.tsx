@@ -14,6 +14,19 @@ import type { CaseItem, DocumentItem } from "../types";
 import { formatCaseNumber } from "../types/case";
 import { formatFileSize } from "../utils/fileHelpers";
 
+const DIRECT_UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
+const DIRECT_UPLOAD_EXTENSIONS = new Set([".pdf", ".docx", ".xlsx", ".eml", ".msg"]);
+
+function validateDirectUpload(file: File): string | null {
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+  if (!DIRECT_UPLOAD_EXTENSIONS.has(extension)) {
+    return "Nicht unterstütztes Format (PDF, DOCX, XLSX, EML oder MSG).";
+  }
+  if (file.size === 0) return "Die Datei ist leer.";
+  if (file.size > DIRECT_UPLOAD_MAX_BYTES) return "Die Datei überschreitet 100 MB.";
+  return null;
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
@@ -193,12 +206,6 @@ export default function DocumentsPage() {
       return;
     }
 
-    // Multiple unassigned files must not be routed automatically.
-    if (files.length > 1 && !selectedCaseId) {
-      setError("Bitte wählen Sie für den Mehrfach-Upload einen Fall aus.");
-      return;
-    }
-
     setUploading(true);
     setUploadProgress(0);
     setUploadResults([]);
@@ -214,6 +221,8 @@ export default function DocumentsPage() {
     let nextFile = 0;
     async function uploadOne(currentFile: File): Promise<void> {
       try {
+        const validationError = validateDirectUpload(currentFile);
+        if (validationError) throw new Error(validationError);
         const init = await api.post<{
           upload_url: string;
           upload_token: string;
@@ -241,7 +250,10 @@ export default function DocumentsPage() {
         setUploadResults((previous) => [...previous, outcome]);
       } catch (requestError) {
         failed.push(currentFile);
-        const outcome = `✗ ${currentFile.name}: ${getErrorMessage(requestError, "Upload fehlgeschlagen.")}`;
+        const message = requestError instanceof Error && !axios.isAxiosError(requestError)
+          ? requestError.message
+          : getErrorMessage(requestError, "Upload fehlgeschlagen.");
+        const outcome = `✗ ${currentFile.name}: ${message}`;
         results.push(outcome);
         setUploadResults((previous) => [...previous, outcome]);
       }
@@ -262,7 +274,7 @@ export default function DocumentsPage() {
 
     if (succeeded > 0) {
       setNotice(
-        `${succeeded} von ${results.length} Dokumenten hochgeladen und dem ausgewählten Fall zugeordnet, sofern gewählt.`,
+        `${succeeded} von ${results.length} Dokumenten gespeichert. Die Extraktion und KI-Verarbeitung erfolgen separat.`,
       );
 
       try {
@@ -769,8 +781,9 @@ export default function DocumentsPage() {
               />
 
               <p className="mt-2 text-xs text-slate-500">
-                Mehrere Dateien mit Strg+A auswählen. PDF, Word,
-                Excel und E-Mail. Upload direkt zu Supabase Storage.
+                Mehrere Dateien auswählen. Unterstützt: PDF, DOCX, XLSX, EML, MSG;
+                maximal 100 MB pro Datei. Direkter Upload zu Supabase Storage.
+                Ohne Fallauswahl bleiben Dokumente zunächst unzugeordnet.
               </p>
 
               {files.length > 0 && (
@@ -960,9 +973,9 @@ export default function DocumentsPage() {
               <div className="flex items-center gap-3 text-slate-500">
                 <span>{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredDocuments.length)} von {filteredDocuments.length}</span>
                 <select aria-label="Dokumente pro Seite" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-slate-700">
-                  <option value={10}>10 / Seite</option>
-                  <option value={25}>25 / Seite</option>
-                  <option value={50}>50 / Seite</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">

@@ -249,7 +249,7 @@ async def _store_document(
     return _serialize_document(document)
 
 
-DIRECT_UPLOAD_MAX_BYTES = 1024 * 1024 * 1024
+DIRECT_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
 DIRECT_UPLOAD_TTL_SECONDS = 60 * 60
 DIRECT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".eml", ".msg"}
 
