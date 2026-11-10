@@ -529,7 +529,6 @@ def queue_pending_documents(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_manager),
 ):
-    # Only queue documents the manager can edit; don't bypass case permissions.
     documents = db.query(models.Document).filter(
         (models.Document.processing_status != "Ready") |
         (models.Document.embedding_status != "Ready")

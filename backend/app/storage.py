@@ -128,8 +128,6 @@ def delete_object(path: str) -> None:
 
 def download_object(path: str) -> bytes:
     """Download a private object for backend processing."""
-    # A large file may take minutes to transfer; keep connect timeout short but
-    # allow slow storage reads. Stream chunks rather than one httpx response body.
     timeout = httpx.Timeout(connect=15.0, read=180.0, write=30.0, pool=30.0)
     chunks: list[bytes] = []
     with httpx.Client(timeout=timeout) as client:
@@ -142,8 +140,6 @@ def download_object(path: str) -> bytes:
                 )
             for chunk in response.iter_bytes(chunk_size=1024 * 1024):
                 chunks.append(chunk)
-    # The extractor currently requires bytes; the worker still needs enough RAM
-    # for the whole document. Streaming extraction is a separate improvement.
     return b"".join(chunks)
 
 

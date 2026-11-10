@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,8 +15,11 @@ from app.services.openai_client import embedding_model
 from app.storage import download_object
 
 
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-MAX_ATTACHMENT_DEPTH = 3
+# Configure on the worker to balance large PDFs against available memory.
+MAX_ATTACHMENT_BYTES = int(os.getenv("MAX_ATTACHMENT_MB", "50")) * 1024 * 1024
+MAX_ATTACHMENT_DEPTH = int(os.getenv("MAX_ATTACHMENT_DEPTH", "5"))
+MAX_TOTAL_ATTACHMENT_BYTES = int(os.getenv("MAX_TOTAL_ATTACHMENT_MB", "250")) * 1024 * 1024
+MAX_ATTACHMENT_COUNT = int(os.getenv("MAX_ATTACHMENT_COUNT", "200"))
 SUPPORTED_ATTACHMENT_EXTENSIONS = {
     ".pdf", ".docx", ".xlsx", ".eml", ".msg", ".txt", ".csv",
     ".png", ".jpg", ".jpeg", ".webp",
@@ -68,6 +72,7 @@ def _prepare_extracted_document(
     parent_filename: str | None = None,
     depth: int = 0,
     inherited_email_metadata: dict[str, Any] | None = None,
+    budget: dict[str, int] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Flatten an email and supported nested attachments into indexable chunks.
 
@@ -77,6 +82,8 @@ def _prepare_extracted_document(
     """
     prepared: list[dict[str, Any]] = []
     warnings: list[str] = []
+    if budget is None:
+        budget = {"count": 0, "bytes": 0}
 
     own_metadata = _document_level_metadata(extracted)
     email_metadata = dict(inherited_email_metadata or {})
@@ -129,16 +136,27 @@ def _prepare_extracted_document(
     for attachment in extracted.attachments:
         attachment_name = Path(attachment.file_name).name
         extension = Path(attachment_name).suffix.lower()
+        if extension == ".p7s":
+            continue
         if extension not in SUPPORTED_ATTACHMENT_EXTENSIONS:
             warnings.append(
                 f"Anhang {attachment_name}: Format {extension or 'unbekannt'} wird nicht indexiert."
             )
             continue
-        if len(attachment.content) > MAX_ATTACHMENT_BYTES:
+        attachment_size = len(attachment.content)
+        if attachment_size > MAX_ATTACHMENT_BYTES:
             warnings.append(
-                f"Anhang {attachment_name}: größer als 10 MB und deshalb nicht indexiert."
+                f"Anhang {attachment_name}: {attachment_size / 1048576:.1f} MB überschreitet "
+                f"das konfigurierte Limit von {MAX_ATTACHMENT_BYTES / 1048576:.0f} MB."
             )
             continue
+        if budget["count"] >= MAX_ATTACHMENT_COUNT or budget["bytes"] + attachment_size > MAX_TOTAL_ATTACHMENT_BYTES:
+            warnings.append(
+                f"Anhang {attachment_name}: Gesamtlimit für Anzahl oder Datenmenge erreicht."
+            )
+            continue
+        budget["count"] += 1
+        budget["bytes"] += attachment_size
 
         if extension in IMAGE_EXTENSIONS and not should_ocr_image_attachment(
             file_name=attachment_name,
@@ -162,6 +180,7 @@ def _prepare_extracted_document(
             parent_filename=current_filename,
             depth=depth + 1,
             inherited_email_metadata=email_metadata,
+            budget=budget,
         )
         prepared.extend(child_prepared)
         warnings.extend(child_warnings)
@@ -222,13 +241,11 @@ def index_document(*, document: models.Document, db: Session) -> None:
                 )
             )
 
-        document.processing_status = "Ready"
+        document.processing_status = "Partial" if warnings else "Ready"
         document.embedding_status = "Ready"
         document.chunk_count = len(prepared)
         document.processed_at = utc_now()
-        # Attachment warnings do not mean indexing failed. Keep a successful
-        # document out of the error count; log warnings for diagnosis.
-        document.processing_error = None
+        document.processing_error = " | ".join(warnings)[:4000] if warnings else None
         if warnings:
             import logging
             logging.getLogger(__name__).warning(

@@ -442,9 +442,11 @@ export default function DocumentsPage() {
       const matchesStatus = statusFilter === "all" ||
         (statusFilter === "ready"
           ? item.processing_status === "Ready" && item.embedding_status === "Ready"
+          : statusFilter === "partial"
+            ? item.processing_status === "Partial"
           : statusFilter === "failed"
             ? ["Failed", "Error"].includes(item.processing_status) || ["Failed", "Error"].includes(item.embedding_status)
-            : !(item.processing_status === "Ready" && item.embedding_status === "Ready") &&
+            : !["Ready", "Partial"].includes(item.processing_status) &&
               !["Failed", "Error"].includes(item.processing_status) &&
               !["Failed", "Error"].includes(item.embedding_status));
       return matchesSearch && matchesCase && matchesStatus;
@@ -455,9 +457,10 @@ export default function DocumentsPage() {
   const currentPage = Math.min(page, totalPages);
   const visibleDocuments = filteredDocuments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const readyCount = documents.filter((item) => item.processing_status === "Ready" && item.embedding_status === "Ready").length;
+  const partialCount = documents.filter((item) => item.processing_status === "Partial").length;
   const failedCount = documents.filter((item) => ["Failed", "Error"].includes(item.processing_status) || ["Failed", "Error"].includes(item.embedding_status)).length;
   const pendingCount = documents.filter((item) =>
-    !(item.processing_status === "Ready" && item.embedding_status === "Ready") &&
+    !["Ready", "Partial"].includes(item.processing_status) &&
     !["Failed", "Error"].includes(item.processing_status) &&
     !["Failed", "Error"].includes(item.embedding_status)
   ).length;
@@ -480,10 +483,11 @@ export default function DocumentsPage() {
         </button>}
       </header>
 
-      <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
           ["Alle Dokumente", documents.length],
           ["bereit", readyCount],
+          ["Teilweise verarbeitet", partialCount],
           ["Verarbeitung ausstehend", pendingCount],
           ["Fehler", failedCount],
         ].map(([label, value]) => (
@@ -838,6 +842,7 @@ export default function DocumentsPage() {
               <select aria-label="Status filtern" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="input max-w-48">
                 <option value="all">Alle Status</option>
                 <option value="ready">bereit</option>
+                <option value="partial">Teilweise verarbeitet</option>
                 <option value="pending">Ausstehend</option>
                 <option value="failed">Fehler</option>
               </select>
