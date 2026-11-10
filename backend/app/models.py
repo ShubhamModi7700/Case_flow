@@ -264,6 +264,29 @@ class Document(Base):
 
 
 
+class DocumentUploadBatch(Base):
+    """Owner-scoped durable record of a multi-file upload."""
+    __tablename__ = "document_upload_batches"
+
+    id = Column(String(36), primary_key=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class DocumentUploadBatchItem(Base):
+    """One selected file; document_id is populated after storage confirmation."""
+    __tablename__ = "document_upload_batch_items"
+
+    id = Column(String(36), primary_key=True)
+    batch_id = Column(String(36), ForeignKey("document_upload_batches.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, unique=True)
+    upload_status = Column(String(20), nullable=False, default="Pending")
+    upload_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
 class DocumentProcessingJob(Base):
     """Durable queue: one indexing job per document."""
     __tablename__ = "document_processing_jobs"

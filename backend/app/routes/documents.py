@@ -260,10 +260,163 @@ class UploadInitRequest(BaseModel):
     content_type: str = "application/octet-stream"
     case_id: int | None = None
     description: str | None = Field(default=None, max_length=2000)
+    batch_item_id: str | None = None
 
 
 class UploadCompleteRequest(BaseModel):
     upload_token: str
+
+
+class BatchCreateRequest(BaseModel):
+    filenames: list[str] = Field(min_length=1, max_length=500)
+    case_id: int | None = None
+
+
+class BatchFailureRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+def _owned_batch_item(db: Session, user: models.User, item_id: str):
+    item = db.query(models.DocumentUploadBatchItem).join(
+        models.DocumentUploadBatch,
+        models.DocumentUploadBatch.id == models.DocumentUploadBatchItem.batch_id,
+    ).filter(
+        models.DocumentUploadBatchItem.id == item_id,
+        models.DocumentUploadBatch.owner_id == user.id,
+    ).first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Upload-Eintrag nicht gefunden")
+    return item
+
+
+def _batch_details(db: Session, batch: models.DocumentUploadBatch) -> dict:
+    items = db.query(models.DocumentUploadBatchItem).filter_by(batch_id=batch.id).order_by(
+        models.DocumentUploadBatchItem.created_at, models.DocumentUploadBatchItem.id
+    ).all()
+    doc_ids = [item.document_id for item in items if item.document_id is not None]
+    docs = {doc.id: doc for doc in db.query(models.Document).filter(models.Document.id.in_(doc_ids)).all()} if doc_ids else {}
+    jobs = {job.document_id: job for job in db.query(models.DocumentProcessingJob).filter(
+        models.DocumentProcessingJob.document_id.in_(doc_ids)
+    ).all()} if doc_ids else {}
+    output = []
+    counts = {status: 0 for status in ("Pending", "Interrupted", "Uploading", "Uploaded", "Running", "Ready", "Partial", "Failed")}
+    for item in items:
+        doc = docs.get(item.document_id)
+        job = jobs.get(item.document_id)
+        status = item.upload_status
+        error = item.upload_error
+        # A browser can close before it reports upload failure; expose abandoned entries.
+        if not doc and status == "Pending" and item.created_at:
+            from datetime import datetime, timezone, timedelta
+            created = item.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - created > timedelta(hours=1):
+                status = "Interrupted"
+                error = "Upload nicht abgeschlossen; Datei erneut auswählen"
+        if doc:
+            if job and job.status == "Failed":
+                status = "Failed"
+                error = job.last_error or doc.processing_error
+            elif job and job.status == "Running":
+                status = "Running"
+            elif doc.processing_status == "Partial":
+                status = "Partial"
+                error = doc.processing_error
+            elif doc.processing_status == "Ready" and doc.embedding_status == "Ready":
+                status = "Ready"
+            elif job and job.status == "Pending":
+                status = "Pending"
+            else:
+                status = "Uploaded"
+                error = doc.processing_error
+        counts[status] = counts.get(status, 0) + 1
+        output.append({"id": item.id, "filename": item.filename, "document_id": item.document_id,
+                       "status": status, "error": error})
+    return {"id": batch.id, "case_id": batch.case_id, "created_at": batch.created_at, "total": len(items),
+            "counts": counts, "items": output}
+
+
+@router.post("/documents/batches", status_code=201)
+def create_document_batch(
+    request: BatchCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    filenames = [Path(name).name for name in request.filenames]
+    if any(not name or len(name) > 255 for name in filenames):
+        raise HTTPException(status_code=422, detail="Ungültiger Dateiname")
+    if request.case_id is not None:
+        require_case_edit(db, current_user, request.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Fallzuordnung erforderlich")
+    batch = models.DocumentUploadBatch(id=str(uuid4()), owner_id=current_user.id, case_id=request.case_id)
+    db.add(batch)
+    items = [models.DocumentUploadBatchItem(id=str(uuid4()), batch_id=batch.id, filename=name)
+             for name in filenames]
+    db.add_all(items)
+    db.commit()
+    return {"id": batch.id, "items": [{"id": item.id, "filename": item.filename} for item in items]}
+
+
+@router.get("/documents/batches")
+def list_document_batches(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    batches = db.query(models.DocumentUploadBatch).filter_by(owner_id=current_user.id).order_by(
+        models.DocumentUploadBatch.created_at.desc()
+    ).limit(25).all()
+    return [_batch_details(db, batch) for batch in batches]
+
+
+@router.get("/documents/batches/{batch_id}")
+def get_document_batch(
+    batch_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    batch = db.query(models.DocumentUploadBatch).filter_by(id=batch_id, owner_id=current_user.id).first()
+    if batch is None:
+        raise HTTPException(status_code=404, detail="Upload-Batch nicht gefunden")
+    return _batch_details(db, batch)
+
+
+@router.post("/documents/batches/items/{item_id}/failed")
+def report_batch_upload_failure(
+    item_id: str,
+    request: BatchFailureRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    item = _owned_batch_item(db, current_user, item_id)
+    if item.document_id is not None:
+        raise HTTPException(status_code=409, detail="Datei wurde bereits gespeichert")
+    item.upload_status = "Failed"
+    item.upload_error = request.message[:2000]
+    db.commit()
+    return {"status": "Failed"}
+
+
+@router.post("/documents/batches/items/{item_id}/retry", status_code=202)
+def retry_batch_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    item = _owned_batch_item(db, current_user, item_id)
+    if item.document_id is None:
+        raise HTTPException(status_code=409, detail="Datei muss erneut vom Browser hochgeladen werden")
+    document = _get_document_or_404(item.document_id, db)
+    if document.case_id is not None:
+        require_case_edit(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
+    if document.processing_status == "Ready" and document.embedding_status == "Ready":
+        return {"queued": False, "status": "Ready"}
+    queued = enqueue(db, document.id, retry=True)
+    db.commit()
+    return {"queued": queued, "status": "Pending" if queued else "Running"}
 
 
 def _sign_upload_session(payload: dict) -> str:
@@ -304,6 +457,15 @@ def initialize_direct_upload(
         require_case_edit(db, current_user, request.case_id)
     elif not has_global_case_access(current_user):
         raise HTTPException(status_code=403, detail="Fallzuordnung erforderlich")
+    if request.batch_item_id is not None:
+        item = _owned_batch_item(db, current_user, request.batch_item_id)
+        if item.document_id is not None:
+            raise HTTPException(status_code=409, detail="Datei bereits im Batch gespeichert")
+        if item.filename != Path(request.filename).name:
+            raise HTTPException(status_code=409, detail="Dateiname stimmt nicht mit dem Batch überein")
+        batch = db.get(models.DocumentUploadBatch, item.batch_id)
+        if batch.case_id != request.case_id:
+            raise HTTPException(status_code=409, detail="Fallzuordnung stimmt nicht mit dem Batch überein")
     filename = Path(request.filename).name
     path = f"documents/direct/{uuid4().hex}_{_safe_storage_filename(filename)}"
     payload = {
@@ -314,6 +476,7 @@ def initialize_direct_upload(
         "case_id": request.case_id,
         "description": request.description,
         "user_id": current_user.id,
+        "batch_item_id": request.batch_item_id,
         "expires": int(time.time()) + DIRECT_UPLOAD_TTL_SECONDS,
     }
     try:
@@ -337,10 +500,22 @@ def complete_direct_upload(
         require_case_edit(db, current_user, case_id)
     elif not has_global_case_access(current_user):
         raise HTTPException(status_code=403, detail="Fallzuordnung erforderlich")
+    batch_item = None
+    if payload.get("batch_item_id"):
+        batch_item = _owned_batch_item(db, current_user, payload["batch_item_id"])
+        if batch_item.filename != payload["filename"]:
+            raise HTTPException(status_code=409, detail="Batch-Dateiname stimmt nicht überein")
     existing = db.query(models.Document).filter(models.Document.storage_path == payload["path"]).first()
     if existing:
         if existing.embedding_status != "Ready":
             enqueue(db, existing.id)
+            db.commit()
+        if batch_item:
+            if batch_item.document_id not in (None, existing.id):
+                raise HTTPException(status_code=409, detail="Batch-Eintrag bereits belegt")
+            batch_item.document_id = existing.id
+            batch_item.upload_status = "Uploaded"
+            batch_item.upload_error = None
             db.commit()
         existing.case = _get_case_or_404(case_id, db) if case_id is not None else None
         return _serialize_document(existing)
@@ -361,8 +536,15 @@ def complete_direct_upload(
         description=(payload["description"] or "").strip() or None,
         uploaded_by=current_user.full_name,
     )
+    if batch_item and batch_item.document_id is not None:
+        raise HTTPException(status_code=409, detail="Batch-Eintrag bereits belegt")
     db.add(document)
     try:
+        db.flush()
+        if batch_item:
+            batch_item.document_id = document.id
+            batch_item.upload_status = "Uploaded"
+            batch_item.upload_error = None
         db.commit()
         db.refresh(document)
         enqueue(db, document.id)

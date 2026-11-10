@@ -73,6 +73,22 @@ function getCaseLabel(item: CaseItem): string {
     .join(" — ");
 }
 
+type UploadBatchItem = {
+  id: string;
+  filename: string;
+  document_id: number | null;
+  status: string;
+  error: string | null;
+};
+type UploadBatch = {
+  id: string;
+  created_at: string;
+  case_id: number | null;
+  total: number;
+  counts: Record<string, number>;
+  items: UploadBatchItem[];
+};
+
 export default function DocumentsPage() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -86,6 +102,9 @@ export default function DocumentsPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState<string[]>([]);
+  const [uploadBatches, setUploadBatches] = useState<UploadBatch[]>([]);
+  const [batchBusyId, setBatchBusyId] = useState<string | null>(null);
+
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -105,6 +124,79 @@ export default function DocumentsPage() {
   const [workflowStage, setWorkflowStage] = useState<
     "idle" | "uploaded" | "routing" | "route-review" | "analyzing" | "review-ready"
   >("idle");
+
+  async function refreshBatches(): Promise<void> {
+    try {
+      const response = await api.get<UploadBatch[]>("/documents/batches");
+      setUploadBatches(response.data);
+    } catch (requestError) {
+      console.error("Loading upload batches failed:", requestError);
+    }
+  }
+
+  useEffect(() => {
+    if (!canEdit) return;
+    void refreshBatches();
+    const interval = window.setInterval(() => void refreshBatches(), 15000);
+    return () => window.clearInterval(interval);
+  }, [canEdit]);
+
+  async function retryBatchDocument(item: UploadBatchItem): Promise<void> {
+    if (!item.document_id) {
+      setError("Bitte wählen Sie die fehlgeschlagene Datei erneut zum Hochladen aus.");
+      return;
+    }
+    try {
+      setBatchBusyId(item.id);
+      setError("");
+      await api.post(`/documents/batches/items/${item.id}/retry`);
+      await refreshBatches();
+      setNotice(`Verarbeitung von ${item.filename} erneut eingeplant.`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Erneute Verarbeitung fehlgeschlagen."));
+    } finally {
+      setBatchBusyId(null);
+    }
+  }
+
+  async function resumeBatchUpload(item: UploadBatchItem, file: File, caseId: number | null): Promise<void> {
+    if (file.name !== item.filename) {
+      setError(`Bitte dieselbe Datei auswählen: ${item.filename}`);
+      return;
+    }
+    const invalid = validateDirectUpload(file);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    try {
+      setBatchBusyId(item.id);
+      setError("");
+      const init = await api.post<{ upload_url: string; upload_token: string }>(
+        "/documents/upload-init",
+        { filename: file.name, batch_item_id: item.id, file_size: file.size,
+          content_type: file.type || "application/octet-stream", case_id: caseId, description: null },
+      );
+      await axios.put(init.data.upload_url, file, {
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        timeout: 180000,
+      });
+      await api.post("/documents/upload-complete", { upload_token: init.data.upload_token });
+      setNotice(`${file.name} erfolgreich erneut hochgeladen.`);
+      await Promise.all([refreshBatches(), loadData()]);
+    } catch (requestError) {
+      const message = getErrorMessage(requestError, "Erneuter Upload fehlgeschlagen.");
+      setError(message);
+      try {
+        await api.post(`/documents/batches/items/${item.id}/failed`, { message });
+      } catch (reportError) {
+        console.error("Could not persist upload failure:", reportError);
+      }
+      await refreshBatches();
+    } finally {
+      setBatchBusyId(null);
+    }
+  }
 
   async function loadData(): Promise<void> {
     try {
@@ -218,8 +310,22 @@ export default function DocumentsPage() {
     let singleUploaded: DocumentItem | null = null;
 
     const selectedFiles = [...files];
+    let batchItems: { id: string; filename: string }[];
+    try {
+      const batch = await api.post<{ id: string; items: { id: string; filename: string }[] }>(
+        "/documents/batches",
+        { filenames: selectedFiles.map((file) => file.name),
+          case_id: selectedCaseId ? Number(selectedCaseId) : null },
+      );
+      batchItems = batch.data.items;
+      await refreshBatches();
+    } catch (requestError) {
+      setUploading(false);
+      setError(getErrorMessage(requestError, "Upload-Batch konnte nicht erstellt werden."));
+      return;
+    }
     let nextFile = 0;
-    async function uploadOne(currentFile: File): Promise<void> {
+    async function uploadOne(currentFile: File, batchItemId: string): Promise<void> {
       try {
         const validationError = validateDirectUpload(currentFile);
         if (validationError) throw new Error(validationError);
@@ -228,6 +334,7 @@ export default function DocumentsPage() {
           upload_token: string;
         }>("/documents/upload-init", {
           filename: currentFile.name,
+          batch_item_id: batchItemId,
           file_size: currentFile.size,
           content_type: currentFile.type || "application/octet-stream",
           case_id: selectedCaseId ? Number(selectedCaseId) : null,
@@ -253,6 +360,11 @@ export default function DocumentsPage() {
         const message = requestError instanceof Error && !axios.isAxiosError(requestError)
           ? requestError.message
           : getErrorMessage(requestError, "Upload fehlgeschlagen.");
+        try {
+          await api.post(`/documents/batches/items/${batchItemId}/failed`, { message });
+        } catch (reportError) {
+          console.error("Could not persist upload failure:", reportError);
+        }
         const outcome = `✗ ${currentFile.name}: ${message}`;
         results.push(outcome);
         setUploadResults((previous) => [...previous, outcome]);
@@ -264,13 +376,14 @@ export default function DocumentsPage() {
     async function worker(): Promise<void> {
       while (nextFile < selectedFiles.length) {
         const index = nextFile++;
-        await uploadOne(selectedFiles[index]);
+        await uploadOne(selectedFiles[index], batchItems[index].id);
       }
     }
     await Promise.all(Array.from({ length: Math.min(3, selectedFiles.length) }, () => worker()));
 
     setFiles(failed);
     setUploading(false);
+    await refreshBatches();
 
     if (succeeded > 0) {
       setNotice(
@@ -723,6 +836,63 @@ export default function DocumentsPage() {
             Es wird nichts automatisch zugeordnet oder angelegt.
             Erst Ihre Bestätigung speichert die Entscheidung.
           </p>
+        </section>
+      )}
+
+      {canEdit && (
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Upload-Batches (dauerhaft gespeichert)</h2>
+            <button type="button" onClick={() => void refreshBatches()}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              Status aktualisieren
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Die letzten 25 Batches dieses Benutzerkontos. Verarbeitung wird alle 15 Sekunden abgefragt.
+            Nach einem Browser-Neustart bleiben Upload- und Verarbeitungsstände erhalten.
+          </p>
+          {uploadBatches.length === 0 && <p className="mt-3 text-sm text-slate-500">Noch keine Upload-Batches.</p>}
+          <div className="mt-4 space-y-3">
+            {uploadBatches.map((batch) => (
+              <details key={batch.id} className="rounded-xl border border-slate-200 p-3">
+                <summary className="cursor-pointer text-sm font-semibold">
+                  {new Date(batch.created_at).toLocaleString("de-DE")} — {batch.total} Dateien
+                  {" · "}Bereit: {batch.counts.Ready ?? 0}
+                  {" · "}Teilweise: {batch.counts.Partial ?? 0}
+                  {" · "}Fehler: {batch.counts.Failed ?? 0}
+                  {" · "}Offen: {batch.total - (batch.counts.Ready ?? 0) - (batch.counts.Partial ?? 0) - (batch.counts.Failed ?? 0)}
+                </summary>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {batch.items.map((item) => (
+                    <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                      <span className="min-w-0 break-all">{item.filename} — <strong>{item.status}</strong>
+                        {item.error && <span className="block text-xs text-red-700">{item.error}</span>}
+                      </span>
+                      {!item.document_id && (
+                        <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-1 text-xs">
+                          Datei erneut auswählen
+                          <input type="file" className="sr-only" disabled={batchBusyId === item.id}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) void resumeBatchUpload(item, file, batch.case_id);
+                              event.target.value = "";
+                            }} />
+                        </label>
+                      )}
+                      {(item.status === "Failed" || item.status === "Partial") && item.document_id && (
+                        <button type="button" disabled={batchBusyId === item.id}
+                          onClick={() => void retryBatchDocument(item)}
+                          className="rounded-lg border border-slate-300 px-3 py-1 text-xs disabled:opacity-50">
+                          Verarbeitung wiederholen
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
         </section>
       )}
 
