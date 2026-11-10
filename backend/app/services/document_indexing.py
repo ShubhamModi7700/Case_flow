@@ -15,7 +15,6 @@ from app.services.openai_client import embedding_model
 from app.storage import download_object
 
 
-# Configure on the worker to balance large PDFs against available memory.
 MAX_ATTACHMENT_BYTES = int(os.getenv("MAX_ATTACHMENT_MB", "50")) * 1024 * 1024
 MAX_ATTACHMENT_DEPTH = int(os.getenv("MAX_ATTACHMENT_DEPTH", "5"))
 MAX_TOTAL_ATTACHMENT_BYTES = int(os.getenv("MAX_TOTAL_ATTACHMENT_MB", "250")) * 1024 * 1024
