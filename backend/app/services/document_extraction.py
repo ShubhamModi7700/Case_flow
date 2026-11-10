@@ -193,13 +193,23 @@ def extract_eml(content: bytes) -> ExtractedDocument:
 
     attachments: list[ExtractedAttachment] = []
     attachment_names: list[str] = []
-    for index, part in enumerate(message.iter_attachments(), start=1):
+    attachment_errors: list[str] = []
+    # Walk all MIME parts: iter_attachments() only sees immediate children and
+    # misses attachments within forwarded/multipart messages.
+    attachment_parts = [
+        part for part in message.walk()
+        if not part.is_multipart() and (
+            part.get_filename() or part.get_content_disposition() == "attachment"
+        )
+    ]
+    for index, part in enumerate(attachment_parts, start=1):
         file_name = Path(part.get_filename() or f"attachment-{index}").name
         try:
             payload = part.get_payload(decode=True)
         except Exception:
             payload = None
         if not isinstance(payload, (bytes, bytearray)):
+            attachment_errors.append(f"Anhang {file_name}: MIME-Nutzdaten konnten nicht gelesen werden.")
             continue
         attachment_names.append(file_name)
         attachments.append(
@@ -220,6 +230,8 @@ def extract_eml(content: bytes) -> ExtractedDocument:
         {
             "attachments": attachment_names,
             "attachment_count": len(attachment_names),
+            "attachment_detected_count": len(attachment_parts),
+            "attachment_errors": attachment_errors,
             "sender": sender,
             "recipient": recipient,
             "subject": subject,
@@ -266,7 +278,9 @@ def extract_msg_document(content: bytes) -> ExtractedDocument:
 
         attachments: list[ExtractedAttachment] = []
         attachment_names: list[str] = []
-        for index, attachment in enumerate(getattr(message, "attachments", []) or [], start=1):
+        attachment_errors: list[str] = []
+        msg_attachments = list(getattr(message, "attachments", []) or [])
+        for index, attachment in enumerate(msg_attachments, start=1):
             file_name = (
                 getattr(attachment, "longFilename", None)
                 or getattr(attachment, "shortFilename", None)
@@ -275,6 +289,7 @@ def extract_msg_document(content: bytes) -> ExtractedDocument:
             file_name = Path(str(file_name)).name
             payload = _msg_attachment_bytes(attachment)
             if payload is None:
+                attachment_errors.append(f"Anhang {file_name}: MSG-Nutzdaten konnten nicht gelesen werden (ggf. eingebettete E-Mail).")
                 continue
             attachment_names.append(file_name)
             attachments.append(
@@ -294,6 +309,8 @@ def extract_msg_document(content: bytes) -> ExtractedDocument:
             {
                 "attachments": attachment_names,
                 "attachment_count": len(attachment_names),
+                "attachment_detected_count": len(msg_attachments),
+                "attachment_errors": attachment_errors,
                 "sender": sender,
                 "recipient": recipient,
                 "subject": subject,

@@ -85,6 +85,7 @@ def _prepare_extracted_document(
         budget = {"count": 0, "bytes": 0}
 
     own_metadata = _document_level_metadata(extracted)
+    warnings.extend(str(error) for error in own_metadata.get("attachment_errors", []))
     email_metadata = dict(inherited_email_metadata or {})
     if extracted.source_type in {"eml", "msg"}:
         for key in ("sender", "recipient", "subject", "document_date"):
@@ -136,6 +137,7 @@ def _prepare_extracted_document(
         attachment_name = Path(attachment.file_name).name
         extension = Path(attachment_name).suffix.lower()
         if extension == ".p7s":
+            warnings.append(f"Anhang {attachment_name}: Signaturdatei wird nicht als Text indexiert.")
             continue
         if extension not in SUPPORTED_ATTACHMENT_EXTENSIONS:
             warnings.append(
@@ -161,6 +163,7 @@ def _prepare_extracted_document(
             file_name=attachment_name,
             content=attachment.content,
         ):
+            warnings.append(f"Anhang {attachment_name}: als dekoratives oder zu kleines Bild von OCR ausgenommen.")
             continue
 
         try:
