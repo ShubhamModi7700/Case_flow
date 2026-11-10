@@ -194,8 +194,6 @@ def extract_eml(content: bytes) -> ExtractedDocument:
     attachments: list[ExtractedAttachment] = []
     attachment_names: list[str] = []
     attachment_errors: list[str] = []
-    # Walk all MIME parts: iter_attachments() only sees immediate children and
-    # misses attachments within forwarded/multipart messages.
     attachment_parts = [
         part for part in message.walk()
         if not part.is_multipart() and (

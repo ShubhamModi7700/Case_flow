@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/internal/process-next-document",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
