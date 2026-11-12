@@ -682,6 +682,10 @@ def assign_document_to_case(
         document.case_id = None
 
     if previous_case_id != document.case_id:
+        # Keep indexed chunks consistent with the document's current case.
+        db.query(models.DocumentChunk).filter(
+            models.DocumentChunk.document_id == document.id
+        ).update({"case_id": document.case_id}, synchronize_session=False)
         _record_case_route_event(
             db, document_id=document.id, actor_id=current_user.id,
             event_type="correction", decision="manual_reassignment",
