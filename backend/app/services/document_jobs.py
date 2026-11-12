@@ -53,8 +53,6 @@ def claim(db: Session):
     """
     current = now()
 
-    # A crashed worker may leave its final attempt in Running forever.
-    # Retire those expired claims before looking for new work.
     (
         db.query(models.DocumentProcessingJob)
         .filter(

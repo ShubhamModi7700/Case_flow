@@ -15,7 +15,6 @@ from app.prompts.document_routing import DRAFT_SYSTEM_PROMPT, ROUTING_SYSTEM_PRO
 
 logger = logging.getLogger(__name__)
 
-# A suggestion below this threshold requires explicit review.
 MIN_EXISTING_CASE_CONFIDENCE = 0.80
 
 
@@ -156,8 +155,6 @@ def suggest_document_case_route(
     if suggestion.suggested_case_id is not None and suggestion.suggested_case_id not in valid_ids:
         raise RuntimeError("Die KI hat eine ungültige Fall-ID vorgeschlagen.")
 
-    # A candidate match is never an automatic assignment. Inconsistent model
-    # output is downgraded to review rather than silently treated as a match.
     if suggestion.decision == "existing_case":
         if suggestion.suggested_case_id is None:
             suggestion.decision = "uncertain"

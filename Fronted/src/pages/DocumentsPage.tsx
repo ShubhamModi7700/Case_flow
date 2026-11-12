@@ -73,6 +73,18 @@ function getCaseLabel(item: CaseItem): string {
     .join(" — ");
 }
 
+type RoutingEvent = {
+  id: string;
+  event_type: string;
+  decision: string;
+  suggested_case_id: number | null;
+  assigned_case_id: number | null;
+  confidence: number | null;
+  reason: string | null;
+  details: { candidates?: Array<{ case_id: number; title: string; similarity: number | null }>; previous_case_id?: number | null } | null;
+  created_at: string | null;
+};
+
 type UploadBatchItem = {
   id: string;
   filename: string;
@@ -104,6 +116,9 @@ export default function DocumentsPage() {
   const [uploadResults, setUploadResults] = useState<string[]>([]);
   const [uploadBatches, setUploadBatches] = useState<UploadBatch[]>([]);
   const [batchBusyId, setBatchBusyId] = useState<string | null>(null);
+  const [historyDocumentId, setHistoryDocumentId] = useState<number | null>(null);
+  const [routingHistory, setRoutingHistory] = useState<RoutingEvent[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
@@ -448,6 +463,24 @@ export default function DocumentsPage() {
     }
   }
 
+  async function toggleRoutingHistory(documentId: number): Promise<void> {
+    if (historyDocumentId === documentId) {
+      setHistoryDocumentId(null);
+      return;
+    }
+    setHistoryDocumentId(documentId);
+    setRoutingHistory([]);
+    setHistoryLoading(true);
+    try {
+      const response = await api.get<RoutingEvent[]>(`/documents/${documentId}/case-routing-history`);
+      setRoutingHistory(response.data);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Fallzuordnungs-Verlauf konnte nicht geladen werden."));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   async function deleteDocument(documentId: number): Promise<void> {
     const confirmed = window.confirm(
       "Möchten Sie dieses Dokument wirklich dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
@@ -730,6 +763,21 @@ export default function DocumentsPage() {
           <p className="mt-4 text-sm leading-6 text-slate-700">
             {routeSuggestion.reason}
           </p>
+
+          {routeSuggestion.candidates.length > 0 && (
+            <div className="mt-4 rounded-xl border border-violet-100 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-800">Verglichene Fälle (Vektorsuche)</h3>
+              <p className="mt-1 text-xs text-slate-500">Ähnlichkeit ist keine kalibrierte Wahrscheinlichkeit. Bitte den Inhalt prüfen.</p>
+              <ul className="mt-2 space-y-2 text-sm">
+                {routeSuggestion.candidates.map((candidate) => (
+                  <li key={candidate.case_id} className="flex flex-wrap items-center justify-between gap-2">
+                    <span>{candidate.title} (#{candidate.case_id})</span>
+                    <span className="text-slate-500">Ähnlichkeit: {candidate.similarity == null ? "–" : candidate.similarity.toFixed(3)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {routeSuggestion.new_case && (
             <div className="mt-5 grid gap-3 rounded-xl border border-violet-100 bg-white p-4 md:grid-cols-2">
@@ -1088,6 +1136,14 @@ export default function DocumentsPage() {
                           </Link>
                         )}
 
+                        <button
+                          type="button"
+                          onClick={() => void toggleRoutingHistory(item.id)}
+                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50"
+                        >
+                          {historyDocumentId === item.id ? "Verlauf schließen" : "KI-Zuordnungsverlauf"}
+                        </button>
+
                         {isManager && (
                           <button
                             type="button"
@@ -1102,6 +1158,33 @@ export default function DocumentsPage() {
                         )}
                       </div>
                     </div>
+
+                    {historyDocumentId === item.id && (
+                      <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Fallzuordnungsverlauf">
+                        <h3 className="text-sm font-semibold">Fallzuordnungen und KI-Vorschläge</h3>
+                        {historyLoading ? <p className="mt-2 text-sm">Lade Verlauf…</p> : routingHistory.length === 0 ? (
+                          <p className="mt-2 text-sm text-slate-500">Noch keine protokollierten Entscheidungen.</p>
+                        ) : (
+                          <ul className="mt-3 space-y-3">
+                            {routingHistory.map((event) => (
+                              <li key={event.id} className="rounded-lg bg-white p-3 text-sm">
+                                <p className="font-medium">{event.event_type === "suggestion" ? "KI-Vorschlag" : event.event_type === "correction" ? "Manuelle Korrektur" : "Bestätigte Zuordnung"} · {event.decision}</p>
+                                <p className="text-xs text-slate-500">{event.created_at ? new Date(event.created_at).toLocaleString("de-DE") : "Datum unbekannt"}</p>
+                                {event.reason && <p className="mt-1">{event.reason}</p>}
+                                {event.confidence != null && <p className="mt-1 text-slate-600">KI-Konfidenz: {Math.round(event.confidence * 100)} %</p>}
+                                {event.assigned_case_id != null && <p className="mt-1">Zugeordneter Fall: #{event.assigned_case_id}</p>}
+                                {event.event_type === "correction" && <p className="mt-1 text-slate-600">Vorheriger Fall: {event.details?.previous_case_id ?? "ohne Zuordnung"}</p>}
+                                {event.details?.candidates && event.details.candidates.length > 0 && (
+                                  <details className="mt-2"><summary className="cursor-pointer text-violet-700">Verglichene Kandidaten</summary>
+                                    <ul className="mt-1 list-disc pl-5">{event.details.candidates.map((candidate) => <li key={candidate.case_id}>{candidate.title} (#{candidate.case_id}) — {candidate.similarity == null ? "–" : candidate.similarity.toFixed(3)}</li>)}</ul>
+                                  </details>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
 
                     <div className="mt-3 max-w-md">
                       <label className="mb-1 block text-xs font-medium text-slate-500">

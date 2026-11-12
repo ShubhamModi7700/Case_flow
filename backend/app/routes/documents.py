@@ -305,7 +305,6 @@ def _batch_details(db: Session, batch: models.DocumentUploadBatch) -> dict:
         job = jobs.get(item.document_id)
         status = item.upload_status
         error = item.upload_error
-        # A browser can close before it reports upload failure; expose abandoned entries.
         if not doc and status == "Pending" and item.created_at:
             from datetime import datetime, timezone, timedelta
             created = item.created_at
@@ -667,8 +666,13 @@ def assign_document_to_case(
 ):
     document = _get_document_or_404(document_id, db)
 
+    previous_case_id = document.case_id
     if document.case_id is not None:
         require_case_edit(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
+    if payload.case_id is None and not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung zum Entfernen der Fallzuordnung")
     if payload.case_id is not None:
         require_case_edit(db, current_user, payload.case_id)
         document.case = _get_case_or_404(payload.case_id, db)
@@ -677,6 +681,14 @@ def assign_document_to_case(
         document.case = None
         document.case_id = None
 
+    if previous_case_id != document.case_id:
+        _record_case_route_event(
+            db, document_id=document.id, actor_id=current_user.id,
+            event_type="correction", decision="manual_reassignment",
+            assigned_case_id=document.case_id,
+            reason="Manuelle Änderung der Fallzuordnung",
+            details={"previous_case_id": previous_case_id, "new_case_id": document.case_id},
+        )
     db.commit()
     db.refresh(document)
 
