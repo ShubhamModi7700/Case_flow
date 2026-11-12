@@ -1,13 +1,26 @@
 import argparse
 import logging
 import time
+import threading
 from app import models
 from app.database import SessionLocal
 from app.services.document_indexing import index_document
-from app.services.document_jobs import claim, finish
+from app.services.document_jobs import claim, finish, renew_lease
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("caseflow.worker")
+
+
+def _heartbeat(job_id: int, attempt: int, stop: threading.Event) -> None:
+    """Renew using a separate DB session; never share the indexing session."""
+    while not stop.wait(5 * 60):
+        try:
+            with SessionLocal() as db:
+                if not renew_lease(db, job_id, attempt=attempt):
+                    log.warning("Worker lease lost: job=%s attempt=%s", job_id, attempt)
+                    return
+        except Exception:
+            log.exception("Failed to renew lease: job=%s", job_id)
 
 
 def run_once() -> bool:
@@ -17,6 +30,9 @@ def run_once() -> bool:
         return False
     job_id, document_id, attempt = claimed
     error = None
+    stop = threading.Event()
+    heartbeat = threading.Thread(target=_heartbeat, args=(job_id, attempt, stop), daemon=True)
+    heartbeat.start()
     try:
         with SessionLocal() as db:
             document = db.get(models.Document, document_id)
@@ -28,6 +44,9 @@ def run_once() -> bool:
     except Exception as exc:
         error = str(exc)
         log.exception("Processing document %s failed", document_id)
+    finally:
+        stop.set()
+        heartbeat.join(timeout=5)
     with SessionLocal() as db:
         if not finish(db, job_id, error, attempt=attempt):
             log.warning("Stale job completion ignored: job=%s attempt=%s", job_id, attempt)

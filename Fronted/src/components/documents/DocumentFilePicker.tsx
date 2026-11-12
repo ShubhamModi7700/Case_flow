@@ -2,20 +2,7 @@ import { useId, useRef, useState } from "react";
 
 import { formatFileSize } from "../../utils/fileHelpers";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const ACCEPTED_EXTENSIONS =
-  ".pdf,.doc,.docx,.xls,.xlsx,.eml,.msg";
-
-const ALLOWED_EXTENSIONS = new Set([
-  ".pdf",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".eml",
-  ".msg",
-]);
+import { UPLOAD_ACCEPT, validateUploadFile } from "../../utils/uploadPolicy";
 
 type DocumentFilePickerProps = {
   file: File | null;
@@ -34,18 +21,6 @@ export default function DocumentFilePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  function getFileExtension(fileName: string): string {
-    const lastDotIndex = fileName.lastIndexOf(".");
-
-    if (lastDotIndex === -1) {
-      return "";
-    }
-
-    return fileName
-      .slice(lastDotIndex)
-      .toLowerCase();
-  }
-
   function selectFile(nextFile: File | null): void {
     if (!nextFile) {
       onError?.("");
@@ -53,33 +28,11 @@ export default function DocumentFilePicker({
       return;
     }
 
-    const extension = getFileExtension(nextFile.name);
-
-    if (!ALLOWED_EXTENSIONS.has(extension)) {
+    const validationError = validateUploadFile(nextFile);
+    if (validationError) {
       onFileChange(null);
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-
-      onError?.(
-        "Nicht unterstütztes Dateiformat. Erlaubt sind PDF, DOC, DOCX, XLS, XLSX, EML und MSG.",
-      );
-
-      return;
-    }
-
-    if (nextFile.size > MAX_FILE_SIZE) {
-      onFileChange(null);
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-
-      onError?.(
-        "Die ausgewählte Datei überschreitet das Limit von 10 MB.",
-      );
-
+      if (inputRef.current) inputRef.current.value = "";
+      onError?.(validationError);
       return;
     }
 
@@ -102,7 +55,7 @@ export default function DocumentFilePicker({
         ref={inputRef}
         id={inputId}
         type="file"
-        accept={ACCEPTED_EXTENSIONS}
+        accept={UPLOAD_ACCEPT}
         disabled={disabled}
         onChange={(event) =>
           selectFile(

@@ -13,19 +13,7 @@ import { useAuth } from "../AuthContext";
 import type { CaseItem, DocumentItem } from "../types";
 import { formatCaseNumber } from "../types/case";
 import { formatFileSize } from "../utils/fileHelpers";
-
-const DIRECT_UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
-const DIRECT_UPLOAD_EXTENSIONS = new Set([".pdf", ".docx", ".xlsx", ".eml", ".msg"]);
-
-function validateDirectUpload(file: File): string | null {
-  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-  if (!DIRECT_UPLOAD_EXTENSIONS.has(extension)) {
-    return "Nicht unterstütztes Format (PDF, DOCX, XLSX, EML oder MSG).";
-  }
-  if (file.size === 0) return "Die Datei ist leer.";
-  if (file.size > DIRECT_UPLOAD_MAX_BYTES) return "Die Datei überschreitet 100 MB.";
-  return null;
-}
+import { UPLOAD_ACCEPT, validateUploadFile } from "../utils/uploadPolicy";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -179,7 +167,7 @@ export default function DocumentsPage() {
       setError(`Bitte dieselbe Datei auswählen: ${item.filename}`);
       return;
     }
-    const invalid = validateDirectUpload(file);
+    const invalid = validateUploadFile(file);
     if (invalid) {
       setError(invalid);
       return;
@@ -342,7 +330,7 @@ export default function DocumentsPage() {
     let nextFile = 0;
     async function uploadOne(currentFile: File, batchItemId: string): Promise<void> {
       try {
-        const validationError = validateDirectUpload(currentFile);
+        const validationError = validateUploadFile(currentFile);
         if (validationError) throw new Error(validationError);
         const init = await api.post<{
           upload_url: string;
@@ -987,7 +975,7 @@ export default function DocumentsPage() {
               <input
                 type="file"
                 multiple
-                accept=".pdf,.docx,.xlsx,.eml,.msg"
+                accept={UPLOAD_ACCEPT}
                 disabled={uploading}
                 onChange={(event) => {
                   setFiles(Array.from(event.target.files ?? []));

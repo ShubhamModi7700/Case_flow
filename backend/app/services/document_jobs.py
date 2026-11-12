@@ -145,3 +145,26 @@ def finish(db: Session, job_id: int, error: str | None, *, attempt: int) -> bool
         job.last_error = None
     db.commit()
     return True
+
+
+def renew_lease(db: Session, job_id: int, *, attempt: int) -> bool:
+    """Extend a running claim only if this exact attempt still owns it."""
+    current = now()
+    updated = (
+        db.query(models.DocumentProcessingJob)
+        .filter(
+            models.DocumentProcessingJob.id == job_id,
+            models.DocumentProcessingJob.status == "Running",
+            models.DocumentProcessingJob.attempts == attempt,
+            models.DocumentProcessingJob.lease_until > current,
+        )
+        .update(
+            {
+                models.DocumentProcessingJob.lease_until: current + timedelta(minutes=LEASE_MINUTES),
+                models.DocumentProcessingJob.updated_at: current,
+            },
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    return updated == 1

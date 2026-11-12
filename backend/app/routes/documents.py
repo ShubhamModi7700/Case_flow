@@ -60,7 +60,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
 
 def _safe_storage_filename(file_name: str) -> str:
@@ -104,9 +104,7 @@ ALLOWED_CONTENT_TYPES = {
 
 ALLOWED_FILE_EXTENSIONS = {
     ".pdf",
-    ".doc",
     ".docx",
-    ".xls",
     ".xlsx",
     ".eml",
     ".msg",
@@ -163,15 +161,14 @@ def _validate_file_type(*, file_name: str, content_type: str) -> None:
     application/octet-stream, so the extension is checked as a fallback.
     """
     extension = Path(file_name).suffix.lower()
-    mime_is_allowed = content_type in ALLOWED_CONTENT_TYPES
-    extension_is_allowed = extension in ALLOWED_FILE_EXTENSIONS
-
-    if not mime_is_allowed and not extension_is_allowed:
+    # Require an allowed extension even when the browser supplies an allowed MIME.
+    # MIME alone is not trustworthy (and may not match the file content).
+    if extension not in ALLOWED_FILE_EXTENSIONS:
         raise HTTPException(
             status_code=415,
             detail=(
                 "Nicht unterstützter Dateityp. "
-                "Erlaubte Formate: PDF, DOC, DOCX, XLS, XLSX, EML und MSG."
+                "Erlaubte Formate: PDF, DOCX, XLSX, EML und MSG."
             ),
         )
 
@@ -207,7 +204,7 @@ async def _store_document(
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
-            detail="Die Datei überschreitet das Limit von 10 MB",
+            detail="Die Datei überschreitet das Limit von 100 MB",
         )
 
     storage_name = _safe_storage_filename(original_name)
@@ -249,9 +246,15 @@ async def _store_document(
     return _serialize_document(document)
 
 
-DIRECT_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
+DIRECT_UPLOAD_MAX_BYTES = MAX_UPLOAD_BYTES
 DIRECT_UPLOAD_TTL_SECONDS = 60 * 60
 DIRECT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".eml", ".msg"}
+
+
+@router.get("/documents/upload-policy")
+def get_upload_policy():
+    """Single backend source of truth for upload size and supported extensions."""
+    return {"max_file_bytes": DIRECT_UPLOAD_MAX_BYTES, "extensions": sorted(DIRECT_EXTENSIONS), "max_batch_files": 500}
 
 
 class UploadInitRequest(BaseModel):

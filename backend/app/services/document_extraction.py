@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
 from io import BytesIO
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -157,25 +158,63 @@ def extract_text(content: bytes, *, source_type: str = "text") -> ExtractedDocum
     return ExtractedDocument(source_type, [ExtractedSection(text)])
 
 
+class _EmailHTMLText(HTMLParser):
+    """Convert HTML-only mail bodies into searchable plain text without scripts."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.suppressed = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"script", "style", "head"}:
+            self.suppressed += 1
+        elif not self.suppressed and tag in {"p", "div", "br", "li", "tr", "h1", "h2", "h3"}:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in {"script", "style", "head"}:
+            self.suppressed = max(0, self.suppressed - 1)
+        elif not self.suppressed and tag in {"p", "div", "li", "tr"}:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self.suppressed:
+            self.parts.append(data)
+
+
+def _html_to_text(value: str) -> str:
+    parser = _EmailHTMLText()
+    parser.feed(value)
+    return "\n".join(line.strip() for line in "".join(parser.parts).splitlines() if line.strip())
+
+
 def extract_eml(content: bytes) -> ExtractedDocument:
     message = BytesParser(policy=policy.default).parsebytes(content)
     body_parts: list[str] = []
-    if message.is_multipart():
-        for part in message.walk():
-            if part.get_content_type() == "text/plain" and not part.get_filename():
-                try:
-                    value = part.get_content()
-                    if value and value.strip():
-                        body_parts.append(value.strip())
-                except Exception:
-                    continue
-    else:
+    html_parts: list[str] = []
+    # Prefer the plain-text alternative to avoid duplicate content. HTML-only
+    # emails must still be searchable; attachment payloads are never body text.
+    for part in message.walk():
+        if part.is_multipart() or part.get_filename() or part.get_content_disposition() == "attachment":
+            continue
+        content_type = part.get_content_type()
+        if content_type not in {"text/plain", "text/html"}:
+            continue
         try:
-            value = message.get_content()
-            if value and value.strip():
+            value = part.get_content()
+            if not isinstance(value, str) or not value.strip():
+                continue
+            if content_type == "text/plain":
                 body_parts.append(value.strip())
-        except Exception:
-            pass
+            else:
+                converted = _html_to_text(value)
+                if converted:
+                    html_parts.append(converted)
+        except (UnicodeError, ValueError, TypeError, LookupError):
+            continue
+    if not body_parts:
+        body_parts = html_parts
 
     sender = str(message.get("From", "") or "").strip() or None
     recipient = str(message.get("To", "") or "").strip() or None
