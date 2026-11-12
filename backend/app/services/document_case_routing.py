@@ -15,6 +15,9 @@ from app.prompts.document_routing import DRAFT_SYSTEM_PROMPT, ROUTING_SYSTEM_PRO
 
 logger = logging.getLogger(__name__)
 
+# A suggestion below this threshold requires explicit review.
+MIN_EXISTING_CASE_CONFIDENCE = 0.80
+
 
 class DocumentCaseDraft(BaseModel):
     title: str = Field(min_length=1, max_length=255)
@@ -115,8 +118,8 @@ def suggest_document_case_route(
         return DocumentCaseRouteSuggestion(
             decision="new_case",
             suggested_case_id=None,
-            confidence=1.0,
-            reason="Es sind noch keine bestehenden Fälle vorhanden. Ein neuer Fall wird vorgeschlagen.",
+            confidence=0.0,
+            reason="Es gibt keine bestehenden Fallkandidaten. Ein neuer Fallentwurf wird zur manuellen Prüfung vorgeschlagen; die Zuordnungssicherheit ist nicht messbar.",
             new_case=create_document_case_draft(document_context),
         )
 
@@ -152,12 +155,32 @@ def suggest_document_case_route(
     valid_ids = {item.case_id for item in candidates}
     if suggestion.suggested_case_id is not None and suggestion.suggested_case_id not in valid_ids:
         raise RuntimeError("Die KI hat eine ungültige Fall-ID vorgeschlagen.")
-    if suggestion.decision == "existing_case" and suggestion.suggested_case_id is None:
-        suggestion.decision = "uncertain"
-        suggestion.reason = "Die KI konnte keinen eindeutigen bestehenden Fall bestimmen."
+
+    # A candidate match is never an automatic assignment. Inconsistent model
+    # output is downgraded to review rather than silently treated as a match.
+    if suggestion.decision == "existing_case":
+        if suggestion.suggested_case_id is None:
+            suggestion.decision = "uncertain"
+            suggestion.confidence = 0.0
+            suggestion.reason = "Die KI konnte keinen eindeutigen bestehenden Fall bestimmen."
+        elif suggestion.confidence < MIN_EXISTING_CASE_CONFIDENCE:
+            suggestion.decision = "uncertain"
+            suggestion.reason = (
+                f"Die vorgeschlagene Zuordnung liegt unter der Prüfschwelle "
+                f"von {MIN_EXISTING_CASE_CONFIDENCE:.0%}. "
+                + suggestion.reason
+            )
+
     if suggestion.decision == "new_case":
         suggestion.suggested_case_id = None
+        suggestion.confidence = 0.0
         if suggestion.new_case is None:
             suggestion.new_case = create_document_case_draft(document_context)
+    elif suggestion.decision == "uncertain":
+        suggestion.new_case = None
+        if suggestion.suggested_case_id is None:
+            suggestion.confidence = 0.0
+    else:
+        suggestion.new_case = None
 
     return suggestion

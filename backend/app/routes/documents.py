@@ -755,6 +755,43 @@ def process_document(
     )
 
 
+def _record_case_route_event(db, *, document_id: int, actor_id: int, event_type: str,
+                             decision: str, suggested_case_id=None, assigned_case_id=None,
+                             confidence=None, reason=None, details=None):
+    """Persist an auditable routing event in the caller's transaction."""
+    db.add(models.DocumentCaseRoutingEvent(
+        id=str(uuid4()), document_id=document_id, actor_id=actor_id,
+        event_type=event_type, decision=decision,
+        suggested_case_id=suggested_case_id, assigned_case_id=assigned_case_id,
+        confidence=confidence, reason=reason,
+        details=json.dumps(details, ensure_ascii=False, default=str) if details is not None else None,
+    ))
+
+
+@router.get("/documents/{document_id}/case-routing-history")
+def get_document_case_routing_history(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_view(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
+    events = (db.query(models.DocumentCaseRoutingEvent)
+              .filter_by(document_id=document_id)
+              .order_by(models.DocumentCaseRoutingEvent.created_at.desc())
+              .limit(100).all())
+    return [{
+        "id": e.id, "document_id": e.document_id, "event_type": e.event_type,
+        "decision": e.decision, "suggested_case_id": e.suggested_case_id,
+        "assigned_case_id": e.assigned_case_id, "confidence": e.confidence,
+        "reason": e.reason, "details": json.loads(e.details) if e.details else None,
+        "created_at": e.created_at.isoformat() if e.created_at else None,
+    } for e in events]
+
+
 @router.post(
     "/documents/{document_id}/suggest-case",
     response_model=schemas.DocumentCaseRouteSuggestionResponse,
@@ -826,6 +863,18 @@ def suggest_case_for_document(
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    _record_case_route_event(
+        db, document_id=document.id, actor_id=current_user.id,
+        event_type="suggestion", decision=suggestion.decision,
+        suggested_case_id=suggestion.suggested_case_id,
+        confidence=suggestion.confidence, reason=suggestion.reason,
+        details={
+            "candidates": [item.model_dump() for item in candidates],
+            "new_case": suggestion.new_case.model_dump(mode="json") if suggestion.new_case else None,
+        },
+    )
+    db.commit()
+
     return schemas.DocumentCaseRouteSuggestionResponse(
         document_id=document.id,
         decision=suggestion.decision,
@@ -862,6 +911,10 @@ def confirm_document_case_route(
 ):
     """Apply a case routing decision only after explicit user confirmation."""
     document = _get_document_or_404(document_id, db)
+    if document.case_id is not None:
+        require_case_edit(db, current_user, document.case_id)
+    elif not has_global_case_access(current_user):
+        raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Dokument")
 
     if payload.action == "assign_existing":
         if payload.case_id is None:
@@ -883,6 +936,12 @@ def confirm_document_case_route(
                 ),
                 responsible_person=current_user.full_name,
             )
+        )
+        _record_case_route_event(
+            db, document_id=document.id, actor_id=current_user.id,
+            event_type="confirmation", decision="assign_existing",
+            assigned_case_id=case.id,
+            reason="Manuell bestätigte Zuordnung zu bestehendem Fall",
         )
         db.commit()
         return schemas.DocumentCaseRouteConfirmationResponse(
@@ -943,6 +1002,12 @@ def confirm_document_case_route(
                 ),
                 responsible_person=current_user.full_name,
             )
+        )
+        _record_case_route_event(
+            db, document_id=document.id, actor_id=current_user.id,
+            event_type="confirmation", decision="create_new",
+            assigned_case_id=new_case.id,
+            reason="Manuell bestätigter neuer Fall",
         )
         db.commit()
         db.refresh(new_case)

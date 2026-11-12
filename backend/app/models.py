@@ -287,6 +287,23 @@ class DocumentUploadBatchItem(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
 
+class DocumentCaseRoutingEvent(Base):
+    """Append-only history of AI suggestions and human case-routing decisions."""
+    __tablename__ = "document_case_routing_events"
+
+    id = Column(String(36), primary_key=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    event_type = Column(String(32), nullable=False)
+    decision = Column(String(32), nullable=False)
+    suggested_case_id = Column(Integer, nullable=True)
+    assigned_case_id = Column(Integer, nullable=True)
+    confidence = Column(Float, nullable=True)
+    reason = Column(Text, nullable=True)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
 class DocumentProcessingJob(Base):
     """Durable queue: one indexing job per document."""
     __tablename__ = "document_processing_jobs"
