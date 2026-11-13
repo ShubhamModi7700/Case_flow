@@ -14,6 +14,7 @@ import type { CaseItem, DocumentItem } from "../types";
 import { formatCaseNumber } from "../types/case";
 import { formatFileSize } from "../utils/fileHelpers";
 import { UPLOAD_ACCEPT, validateUploadFile } from "../utils/uploadPolicy";
+import { uploadDirectFile } from "../utils/directUpload";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -96,9 +97,19 @@ export default function DocumentsPage() {
   const canEdit = user?.role === "Manager" || user?.role === "User";
   const isManager = user?.role === "Manager";
 
+
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
+  // A case-detail upload link locks the destination case only after it is
+  // confirmed to be in the user's accessible, non-archived case list.
+  const linkedCaseId = searchParams.get("upload") === "1"
+    ? searchParams.get("case_id")
+    : null;
+  const isLinkedCaseValid = linkedCaseId !== null &&
+    cases.some((item) => String(item.id) === linkedCaseId);
+  const isCaseLocked = isLinkedCaseValid;
+
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState<string[]>([]);
@@ -127,6 +138,14 @@ export default function DocumentsPage() {
   const [workflowStage, setWorkflowStage] = useState<
     "idle" | "uploaded" | "routing" | "route-review" | "analyzing" | "review-ready"
   >("idle");
+
+  // Case-detail deep links open the existing uploader automatically.
+  // The case_id is validated against accessible cases in loadData below.
+  useEffect(() => {
+    if (canEdit && searchParams.get("upload") === "1") {
+      setShowUpload(true);
+    }
+  }, [canEdit, searchParams]);
 
   async function refreshBatches(): Promise<void> {
     try {
@@ -175,16 +194,7 @@ export default function DocumentsPage() {
     try {
       setBatchBusyId(item.id);
       setError("");
-      const init = await api.post<{ upload_url: string; upload_token: string }>(
-        "/documents/upload-init",
-        { filename: file.name, batch_item_id: item.id, file_size: file.size,
-          content_type: file.type || "application/octet-stream", case_id: caseId, description: null },
-      );
-      await axios.put(init.data.upload_url, file, {
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        timeout: 180000,
-      });
-      await api.post("/documents/upload-complete", { upload_token: init.data.upload_token });
+      await uploadDirectFile(file, { batchItemId: item.id, caseId });
       setNotice(`${file.name} erfolgreich erneut hochgeladen.`);
       await Promise.all([refreshBatches(), loadData()]);
     } catch (requestError) {
@@ -318,7 +328,7 @@ export default function DocumentsPage() {
       const batch = await api.post<{ id: string; items: { id: string; filename: string }[] }>(
         "/documents/batches",
         { filenames: selectedFiles.map((file) => file.name),
-          case_id: selectedCaseId ? Number(selectedCaseId) : null },
+          case_id: (isCaseLocked ? linkedCaseId : selectedCaseId) ? Number(isCaseLocked ? linkedCaseId : selectedCaseId) : null },
       );
       batchItems = batch.data.items;
       await refreshBatches();
@@ -332,29 +342,14 @@ export default function DocumentsPage() {
       try {
         const validationError = validateUploadFile(currentFile);
         if (validationError) throw new Error(validationError);
-        const init = await api.post<{
-          upload_url: string;
-          upload_token: string;
-        }>("/documents/upload-init", {
-          filename: currentFile.name,
-          batch_item_id: batchItemId,
-          file_size: currentFile.size,
-          content_type: currentFile.type || "application/octet-stream",
-          case_id: selectedCaseId ? Number(selectedCaseId) : null,
+        const response = await uploadDirectFile(currentFile, {
+          batchItemId,
+          caseId: (isCaseLocked ? linkedCaseId : selectedCaseId) ? Number(isCaseLocked ? linkedCaseId : selectedCaseId) : null,
           description: description.trim() || null,
         });
-        // File bytes go straight to Supabase, never through a Vercel Function.
-        await axios.put(init.data.upload_url, currentFile, {
-          headers: { "Content-Type": currentFile.type || "application/octet-stream" },
-          timeout: 180000,
-        });
-        const response = await api.post<DocumentItem>(
-          "/documents/upload-complete",
-          { upload_token: init.data.upload_token },
-        );
 
         succeeded += 1;
-        singleUploaded = response.data;
+        singleUploaded = response as DocumentItem;
         const outcome = `✓ ${currentFile.name}`;
         results.push(outcome);
         setUploadResults((previous) => [...previous, outcome]);
@@ -876,9 +871,10 @@ export default function DocumentsPage() {
       )}
 
       {canEdit && (
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Upload-Batches (dauerhaft gespeichert)</h2>
+        <details className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <summary className="cursor-pointer text-lg font-semibold">Upload-Verlauf und fehlgeschlagene Dateien</summary>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-slate-600">Gespeicherte Upload-Vorgänge</h2>
             <button type="button" onClick={() => void refreshBatches()}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
               Status aktualisieren
@@ -929,7 +925,7 @@ export default function DocumentsPage() {
               </details>
             ))}
           </div>
-        </section>
+        </details>
       )}
 
       <div className="mt-7 space-y-6">
@@ -939,8 +935,21 @@ export default function DocumentsPage() {
           </h2>
 
 
+          {linkedCaseId && !isCaseLocked && !loading && (
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+              Der verlinkte Fall ist nicht verfügbar oder Sie haben keinen Zugriff. Bitte öffnen Sie den Fall erneut.
+            </p>
+          )}
+
           <form
-            onSubmit={uploadDocument}
+            onSubmit={(event) => {
+              if (linkedCaseId && !isCaseLocked) {
+                event.preventDefault();
+                setError("Der verlinkte Fall ist nicht verfügbar.");
+                return;
+              }
+              void uploadDocument(event);
+            }}
             className="mt-5 space-y-4"
           >
             <div>
@@ -949,10 +958,11 @@ export default function DocumentsPage() {
               </label>
 
               <select
-                value={selectedCaseId}
-                onChange={(event) =>
-                  setSelectedCaseId(event.target.value)
-                }
+                value={isCaseLocked ? linkedCaseId : selectedCaseId}
+                disabled={isCaseLocked}
+                onChange={(event) => {
+                  if (!isCaseLocked) setSelectedCaseId(event.target.value);
+                }}
                 className="input"
               >
                 <option value="">
@@ -965,6 +975,11 @@ export default function DocumentsPage() {
                   </option>
                 ))}
               </select>
+              {isCaseLocked && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Dieser Upload wird dem geöffneten Fall zugeordnet. Die Fallauswahl ist hier gesperrt.
+                </p>
+              )}
             </div>
 
             <div>

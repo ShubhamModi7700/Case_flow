@@ -403,14 +403,26 @@ export default function CaseDetail() {
         )}
 
         {activeTab === "documents" && (
-          <DocumentsTab
-            caseId={caseItem.id}
-            documents={documents}
-            reload={loadCaseDetail}
-            canEdit={canEdit}
-            isManager={isManager}
-            onOpenAI={() => setActiveTab("KI")}
-          />
+          <div>
+            {canEdit && (
+              <div className="mb-4 flex justify-end">
+                <Link
+                  to={`/documents?case_id=${caseItem.id}&upload=1`}
+                  className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+                >
+                  + Dokumente hinzufügen
+                </Link>
+              </div>
+            )}
+            <DocumentsTab
+              caseId={caseItem.id}
+              documents={documents}
+              reload={loadCaseDetail}
+              canEdit={canEdit}
+              isManager={isManager}
+              onOpenAI={() => setActiveTab("KI")}
+            />
+          </div>
         )}
 
         {activeTab === "timeline" && (
