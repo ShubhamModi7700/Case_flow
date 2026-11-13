@@ -2,6 +2,7 @@ import argparse
 import logging
 import time
 import threading
+import signal
 from app import models
 from app.database import SessionLocal
 from app.services.document_indexing import index_document
@@ -9,6 +10,13 @@ from app.services.document_jobs import claim, finish, renew_lease
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("caseflow.worker")
+shutdown_requested = threading.Event()
+
+
+def _request_shutdown(signum, frame):
+    log.info("Shutdown requested (signal=%s); finishing current job", signum)
+    shutdown_requested.set()
+
 
 
 def _heartbeat(job_id: int, attempt: int, stop: threading.Event) -> None:
@@ -58,8 +66,11 @@ def main():
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--poll-seconds", type=int, default=10)
     args = parser.parse_args()
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGTERM, _request_shutdown)
+        signal.signal(signal.SIGINT, _request_shutdown)
     log.info("Document worker started (loop=%s, poll=%ss)", args.loop, args.poll_seconds)
-    while True:
+    while not shutdown_requested.is_set():
         try:
             did_work = run_once()
         except Exception:
@@ -70,7 +81,7 @@ def main():
         if not args.loop:
             break
         if not did_work:
-            time.sleep(max(1, args.poll_seconds))
+            shutdown_requested.wait(timeout=max(1, args.poll_seconds))
 
 
 if __name__ == "__main__":

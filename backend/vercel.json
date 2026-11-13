@@ -1,8 +1,13 @@
 {
-  "crons": [
-    {
-      "path": "/internal/process-next-document",
-      "schedule": "*/15 * * * *"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "daemons": {
+    "document-worker": {
+      "root": ".",
+      "entrypoint": "Dockerfile",
+      "instances": {
+        "fra1": 1
+      },
+      "terminationGracePeriodSeconds": 120
     }
-  ]
+  }
 }
