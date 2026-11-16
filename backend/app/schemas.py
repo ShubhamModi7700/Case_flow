@@ -716,6 +716,7 @@ class AssistantSource(BaseModel):
 class AssistantCaseIntelligence(BaseModel):
     executive_summary: list[AssistantEvidenceStatement] = Field(default_factory=list)
     key_facts: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    documented_obligations: list[AssistantEvidenceStatement] = Field(default_factory=list)
     key_events: list[AssistantChronologyEvent] = Field(default_factory=list)
     key_entities: list[AssistantEntity] = Field(default_factory=list)
     evidence_map: list[AssistantEvidenceLink] = Field(default_factory=list)

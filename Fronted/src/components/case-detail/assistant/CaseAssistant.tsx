@@ -487,6 +487,7 @@ function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceRespons
         {intel.executive_summary.length > 0 && <div className="mt-3"><EvidenceList items={intel.executive_summary} sourcesById={sourcesById} /></div>}
       </div>
       {intel.key_facts.length > 0 && <div><h4 className="mb-2 font-semibold">Wichtigste Kerntatsachen</h4><EvidenceList items={intel.key_facts.slice(0, 5)} sourcesById={sourcesById} /></div>}
+      {intel.documented_obligations?.length > 0 && <div><h4 className="mb-2 font-semibold">Dokumentierte Verpflichtungen</h4><EvidenceList items={intel.documented_obligations} sourcesById={sourcesById} /></div>}
       <div className="grid gap-3 md:grid-cols-2">
         {intel.contradictions.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="font-semibold text-amber-900">Widersprüche ({intel.contradictions.length})</h4><p className="mt-1 text-sm text-amber-800">Wesentliche Punkte, die vor einer Entscheidung geklärt werden sollten.</p></div>}
         {intel.information_gaps.length > 0 && <div className="rounded-lg border border-slate-200 bg-white p-4"><h4 className="font-semibold">Informationslücken ({intel.information_gaps.length})</h4><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">{intel.information_gaps.slice(0, 3).map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
@@ -585,6 +586,7 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
 export default function CaseAssistant({ caseId }: Props) {
   const question = "";
   const [chatOpen, setChatOpen] = useState(true);
+  const [reportMode, setReportMode] = useState<"compact" | "detailed">("compact");
   const [chatText, setChatText] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -816,36 +818,21 @@ export default function CaseAssistant({ caseId }: Props) {
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-slate-900">KI-Assistent</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Fragen Sie Case Flow zu diesem Vorgang oder verwenden Sie eine strukturierte Analyse.
+          Fragen Sie Case Flow zu diesem Vorgang oder erstellen Sie einen belegten Fallbericht.
           Alle Ergebnisse werden nur aus den für Sie freigegebenen, indexierten Dokumenten erstellt.
         </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => { setChatOpen(true); setResult(null); setIntelligence(null); setWorkStatus(null); setShowBriefForm(false); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">KI-Chat</button>
-        <button type="button" disabled={loading || intelligenceLoading} onClick={() => { setChatOpen(false); void submit("report", "Erstelle einen umfassenden belegten Fallbericht mit Kurzüberblick, Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
-        <button
-          type="button"
-          disabled={loading || intelligenceLoading || workStatusLoading}
-          onClick={() => { setChatOpen(false); setShowBriefForm(false); void loadIntelligence(intelligence?.freshness?.status === "outdated"); }}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-500 disabled:opacity-50"
-        >
-          {intelligenceLoading
-            ? "Fall-Intelligence wird erstellt..."
-            : intelligence?.freshness?.status === "outdated"
-              ? "Fall-Intelligence aktualisieren"
-              : "Fall-Intelligence"}
-        </button>
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => { setChatOpen(false); setShowBriefForm((value) => !value); }}
-          className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-            showBriefForm ? "border-violet-700 bg-violet-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
-          }`}
-        >
-          Schriftsatz vorbereiten
-        </button>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          Berichtstyp
+          <select aria-label="Berichtstyp" value={reportMode} onChange={(event) => setReportMode(event.target.value as "compact" | "detailed")} className="rounded-lg border border-slate-300 bg-white px-2 py-2">
+            <option value="compact">Kurzbericht (Standard)</option>
+            <option value="detailed">Detailbericht</option>
+          </select>
+        </label>
+        <button type="button" disabled={loading || intelligenceLoading} onClick={() => { setChatOpen(false); void submit("report", reportMode === "compact" ? "KURZBERICHT: Erstelle einen kompakten, belegten Management-Fallbericht mit Sachstand, wichtigsten Risiken, Fristen, Entscheidungen und Maßnahmen." : "DETAILBERICHT: Erstelle einen ausführlichen belegten Fallbericht mit Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
       </div>
 
       {chatOpen && (
@@ -987,10 +974,11 @@ export default function CaseAssistant({ caseId }: Props) {
           )}
 
           {result.task_type === "report" && <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-xs text-amber-800">Dokumentabdeckung: {new Set(result.sources.map((source) => source.document_id)).size} unterschiedliche Dokumente in den abgerufenen Belegstellen. Dies ist keine vollständige Prüfung aller hochgeladenen Dokumente.</p>
             <div><h4 className="font-semibold">1. Kurzüberblick</h4><div className="mt-2"><AssistantMarkdown content={result.answer || "Keine belegten Angaben gefunden."} /></div></div>
-            <div><h4 className="mb-2 font-semibold">2. Chronologie</h4>{result.chronology.length ? <ReportChronologyTable items={result.chronology} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Ereignisse gefunden.</p>}</div>
-            <div><h4 className="mb-2 font-semibold">3. Beweismittel und Beweiswert</h4>{result.evidence.length ? <ReportEvidenceTable items={result.evidence} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Angaben gefunden.</p>}</div>
-            <div><h4 className="mb-2 font-semibold">4. Personen & Rollen</h4>{result.entities.length ? <ReportEntitiesTable items={result.entities} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Rollen gefunden.</p>}</div>
+            <details open={reportMode === "detailed"}><summary className="cursor-pointer font-semibold">2. Chronologie</summary><div className="mt-2">{result.chronology.length ? <ReportChronologyTable items={result.chronology} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Ereignisse gefunden.</p>}</div></details>
+            <details open={reportMode === "detailed"}><summary className="cursor-pointer font-semibold">3. Beweismittel und Beweiswert</summary><div className="mt-2">{result.evidence.length ? <ReportEvidenceTable items={result.evidence} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Angaben gefunden.</p>}</div></details>
+            <details open={reportMode === "detailed"}><summary className="cursor-pointer font-semibold">4. Personen & Rollen</summary><div className="mt-2">{result.entities.length ? <ReportEntitiesTable items={result.entities} sourcesById={sourcesById} /> : <p className="text-sm text-slate-500">Keine belegten Rollen gefunden.</p>}</div></details>
             <div><h4 className="mb-2 font-semibold">5. Finanzielle Übersicht</h4>
               {result.report_finances?.length ? <div className="space-y-4">{financeGroups.map((group) => {
                 const entries = result.report_finances.filter((item) => (item.category || "other") === group.key);

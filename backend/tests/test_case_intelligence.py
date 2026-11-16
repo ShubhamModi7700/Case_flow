@@ -161,3 +161,30 @@ def test_open_decisions_require_explicit_category():
     assert [item.task_id for item in result.open_decisions] == [2]
     assert is_explicit_decision_task(task(category="Decision")) is True
 
+
+
+def test_documented_obligations_require_valid_sources():
+    result = schemas.CaseAssistantModelAnswer(
+        answer="Überblick",
+        intelligence=schemas.AssistantCaseIntelligence(
+            documented_obligations=[
+                schemas.AssistantEvidenceStatement(text="Vereinbarte Leistung", source_ids=["S1"]),
+                schemas.AssistantEvidenceStatement(text="Unbelegte Pflicht", source_ids=["S99"]),
+            ]
+        ),
+    )
+    validated = validate_answer_sources(result, _sources())
+    assert [x.text for x in validated.intelligence.documented_obligations] == ["Vereinbarte Leistung"]
+    assert "Unbelegte Pflicht" in validated.unsupported_statements
+    assert "S1" in referenced_source_ids(validated)
+
+
+def test_completed_tasks_are_excluded_regardless_of_case_or_language():
+    case = SimpleNamespace(primary_deadline=None, follow_up_date=None, next_action=None)
+    result = build_case_work_status(
+        case=case,
+        tasks=[task(id=1, status="completed"), task(id=2, status="Erledigt"),
+               task(id=3, status="Open")],
+        today=date(2026, 9, 17),
+    )
+    assert [item.id for item in result.open_tasks] == [3]

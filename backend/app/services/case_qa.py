@@ -85,6 +85,62 @@ def retrieve_case_evidence(
                     del by_document[document_id]
         return selected
 
+    if task_type == "report":
+        # Search several independent aspects of the case instead of ranking all
+        # excerpts against one generic query. Preserve document diversity.
+        angles = (
+            "Fallverlauf Chronologie Ereignisse Kommunikation Entscheidungen aktueller Sachstand",
+            "Fristen Termine Fälligkeiten Verpflichtungen offene Aufgaben Zuständigkeiten",
+            "Risiken Widersprüche Gegenbelege ungeklärte Sachverhalte fehlende Nachweise",
+            "Beteiligte Rollen Vereinbarungen Verträge Zusagen Durchführung",
+            "Rechnungen Angebote Zahlungen Gutschriften Kosten Beträge Finanzstatus",
+        )
+        candidates: dict[int, dict[str, Any]] = {}
+        angle_groups: list[list[int]] = []
+        for index, angle in enumerate(angles):
+            try:
+                embedding = create_query_embedding(f"{question[:300]}\n{angle}")
+                hits = retrieve_chunks(
+                    db=db, user=user, query_embedding=embedding,
+                    case_id=case_id, threshold=0.23, limit=18,
+                )
+            except Exception:
+                if index == 0:
+                    raise
+                continue
+            group: list[int] = []
+            for hit in hits:
+                key = int(hit["chunk_id"])
+                group.append(key)
+                previous = candidates.get(key)
+                if previous is None or float(hit["similarity"]) > float(previous["similarity"]):
+                    candidates[key] = hit
+            angle_groups.append(group)
+
+        max_chunks = min(limit if limit is not None else 40, 40)
+        selected: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        document_counts: dict[int, int] = {}
+        def add(key: int) -> None:
+            if key in seen or key not in candidates or len(selected) >= max_chunks:
+                return
+            hit = candidates[key]
+            document_id = int(hit["document_id"])
+            if document_counts.get(document_id, 0) >= 2:
+                return
+            selected.append(hit)
+            seen.add(key)
+            document_counts[document_id] = document_counts.get(document_id, 0) + 1
+
+        for round_index in range(4):
+            for group in angle_groups:
+                if round_index < len(group):
+                    add(group[round_index])
+        remaining = sorted(candidates.values(), key=lambda hit: -float(hit["similarity"]))
+        for hit in remaining:
+            add(int(hit["chunk_id"]))
+        return selected
+
     if task_type == "question":
         latest_question = retrieval_question(question, task_type)[:1200]
         broad_question = bool(re.search(
@@ -466,6 +522,7 @@ def validate_answer_sources(
 
         intelligence.executive_summary = validate_intel_statements(intelligence.executive_summary)
         intelligence.key_facts = validate_intel_statements(intelligence.key_facts)
+        intelligence.documented_obligations = validate_intel_statements(intelligence.documented_obligations)
         intelligence.contradictions = validate_intel_statements(intelligence.contradictions)
 
         valid_events = []
@@ -593,6 +650,23 @@ def answer_case_question(
         brief_context=brief_context,
     )
     system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
+
+    if task_type == "report":
+        if question.lstrip().startswith("KURZBERICHT:"):
+            system_prompt += (
+                "\n\nKURZBERICHT: Management-Überblick in 150–250 Wörtern; "
+                "höchstens 6 Chronologie-Ereignisse, 5 Belege, 5 Beteiligte, "
+                "5 Finanzpositionen, 5 Fristen, 5 Aufgaben und 3 Widersprüche. "
+                "Wichtige belegte Risiken und aktive Fristen priorisieren; "
+                "keine erfundenen Fakten und keine Quellenangaben entfernen. "
+                "Bei begrenzter Evidenz keine Vollständigkeit behaupten."
+            )
+        else:
+            system_prompt += (
+                "\n\nDETAILBERICHT: Ausführliche, aber deduplizierte Analyse "
+                "der abgerufenen Belege. Keine Vollständigkeit über sämtliche "
+                "hochgeladenen Dokumente behaupten."
+            )
 
     chat_analysis_lens = (
         "\n\nANALYSERAHMEN FÜR DEN KI-CHAT\n"

@@ -141,6 +141,8 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
             ids.update(item.source_ids)
         for item in intelligence.key_facts:
             ids.update(item.source_ids)
+        for item in intelligence.documented_obligations:
+            ids.update(item.source_ids)
         for item in intelligence.key_events:
             ids.update(item.source_ids)
         for item in intelligence.key_entities:

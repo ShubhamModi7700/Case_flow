@@ -25,7 +25,7 @@ def build_case_work_status(
     today: date | None = None,
 ) -> schemas.AssistantCaseWorkStatus:
     current_date = today or date.today()
-    open_tasks = [task for task in tasks if task.status != "Completed"]
+    open_tasks = [task for task in tasks if (task.status or "").strip().casefold() not in {"completed", "done", "erledigt", "abgeschlossen"}]
 
     task_items = [
         schemas.AssistantOpenTask(

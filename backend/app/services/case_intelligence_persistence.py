@@ -33,6 +33,7 @@ def _stable_payload(*, case: models.Case, tasks: Iterable[models.Task], document
     )
 
     return {
+        "intelligence_schema_version": 2,
         "case": {name: _json_value(getattr(case, name, None)) for name in case_fields},
         "tasks": [
             {name: _json_value(getattr(task, name, None)) for name in task_fields}

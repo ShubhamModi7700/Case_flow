@@ -16,7 +16,7 @@ from app.services.openai_client import analysis_model
 
 INTELLIGENCE_REQUEST = (
     "Erstelle eine konsolidierte Fall-Intelligence-Übersicht mit Schlüsseltatsachen, "
-    "Chronologie, Beteiligten und Rollen, Beweiszuordnung, Widersprüchen, "
+    "Chronologie, Beteiligten und Rollen, dokumentierten Verpflichtungen, Beweiszuordnung, Widersprüchen, "
     "Informationslücken und offenen Tatsachen-/Prüffragen."
 )
 

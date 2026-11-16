@@ -350,6 +350,7 @@ export type AssistantBriefReview = {
 export type AssistantCaseIntelligence = {
   executive_summary: AssistantEvidenceStatement[];
   key_facts: AssistantEvidenceStatement[];
+  documented_obligations: AssistantEvidenceStatement[];
   key_events: AssistantChronologyEvent[];
   key_entities: AssistantEntity[];
   evidence_map: AssistantEvidenceLink[];
