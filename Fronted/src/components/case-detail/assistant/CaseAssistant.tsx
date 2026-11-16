@@ -5,7 +5,6 @@ import {
   queryCaseAssistant,
   getCaseChat, sendCaseChat, clearCaseChat, type ChatMessage,
   getCaseAssistantWorkStatus,
-  getCaseAssistantIntelligence,
   type AssistantBriefContext,
   type AssistantBriefEvidencePackage,
   type AssistantBriefOutline,
@@ -662,7 +661,6 @@ export default function CaseAssistant({ caseId }: Props) {
   const [workStatus, setWorkStatus] = useState<AssistantCaseWorkStatus | null>(null);
   const [workStatusLoading, setWorkStatusLoading] = useState(false);
   const [intelligence, setIntelligence] = useState<AssistantCaseIntelligenceResponse | null>(null);
-  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
   const [briefStep, setBriefStep] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [briefContext, setBriefContext] = useState<AssistantBriefContext>({
     client: "",
@@ -677,24 +675,6 @@ export default function CaseAssistant({ caseId }: Props) {
     () => new Map((result?.sources ?? []).map((source) => [source.source_id, source])),
     [result],
   );
-
-  async function loadIntelligence(forceRefresh = false): Promise<void> {
-    if (intelligenceLoading) return;
-    try {
-      setIntelligenceLoading(true);
-      setWorkStatus(null);
-      setResult(null);
-      setError("");
-      const data = await getCaseAssistantIntelligence(caseId, forceRefresh);
-      setIntelligence(data);
-      setWorkStatus(null);
-      setResult(null);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setIntelligenceLoading(false);
-    }
-  }
 
   async function loadWorkStatus(): Promise<void> {
     if (workStatusLoading) return;
@@ -832,7 +812,7 @@ export default function CaseAssistant({ caseId }: Props) {
             <option value="detailed">Detailbericht</option>
           </select>
         </label>
-        <button type="button" disabled={loading || intelligenceLoading} onClick={() => { setChatOpen(false); void submit("report", reportMode === "compact" ? "KURZBERICHT: Erstelle einen kompakten, belegten Management-Fallbericht mit Sachstand, wichtigsten Risiken, Fristen, Entscheidungen und Maßnahmen." : "DETAILBERICHT: Erstelle einen ausführlichen belegten Fallbericht mit Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
+        <button type="button" disabled={loading} onClick={() => { setChatOpen(false); void submit("report", reportMode === "compact" ? "KURZBERICHT: Erstelle einen kompakten, belegten Management-Fallbericht mit Sachstand, wichtigsten Risiken, Fristen, Entscheidungen und Maßnahmen." : "DETAILBERICHT: Erstelle einen ausführlichen belegten Fallbericht mit Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
       </div>
 
       {chatOpen && (
