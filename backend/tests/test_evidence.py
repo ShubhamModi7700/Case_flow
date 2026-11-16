@@ -1,3 +1,94 @@
+import unittest
+from unittest.mock import patch
+from app.prompts.case_assistant import CHAT_CONVERSATIONAL_PROMPT
+from app.services.case_qa import retrieve_case_evidence
+
+class Phase34Tests(unittest.TestCase):
+    def test_phase3_money_and_format_rules(self):
+        self.assertIn("Netto-/Bruttobasis", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("kein Zahlungs-, Buchungs- oder Verrechnungsnachweis", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("keine künstliche Schritt-für-Schritt-Darstellung", CHAT_CONVERSATIONAL_PROMPT)
+
+    def test_phase4_adaptive_rules(self):
+        self.assertIn("ADAPTIVE ANTWORTTIEFE", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("punktuelle Faktenfragen", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("Bei komplexen Fragen", CHAT_CONVERSATIONAL_PROMPT)
+
+    def test_why_question_gets_broad_evidence_angles(self):
+        with patch("app.services.case_qa.create_query_embedding", side_effect=lambda s: s), patch("app.services.case_qa.retrieve_chunks", return_value=[]) as retrieval:
+            retrieve_case_evidence(db=None, user=None, case_id=1, question="Warum hat sich das Projekt verzögert?")
+            self.assertEqual(retrieval.call_count, 3)
+
+    def test_specific_date_question_stays_focused(self):
+        with patch("app.services.case_qa.create_query_embedding", side_effect=lambda s: s), patch("app.services.case_qa.retrieve_chunks", return_value=[]) as retrieval:
+            retrieve_case_evidence(db=None, user=None, case_id=1, question="Wann wurde die Rechnung erstellt?")
+            self.assertEqual(retrieval.call_count, 1)
+
+
+# ---- From test_evidence_verification.py ----
+import unittest
+from app.prompts.case_assistant import CHAT_CONVERSATIONAL_PROMPT
+
+class Phase3EvidenceVerificationTests(unittest.TestCase):
+    def test_checks_evidence_content_not_just_citation(self):
+        self.assertIn("tatsächlichen Inhalt der Evidenz", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("gültige Quellen-ID allein", CHAT_CONVERSATIONAL_PROMPT)
+
+    def test_distinguishes_claims_actions_and_revisions(self):
+        self.assertIn("Parteibehauptung", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("keine Umsetzung", CHAT_CONVERSATIONAL_PROMPT)
+        self.assertIn("Spätere Korrekturen", CHAT_CONVERSATIONAL_PROMPT)
+
+    def test_preserves_natural_style(self):
+        self.assertIn("keine routinemäßigen Abschnittsüberschriften", CHAT_CONVERSATIONAL_PROMPT)
+
+
+# ---- From test_findings_ledger.py ----
+import unittest
+from types import SimpleNamespace
+from app.services.findings_ledger import build_findings_ledger
+
+
+class FindingsLedgerTests(unittest.TestCase):
+    def test_source_validation_and_deduplication(self):
+        item = lambda text, ids: SimpleNamespace(text=text, source_ids=ids)
+        answer = SimpleNamespace(
+            claims=[item("  Delivery confirmed ", ["S1", "FAKE"]), item("Delivery confirmed", ["S1"])],
+            contradictions=[item("Two different dates", ["S1", "S2"])],
+            missing_information=["Payment receipt unavailable"],
+        )
+        sources = [{"source_id": "S1", "document_id": 10}, {"source_id": "S2", "document_id": 20}]
+        findings = build_findings_ledger(answer, sources)
+        self.assertEqual([f.kind for f in findings], ["documented", "conflict", "missing_evidence"])
+        self.assertEqual(findings[0].source_ids, ("S1",))
+        self.assertEqual(findings[1].document_ids, (10, 20))
+        self.assertEqual(findings[2].source_ids, ())
+
+    def test_domain_neutral_incident_findings(self):
+        item = lambda text, ids: SimpleNamespace(text=text, source_ids=ids)
+        answer = SimpleNamespace(
+            claims=[item("Service unavailable at 09:00", ["S1"])],
+            contradictions=[item("Monitoring and incident report disagree on recovery time", ["S1", "S2"])],
+            missing_information=["Root cause not yet established"],
+        )
+        sources = [
+            {"source_id": "S1", "document_id": 101},
+            {"source_id": "S2", "document_id": 102},
+        ]
+        findings = build_findings_ledger(answer, sources)
+        self.assertEqual([f.kind for f in findings], ["documented", "conflict", "missing_evidence"])
+        self.assertEqual(findings[1].document_ids, (101, 102))
+
+    def test_unsupported_claim_is_excluded(self):
+        answer = SimpleNamespace(claims=[SimpleNamespace(text="Unsupported", source_ids=["S99"])], contradictions=[], missing_information=[])
+        self.assertEqual(build_findings_ledger(answer, []), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+# ---- From test_insolvency_acceptance.py ----
 """Step 16 acceptance coverage for the manager's insolvency scenario.
 
 These tests are deterministic and do not call OpenAI or a live database. They
@@ -172,3 +263,4 @@ def test_acceptance_month_detection_requires_accounting_context():
     assert not any(term in unrelated for term in ACCOUNTING_TERMS)
     assert _matches_any(accounting, SEPTEMBER_PATTERNS)
     assert any(term in accounting for term in ACCOUNTING_TERMS)
+

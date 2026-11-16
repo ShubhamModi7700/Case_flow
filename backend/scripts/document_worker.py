@@ -3,10 +3,13 @@ import logging
 import time
 import threading
 import signal
+import json
+from uuid import uuid4
 from app import models
 from app.database import SessionLocal
 from app.services.document_indexing import index_document
 from app.services.document_jobs import claim, finish, renew_lease
+from app.services.case_access import require_case_edit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("caseflow.worker")
@@ -31,6 +34,28 @@ def _heartbeat(job_id: int, attempt: int, stop: threading.Event) -> None:
             log.exception("Failed to renew lease: job=%s", job_id)
 
 
+# Conservative initial gate. Recalibrate using labeled Flach/Isenbüttel tests.
+AUTO_ASSIGN_CONFIDENCE = 0.95
+AUTO_ASSIGN_SIMILARITY = 0.85
+AUTO_ASSIGN_MARGIN = 0.08
+
+
+def _auto_assignment_candidate(suggestion, candidates):
+    if suggestion.decision != "existing_case" or suggestion.suggested_case_id is None:
+        return None
+    if suggestion.confidence < AUTO_ASSIGN_CONFIDENCE:
+        return None
+    ranked = sorted((c for c in candidates if c.similarity is not None),
+                    key=lambda c: c.similarity, reverse=True)
+    if not ranked or ranked[0].case_id != suggestion.suggested_case_id:
+        return None
+    if ranked[0].similarity < AUTO_ASSIGN_SIMILARITY:
+        return None
+    if len(ranked) > 1 and ranked[0].similarity - ranked[1].similarity < AUTO_ASSIGN_MARGIN:
+        return None
+    return suggestion.suggested_case_id
+
+
 def run_once() -> bool:
     with SessionLocal() as db:
         claimed = claim(db)
@@ -48,6 +73,71 @@ def run_once() -> bool:
                 raise RuntimeError("Document was deleted")
             if document.embedding_status != "Ready" or document.processing_status not in {"Ready", "Partial"}:
                 index_document(document=document, db=db)
+        # Generate suggestions after indexing; assign only exceptionally clear matches.
+        # Never create new cases automatically.
+        # A failed AI request must not turn a successfully indexed document into
+        # a failed processing job.
+        try:
+            with SessionLocal() as db:
+                document = db.get(models.Document, document_id)
+                if document is not None and document.case_id is None and document.embedding_status == "Ready":
+                    existing = db.query(models.DocumentCaseRoutingEvent.id).filter(
+                        models.DocumentCaseRoutingEvent.document_id == document_id,
+                        models.DocumentCaseRoutingEvent.event_type == "suggestion",
+                    ).first()
+                    if existing is None:
+                        batch_item = db.query(models.DocumentUploadBatchItem).filter(
+                            models.DocumentUploadBatchItem.document_id == document_id
+                        ).first()
+                        batch = db.get(models.DocumentUploadBatch, batch_item.batch_id) if batch_item else None
+                        owner = db.get(models.User, batch.owner_id) if batch else None
+                        if owner is None or not owner.is_active:
+                            log.info("Skipping case suggestion without an active upload owner: document=%s", document_id)
+                        else:
+                            from app.services.document_case_routing import suggest_for_indexed_document
+                            suggestion, candidates = suggest_for_indexed_document(document=document, db=db, user=owner)
+                            db.add(models.DocumentCaseRoutingEvent(
+                                id=str(uuid4()), document_id=document_id, actor_id=owner.id,
+                                event_type="suggestion", decision=suggestion.decision,
+                                suggested_case_id=suggestion.suggested_case_id,
+                                confidence=suggestion.confidence, reason=suggestion.reason,
+                                details=json.dumps({
+                                    "candidates": [candidate.model_dump() for candidate in candidates],
+                                    "new_case": suggestion.new_case.model_dump(mode="json") if suggestion.new_case else None,
+                                    "generated_by": "document_worker",
+                                }, ensure_ascii=False, default=str),
+                            ))
+                            db.commit()
+                            case_id = _auto_assignment_candidate(suggestion, candidates)
+                            if case_id is not None:
+                                try:
+                                    # Enforce the upload owner's edit permissions before assigning.
+                                    require_case_edit(db, owner, case_id)
+                                    # Guard against a manual assignment made while AI was running.
+                                    changed = db.query(models.Document).filter(
+                                        models.Document.id == document_id,
+                                        models.Document.case_id.is_(None),
+                                    ).update({"case_id": case_id}, synchronize_session=False)
+                                    if changed:
+                                        db.query(models.DocumentChunk).filter(
+                                            models.DocumentChunk.document_id == document_id
+                                        ).update({"case_id": case_id}, synchronize_session=False)
+                                        db.add(models.DocumentCaseRoutingEvent(
+                                            id=str(uuid4()), document_id=document_id, actor_id=owner.id,
+                                            event_type="auto_assignment", decision="assign_existing",
+                                            suggested_case_id=case_id, assigned_case_id=case_id,
+                                            confidence=suggestion.confidence,
+                                            reason="Automatische Zuordnung nach strengen Konfidenz- und Ähnlichkeitsprüfungen.",
+                                            details=json.dumps({"generated_by": "document_worker", "similarity": next((c.similarity for c in candidates if c.case_id == case_id), None)}),
+                                        ))
+                                        db.commit()
+                                        log.info("Automatically assigned document=%s case=%s", document_id, case_id)
+                                except Exception:
+                                    db.rollback()
+                                    log.exception("Automatic assignment skipped: document=%s case=%s", document_id, case_id)
+                            log.info("Case suggestion prepared: document=%s decision=%s", document_id, suggestion.decision)
+        except Exception:
+            log.exception("Non-fatal case suggestion failed: document=%s", document_id)
         log.info("Processed document %s", document_id)
     except Exception as exc:
         error = str(exc)

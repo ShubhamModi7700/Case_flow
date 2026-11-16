@@ -1,3 +1,46 @@
+"""Consolidated regression tests; original test functions preserved.
+
+Sources: test_background_routing.py, test_document_case_routing_safety.py, test_case_routing_evaluation.py, test_retrieval_acl_contract.py
+"""
+
+
+# ---- From test_background_routing.py ----
+"""Week 2 regression tests: routing gates and worker/service integration."""
+
+from scripts.document_worker import _auto_assignment_candidate
+from app.services.document_case_routing import CaseCandidate, DocumentCaseRouteSuggestion
+
+
+def _suggestion(case_id=12, confidence=.98, decision='existing_case'):
+    return DocumentCaseRouteSuggestion(decision=decision, suggested_case_id=case_id,
+                                       confidence=confidence, reason='Document matches case')
+
+
+def _candidates(first=.94, second=.75):
+    return [CaseCandidate(case_id=12, title='Flach', similarity=first),
+            CaseCandidate(case_id=13, title='Stromversorgung Isenbüttel', similarity=second)]
+
+
+def test_clear_existing_case_is_eligible():
+    assert _auto_assignment_candidate(_suggestion(), _candidates()) == 12
+
+
+def test_uncertain_and_new_cases_are_never_auto_assigned():
+    assert _auto_assignment_candidate(_suggestion(decision='uncertain'), _candidates()) is None
+    assert _auto_assignment_candidate(_suggestion(case_id=None, confidence=0, decision='new_case'), _candidates()) is None
+
+
+def test_low_confidence_similarity_or_margin_requires_review():
+    assert _auto_assignment_candidate(_suggestion(confidence=.94), _candidates()) is None
+    assert _auto_assignment_candidate(_suggestion(), _candidates(first=.84)) is None
+    assert _auto_assignment_candidate(_suggestion(), _candidates(first=.90, second=.86)) is None
+
+
+def test_suggested_case_must_be_top_retrieval_candidate():
+    assert _auto_assignment_candidate(_suggestion(case_id=13), _candidates()) is None
+
+
+# ---- From test_document_case_routing_safety.py ----
 """Regression tests for Phase 2 routing safety decisions."""
 from types import SimpleNamespace
 
@@ -82,3 +125,58 @@ def test_high_confidence_match_discards_inconsistent_new_case_draft(monkeypatch)
     result = routing.suggest_document_case_route(document_context="Testdokument", candidates=[_candidate()])
     assert result.decision == "existing_case"
     assert result.new_case is None
+
+
+# ---- From test_case_routing_evaluation.py ----
+from scripts.evaluate_case_routing import evaluate
+
+
+def test_metrics_distinguish_wrong_case_and_review():
+    result = evaluate([
+        {"expected_case_id": 1, "decision": "existing_case", "suggested_case_id": 1},
+        {"expected_case_id": 2, "decision": "existing_case", "suggested_case_id": 1},
+        {"expected_case_id": 3, "decision": "uncertain", "suggested_case_id": 3},
+        {"expected_case_id": 4, "decision": "new_case", "suggested_case_id": None},
+        {"expected_case_id": None, "decision": "new_case", "suggested_case_id": None},
+    ])
+    assert result["correct_suggestions"] == 2
+    assert result["wrong_existing_case_suggestions"] == 1
+    assert result["missed_existing_cases"] == 1
+    assert result["needs_review"] == 1
+    assert result["suggestion_accuracy_excluding_review"] == 0.5
+
+
+# ---- From test_retrieval_acl_contract.py ----
+"""Security contract tests for ACL-before-ranking retrieval.
+
+These tests intentionally inspect the SQL contract because the critical manager
+requirement is *where* authorization happens: inaccessible chunks must be
+filtered before vector ranking/LIMIT, not removed from results afterwards.
+"""
+
+import inspect
+
+from app.services import retrieval
+
+
+def test_chunk_retrieval_embeds_acl_in_vector_query():
+    source = inspect.getsource(retrieval.retrieve_chunks).casefold()
+
+    assert "public.case_access" in source
+    assert "ca.user_id = :requesting_user_id" in source
+    assert "ca.case_id = d.case_id" in source
+    assert "order by dc.embedding" in source
+    assert "limit :match_count" in source
+
+    assert "match_document_chunks(" not in source
+
+
+def test_case_matching_embeds_acl_before_ranking():
+    source = inspect.getsource(retrieval.match_cases).casefold()
+
+    assert "public.case_access" in source
+    assert "ca.user_id = :requesting_user_id" in source
+    assert "ca.case_id = ce.case_id" in source
+    assert "order by ce.embedding" in source
+    assert "limit :match_count" in source
+

@@ -1,3 +1,10 @@
+"""Consolidated regression tests; original test functions preserved.
+
+Sources: test_case_qa.py
+"""
+
+
+# ---- From test_case_qa.py ----
 import unittest
 
 from app import schemas
@@ -436,3 +443,4 @@ class BroadChatRetrievalTests(unittest.TestCase):
             retrieve_case_evidence(db=None, user=None, case_id=1,
                 question="Wie hoch ist die Rechnung?", task_type="question")
         self.assertEqual(retrieval.call_count, 1)
+

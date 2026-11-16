@@ -1,3 +1,10 @@
+"""Consolidated regression tests; original test functions preserved.
+
+Sources: test_attachment_indexing.py, test_document_preview_route.py, test_email_html_fallback.py
+"""
+
+
+# ---- From test_attachment_indexing.py ----
 from email.message import EmailMessage
 from io import BytesIO
 from unittest.mock import patch
@@ -131,7 +138,7 @@ def test_case_relevant_image_attachment_is_ocr_indexed():
     assert ocr_chunks[0]["metadata"]["ocr"] is True
 
 
-def test_outlook_decorative_image_is_skipped_without_warning():
+def test_outlook_decorative_image_is_skipped_with_explanatory_warning():
     payload = _email_with_image_attachment(
         attachment_name="image001.png",
         attachment_bytes=b"x" * 30_000,
@@ -143,6 +150,60 @@ def test_outlook_decorative_image_is_skipped_without_warning():
             content=payload,
         )
 
-    assert warnings == []
+    assert len(warnings) == 1
+    assert "image001.png" in warnings[0]
+    assert "von OCR ausgenommen" in warnings[0]
     assert not any(item["source_type"] == "image_ocr" for item in prepared)
     ocr.assert_not_called()
+
+
+# ---- From test_document_preview_route.py ----
+from io import BytesIO
+from docx import Document
+from openpyxl import Workbook
+from app.routes.documents import _preview_html
+
+
+def test_word_preview_escapes_document_content():
+    doc = Document()
+    doc.add_paragraph('<script>alert("x")</script>')
+    buffer = BytesIO()
+    doc.save(buffer)
+    output = _preview_html("test.docx", buffer.getvalue())
+    assert "&lt;script&gt;" in output
+    assert "<script>" not in output
+
+
+def test_excel_preview_escapes_cells():
+    book = Workbook()
+    book.active["A1"] = "<unsafe>"
+    buffer = BytesIO()
+    book.save(buffer)
+    output = _preview_html("test.xlsx", buffer.getvalue())
+    assert "&lt;unsafe&gt;" in output
+    assert "<unsafe>" not in output
+
+
+# ---- From test_email_html_fallback.py ----
+from email.message import EmailMessage
+
+from app.services.document_extraction import extract_eml
+
+
+def test_html_only_email_is_searchable_and_ignores_scripts():
+    message = EmailMessage()
+    message['Subject'] = 'Delivery'
+    message.set_content('<html><body><p>Delivery agreed for 30 April.</p><script>secret code</script></body></html>', subtype='html')
+    extracted = extract_eml(message.as_bytes())
+    assert 'Delivery agreed for 30 April.' in extracted.sections[0].text
+    assert 'secret code' not in extracted.sections[0].text
+
+
+def test_plain_text_preferred_over_html_alternative():
+    message = EmailMessage()
+    message.set_content('Original plain text')
+    message.add_alternative('<p>HTML duplicate</p>', subtype='html')
+    extracted = extract_eml(message.as_bytes())
+    assert 'Original plain text' in extracted.sections[0].text
+    assert 'HTML duplicate' not in extracted.sections[0].text
+

@@ -49,10 +49,6 @@ class DocumentCaseRouteSuggestion(BaseModel):
     new_case: DocumentCaseDraft | None = None
 
 
-
-
-
-
 def _parse_structured(*, system_prompt: str, user_content: str, text_format):
     response = None
     for attempt in range(3):
@@ -181,3 +177,48 @@ def suggest_document_case_route(
         suggestion.new_case = None
 
     return suggestion
+
+
+def suggest_for_indexed_document(*, document, db, user):
+    """Use the same retrieval and routing logic for background and interactive uploads.
+
+    Returns the suggestion and its candidates; never changes case assignment.
+    """
+    from app import models
+    from app.services.embeddings import create_query_embedding
+    from app.services.retrieval import match_cases
+
+    chunks = (
+        db.query(models.DocumentChunk)
+        .filter(models.DocumentChunk.document_id == document.id)
+        .order_by(models.DocumentChunk.chunk_index)
+        .all()
+    )
+    if not chunks:
+        raise ValueError("Für dieses Dokument wurden keine Textabschnitte erstellt.")
+
+    document_text = "\n\n".join(chunk.content for chunk in chunks)
+    matches = match_cases(
+        db=db,
+        user=user,
+        query_embedding=create_query_embedding(document_text[:24000]),
+        limit=5,
+    )
+    candidates = []
+    for match in matches:
+        case = db.get(models.Case, int(match["case_id"]))
+        if case is None or getattr(case, "is_archived", False):
+            continue
+        candidates.append(CaseCandidate(
+            case_id=case.id,
+            title=case.title,
+            company=case.company,
+            category=case.category,
+            description=case.description,
+            management_summary=case.management_summary,
+            similarity=float(match["similarity"]),
+        ))
+    return suggest_document_case_route(
+        document_context=document_text[:50000],
+        candidates=candidates,
+    ), candidates

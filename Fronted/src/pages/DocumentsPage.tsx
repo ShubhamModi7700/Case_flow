@@ -159,8 +159,6 @@ export default function DocumentsPage() {
   useEffect(() => {
     if (!canEdit) return;
     void refreshBatches();
-    const interval = window.setInterval(() => void refreshBatches(), 15000);
-    return () => window.clearInterval(interval);
   }, [canEdit]);
 
   async function retryBatchDocument(item: UploadBatchItem): Promise<void> {
@@ -870,62 +868,52 @@ export default function DocumentsPage() {
         </section>
       )}
 
-      {canEdit && (
-        <details className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <summary className="cursor-pointer text-lg font-semibold">Upload-Verlauf und fehlgeschlagene Dateien</summary>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-medium text-slate-600">Gespeicherte Upload-Vorgänge</h2>
+      {/* Only show actionable upload failures; batch history stays in the backend. */}
+      {canEdit && uploadBatches.some((batch) =>
+        batch.items.some((item) =>
+          item.status === "Failed" || item.status === "Partial"
+        )
+      ) && (
+        <section className="mt-6 rounded-2xl border border-red-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-red-800">Fehlgeschlagene Uploads</h2>
             <button type="button" onClick={() => void refreshBatches()}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
               Status aktualisieren
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Die letzten 25 Batches dieses Benutzerkontos. Verarbeitung wird alle 15 Sekunden abgefragt.
-            Nach einem Browser-Neustart bleiben Upload- und Verarbeitungsstände erhalten.
-          </p>
-          {uploadBatches.length === 0 && <p className="mt-3 text-sm text-slate-500">Noch keine Upload-Batches.</p>}
-          <div className="mt-4 space-y-3">
-            {uploadBatches.map((batch) => (
-              <details key={batch.id} className="rounded-xl border border-slate-200 p-3">
-                <summary className="cursor-pointer text-sm font-semibold">
-                  {new Date(batch.created_at).toLocaleString("de-DE")} — {batch.total} Dateien
-                  {" · "}Bereit: {batch.counts.Ready ?? 0}
-                  {" · "}Teilweise: {batch.counts.Partial ?? 0}
-                  {" · "}Fehler: {batch.counts.Failed ?? 0}
-                  {" · "}Offen: {batch.total - (batch.counts.Ready ?? 0) - (batch.counts.Partial ?? 0) - (batch.counts.Failed ?? 0)}
-                </summary>
-                <ul className="mt-3 space-y-2 text-sm">
-                  {batch.items.map((item) => (
-                    <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
-                      <span className="min-w-0 break-all">{item.filename} — <strong>{item.status}</strong>
-                        {item.error && <span className="block text-xs text-red-700">{item.error}</span>}
-                      </span>
-                      {!item.document_id && (
-                        <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-1 text-xs">
-                          Datei erneut auswählen
-                          <input type="file" className="sr-only" disabled={batchBusyId === item.id}
-                            onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              if (file) void resumeBatchUpload(item, file, batch.case_id);
-                              event.target.value = "";
-                            }} />
-                        </label>
-                      )}
-                      {(item.status === "Failed" || item.status === "Partial") && item.document_id && (
-                        <button type="button" disabled={batchBusyId === item.id}
-                          onClick={() => void retryBatchDocument(item)}
-                          className="rounded-lg border border-slate-300 px-3 py-1 text-xs disabled:opacity-50">
-                          Verarbeitung wiederholen
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-          </div>
-        </details>
+          <ul className="mt-3 space-y-2">
+            {uploadBatches.flatMap((batch) =>
+              batch.items
+                .filter((item) => item.status === "Failed" || item.status === "Partial")
+                .map((item) => (
+                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="break-all font-medium">{item.filename}</p>
+                      {item.error && <p className="mt-1 text-xs text-red-700">{item.error}</p>}
+                    </div>
+                    {!item.document_id ? (
+                      <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs">
+                        Datei erneut auswählen
+                        <input type="file" className="sr-only" disabled={batchBusyId === item.id}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void resumeBatchUpload(item, file, batch.case_id);
+                            event.target.value = "";
+                          }} />
+                      </label>
+                    ) : (
+                      <button type="button" disabled={batchBusyId === item.id}
+                        onClick={() => void retryBatchDocument(item)}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs disabled:opacity-50">
+                        Verarbeitung wiederholen
+                      </button>
+                    )}
+                  </li>
+                ))
+            )}
+          </ul>
+        </section>
       )}
 
       <div className="mt-7 space-y-6">
@@ -1130,6 +1118,20 @@ export default function DocumentsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        {!item.case_id && canEdit && (
+                          <button
+                            type="button"
+                            disabled={isBusy || item.embedding_status !== "Ready"}
+                            onClick={() => {
+                              void startAIWorkflow(item).catch((requestError) => {
+                                setError(getErrorMessage(requestError, "KI-Fallzuordnung fehlgeschlagen."));
+                              });
+                            }}
+                            className="rounded-lg border border-violet-300 px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-50 disabled:opacity-50"
+                          >
+                            Zuordnung prüfen
+                          </button>
+                        )}
                         {item.case_id && (
                           <Link
                             to={`/cases/${item.case_id}`}
