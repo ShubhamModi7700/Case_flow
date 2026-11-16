@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { api } from "../../api";
 import type {
   AISuggestion,
   CaseAISummary,
@@ -303,17 +302,12 @@ export default function OverviewTab({
   documents,
   timeline,
   canEdit,
-  isManager,
   onEditCase,
-  onRiskConfirmed,
 }: OverviewTabProps) {
   const [approvedSummary, setApprovedSummary] =
     useState<CaseAISummary | null>(null);
   const [latestApprovedSuggestion, setLatestApprovedSuggestion] =
     useState<AISuggestion | null>(null);
-  const [confirmingRisk, setConfirmingRisk] = useState(false);
-  const [refreshingRisk, setRefreshingRisk] = useState(false);
-  const [riskError, setRiskError] = useState("");
   const [expandedDetail, setExpandedDetail] =
     useState<ExpandedDetail>(null);
   useEffect(() => {
@@ -410,36 +404,6 @@ export default function OverviewTab({
     setExpandedDetail((current) =>
       current === detail ? null : detail,
     );
-  }
-  async function refreshSuggestedRisk() {
-    try {
-      setRefreshingRisk(true);
-      setRiskError("");
-      const response = await api.post<CaseItem>(
-        `/cases/${caseItem.id}/refresh-risk-suggestion`,
-      );
-      onRiskConfirmed(response.data);
-    } catch {
-      setRiskError("Der Risikovorschlag konnte nicht aktualisiert werden.");
-    } finally {
-      setRefreshingRisk(false);
-    }
-  }
-  async function confirmSuggestedRisk() {
-    try {
-      setConfirmingRisk(true);
-      setRiskError("");
-      const response = await api.post<CaseItem>(
-        `/cases/${caseItem.id}/confirm-risk`,
-      );
-      onRiskConfirmed(response.data);
-    } catch {
-      setRiskError(
-        "Die Risikoeinschätzung konnte nicht übernommen werden.",
-      );
-    } finally {
-      setConfirmingRisk(false);
-    }
   }
   return (
     <div className="space-y-6">
@@ -670,56 +634,6 @@ export default function OverviewTab({
           </dl>
         </div>
       </section>
-      {isManager && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            disabled={refreshingRisk || confirmingRisk}
-            onClick={() => void refreshSuggestedRisk()}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-          >
-            {refreshingRisk ? "Risiko wird geprüft…" : "Risikovorschlag aktualisieren"}
-          </button>
-        </div>
-      )}
-      {caseItem.suggested_risk &&
-        caseItem.suggested_risk !== caseItem.risk && (
-          <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase text-blue-600">
-                  KI-Vorschlag zur Risikobewertung
-                </p>
-                <div className="mt-2">
-                  <RiskBadge value={caseItem.suggested_risk} />
-                </div>
-                <p className="mt-2 text-sm text-blue-900">
-                  {compact(
-                    caseItem.suggested_risk_reason,
-                    320,
-                  ) || "Keine Begründung vorhanden."}
-                </p>
-              </div>
-              {isManager && (
-                <button
-                  type="button"
-                  disabled={confirmingRisk}
-                  onClick={() => void confirmSuggestedRisk()}
-                  className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {confirmingRisk
-                    ? "Wird übernommen…"
-                    : "Risiko übernehmen"}
-                </button>
-              )}
-            </div>
-            {riskError && (
-              <p className="mt-3 text-sm text-red-700">
-                {riskError}
-              </p>
-            )}
-          </section>
-        )}
     </div>
   );
 }

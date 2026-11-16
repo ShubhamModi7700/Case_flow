@@ -827,7 +827,11 @@ export default function CaseAssistant({ caseId }: Props) {
               catch (error) { setChatError(errorMessage(error)); }
             }}>Verlauf löschen</button>
           </header>
-          <div role="log" aria-label="Chatverlauf" aria-live="polite" className="max-h-[70vh] min-h-[190px] space-y-5 overflow-y-auto px-3 py-5 sm:px-5">
+          <div role="log" aria-label="Chatverlauf" aria-live="polite" className={`max-h-[70vh] space-y-5 overflow-y-auto px-3 sm:px-5 ${
+              chatHistory.length === 0 && !chatLoading && !chatHistoryLoading
+                ? "min-h-[88px] py-3"
+                : "min-h-[190px] py-5"
+            }`}>
             {chatHistoryLoading && <p className="text-sm text-slate-500">Chatverlauf wird geladen...</p>}
             {!chatHistoryLoading && chatHistory.length === 0 && <div className="mx-auto max-w-lg py-4 text-center">
               <div className="text-base font-semibold text-slate-900">Wie kann ich Ihnen helfen?</div>
