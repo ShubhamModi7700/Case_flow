@@ -805,13 +805,10 @@ export default function CaseAssistant({ caseId }: Props) {
 
       <div className="mb-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => { setChatOpen(true); setResult(null); setIntelligence(null); setWorkStatus(null); setShowBriefForm(false); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">KI-Chat</button>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          Berichtstyp
-          <select aria-label="Berichtstyp" value={reportMode} onChange={(event) => setReportMode(event.target.value as "compact" | "detailed")} className="rounded-lg border border-slate-300 bg-white px-2 py-2">
-            <option value="compact">Kurzbericht (Standard)</option>
-            <option value="detailed">Detailbericht</option>
-          </select>
-        </label>
+        <select aria-label="Berichtstyp" value={reportMode} onChange={(event) => setReportMode(event.target.value as "compact" | "detailed")} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm">
+          <option value="compact">Kurzbericht</option>
+          <option value="detailed">Detailbericht</option>
+        </select>
         <button type="button" disabled={loading} onClick={() => { setChatOpen(false); void submit("report", reportMode === "compact" ? "KURZBERICHT: Erstelle einen kompakten, belegten Management-Fallbericht mit Sachstand, wichtigsten Risiken, Fristen, Entscheidungen und Maßnahmen." : "DETAILBERICHT: Erstelle einen ausführlichen belegten Fallbericht mit Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
       </div>
 
