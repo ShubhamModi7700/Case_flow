@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app import models
+from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
 from app.services.case_access import scope_case_query
+from app.services.dashboard_worklist import berlin_today, build_worklist, preparation_lead_days
 
 router = APIRouter(
     prefix="/dashboard",
@@ -16,6 +17,25 @@ router = APIRouter(
         Depends(get_current_user),
     ],
 )
+
+
+@router.get("/worklist", response_model=schemas.DashboardWorklist)
+def dashboard_worklist(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    visible = scope_case_query(db.query(models.Case), current_user).filter(
+        models.Case.status != "Completed",
+        models.Case.is_archived.is_(False),
+    )
+    cases = visible.all()
+    tasks = db.query(models.Task).filter(
+        models.Task.case_id.in_(visible.with_entities(models.Case.id).statement),
+        models.Task.status == "Open",
+    ).all()
+    return build_worklist(
+        cases=cases, tasks=tasks, today=berlin_today(), lead_days=preparation_lead_days(),
+    )
 
 
 @router.get("/summary")

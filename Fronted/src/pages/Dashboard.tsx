@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { api } from "../api";
 import { type DashboardData, formatCaseNumber } from "../types";
+import DashboardWorklist from "../components/DashboardWorklist";
 
 const PREVIEW_MAX = 150;
 
@@ -54,6 +55,8 @@ export default function Dashboard() {
         <AttentionCard to="/cases?missing_owner=true" title="Ohne Verantwortlichen" value={data.cases_without_responsible} hint="Zuständigkeit festlegen" />
         <AttentionCard to="/cases?missing_next_action=true" title="Ohne nächste Maßnahme" value={data.cases_without_next_action} hint="Nächsten Schritt festlegen" />
       </div>
+
+      <DashboardWorklist />
 
       <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5">

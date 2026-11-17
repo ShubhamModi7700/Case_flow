@@ -5,6 +5,31 @@ export interface DashboardAction {
   deadline: string | null;
 }
 
+export interface DashboardWorkItem {
+  key: string;
+  kind: "task" | "case";
+  case_id: number;
+  case_title: string;
+  task_id: number | null;
+  title: string;
+  responsible_person: string | null;
+  deadline: string | null;
+  preparation_date: string | null;
+  attention_date: string | null;
+  priority: "overdue" | "urgent" | "normal";
+  reasons: string[];
+  next_action: string;
+}
+
+export interface DashboardWorklistData {
+  today: string;
+  through: string;
+  timezone: string;
+  preparation_lead_days: number;
+  today_items: DashboardWorkItem[];
+  next_seven_days_items: DashboardWorkItem[];
+}
+
 export interface DashboardAttentionItem {
   case_id: number;
   title: string;

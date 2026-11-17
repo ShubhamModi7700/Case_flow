@@ -343,6 +343,31 @@ class TaskResponse(TaskCreate):
     )
 
 
+class DashboardWorkItem(BaseModel):
+    key: str
+    kind: Literal["task", "case"]
+    case_id: int
+    case_title: str
+    task_id: int | None = None
+    title: str
+    responsible_person: str | None
+    deadline: date | None
+    preparation_date: date | None
+    attention_date: date | None
+    priority: Literal["overdue", "urgent", "normal"]
+    reasons: list[str]
+    next_action: str
+
+
+class DashboardWorklist(BaseModel):
+    today: date
+    through: date
+    timezone: str = "Europe/Berlin"
+    preparation_lead_days: int
+    today_items: list[DashboardWorkItem]
+    next_seven_days_items: list[DashboardWorkItem]
+
+
 
 
 class HistoryResponse(BaseModel):
