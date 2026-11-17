@@ -5,7 +5,6 @@ Sources: test_background_routing.py, test_document_case_routing_safety.py, test_
 
 
 # ---- From test_background_routing.py ----
-"""Week 2 regression tests: routing gates and worker/service integration."""
 
 from scripts.document_worker import _auto_assignment_candidate
 from app.services.document_case_routing import CaseCandidate, DocumentCaseRouteSuggestion
@@ -41,7 +40,6 @@ def test_suggested_case_must_be_top_retrieval_candidate():
 
 
 # ---- From test_document_case_routing_safety.py ----
-"""Regression tests for Phase 2 routing safety decisions."""
 from types import SimpleNamespace
 
 import pytest
@@ -79,12 +77,12 @@ def test_unknown_case_id_is_rejected(monkeypatch):
         routing.suggest_document_case_route(document_context="Testdokument", candidates=[_candidate()])
 
 
-def test_no_existing_cases_does_not_claim_perfect_confidence(monkeypatch):
-    monkeypatch.setattr(routing, "create_document_case_draft", lambda context: routing.DocumentCaseDraft(title="Neuer Fall"))
+def test_no_existing_cases_stays_unassigned_without_creating_draft(monkeypatch):
+    monkeypatch.setattr(routing, "create_document_case_draft", lambda context: (_ for _ in ()).throw(AssertionError("must not draft")))
     result = routing.suggest_document_case_route(document_context="Testdokument", candidates=[])
-    assert result.decision == "new_case"
+    assert result.decision == "uncertain"
     assert result.confidence == 0.0
-    assert result.new_case.title == "Neuer Fall"
+    assert result.new_case is None
 
 
 def test_missing_case_id_cannot_be_high_confidence(monkeypatch):
@@ -102,9 +100,10 @@ def test_new_case_does_not_inherit_matching_confidence(monkeypatch):
         reason="New", new_case=routing.DocumentCaseDraft(title="Neuer Fall")
     ))
     result = routing.suggest_document_case_route(document_context="Testdokument", candidates=[_candidate()])
-    assert result.decision == "new_case"
+    assert result.decision == "uncertain"
     assert result.suggested_case_id is None
     assert result.confidence == 0.0
+    assert result.new_case is None
 
 
 def test_uncertain_match_cannot_contain_new_case_draft(monkeypatch):
@@ -180,3 +179,18 @@ def test_case_matching_embeds_acl_before_ranking():
     assert "order by ce.embedding" in source
     assert "limit :match_count" in source
 
+
+
+def test_auto_assignment_requires_case_specific_text():
+    suggestion = _suggestion()
+    candidates = _candidates()
+    assert _auto_assignment_candidate(suggestion, candidates, "Schreiben an Flach betreffend Projekt") == 12
+    assert _auto_assignment_candidate(suggestion, candidates, "Allgemeines Schreiben zu einem Projekt") is None
+    assert _auto_assignment_candidate(suggestion, candidates, "Stromversorgung Isenbüttel") is None
+
+
+def test_isenbuettel_title_corrobation():
+    suggestion = _suggestion(case_id=13)
+    candidates = [CaseCandidate(case_id=13, title="Stromversorgung Isenbüttel", similarity=.95)]
+    assert _auto_assignment_candidate(suggestion, candidates, "Netzanschluss in Isenbüttel") == 13
+    assert _auto_assignment_candidate(suggestion, candidates, "Stromversorgung allgemein") is None

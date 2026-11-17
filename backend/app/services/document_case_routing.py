@@ -111,11 +111,10 @@ def suggest_document_case_route(
 
     if not candidates:
         return DocumentCaseRouteSuggestion(
-            decision="new_case",
+            decision="uncertain",
             suggested_case_id=None,
             confidence=0.0,
-            reason="Es gibt keine bestehenden Fallkandidaten. Ein neuer Fallentwurf wird zur manuellen Prüfung vorgeschlagen; die Zuordnungssicherheit ist nicht messbar.",
-            new_case=create_document_case_draft(document_context),
+            reason="Kein bestehender Fallkandidat gefunden. Das Dokument bleibt für die manuelle Zuordnung offen.",
         )
 
     candidate_text = "\n\n".join(
@@ -165,10 +164,13 @@ def suggest_document_case_route(
             )
 
     if suggestion.decision == "new_case":
+        # Week 2: routing only targets existing cases; never initiate a new case
+        # draft during background processing or a routing suggestion.
+        suggestion.decision = "uncertain"
         suggestion.suggested_case_id = None
         suggestion.confidence = 0.0
-        if suggestion.new_case is None:
-            suggestion.new_case = create_document_case_draft(document_context)
+        suggestion.new_case = None
+        suggestion.reason = "Kein eindeutiger bestehender Fall gefunden. Manuelle Zuordnung erforderlich. " + suggestion.reason
     elif suggestion.decision == "uncertain":
         suggestion.new_case = None
         if suggestion.suggested_case_id is None:

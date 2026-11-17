@@ -4,6 +4,8 @@ import time
 import threading
 import signal
 import json
+import re
+import unicodedata
 from uuid import uuid4
 from app import models
 from app.database import SessionLocal
@@ -40,7 +42,27 @@ AUTO_ASSIGN_SIMILARITY = 0.85
 AUTO_ASSIGN_MARGIN = 0.08
 
 
-def _auto_assignment_candidate(suggestion, candidates):
+def _normalized_words(value: str) -> set[str]:
+    """Normalize umlauts/punctuation for conservative case-title corroboration."""
+    value = unicodedata.normalize("NFKD", value.casefold())
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    return set(re.findall(r"[a-z0-9]{4,}", value))
+
+
+def _has_case_specific_evidence(document_text: str, title: str) -> bool:
+    """Require a distinctive case-title term in the document, not similarity alone.
+
+    Short generic words do not qualify. This is deliberately a high-precision
+    automatic-assignment gate; otherwise the suggestion stays for human review.
+    """
+    ignored = {"projekt", "vertrag", "kunde", "fall", "sache", "vorgang",
+               "rechnung", "dokument", "angebot", "unternehmen", "service",
+               "strom", "versorgung", "betreff", "anfrage"}
+    title_words = {word for word in _normalized_words(title) if word not in ignored}
+    return bool(title_words and title_words.intersection(_normalized_words(document_text)))
+
+
+def _auto_assignment_candidate(suggestion, candidates, document_text=None):
     if suggestion.decision != "existing_case" or suggestion.suggested_case_id is None:
         return None
     if suggestion.confidence < AUTO_ASSIGN_CONFIDENCE:
@@ -50,6 +72,8 @@ def _auto_assignment_candidate(suggestion, candidates):
     if not ranked or ranked[0].case_id != suggestion.suggested_case_id:
         return None
     if ranked[0].similarity < AUTO_ASSIGN_SIMILARITY:
+        return None
+    if document_text is not None and not _has_case_specific_evidence(document_text, ranked[0].title):
         return None
     if len(ranked) > 1 and ranked[0].similarity - ranked[1].similarity < AUTO_ASSIGN_MARGIN:
         return None
@@ -108,7 +132,13 @@ def run_once() -> bool:
                                 }, ensure_ascii=False, default=str),
                             ))
                             db.commit()
-                            case_id = _auto_assignment_candidate(suggestion, candidates)
+                            # Read the same indexed evidence used for the suggestion.
+                            document_text = "\n".join(
+                                row[0] for row in db.query(models.DocumentChunk.content)
+                                .filter(models.DocumentChunk.document_id == document_id)
+                                .order_by(models.DocumentChunk.chunk_index).all()
+                            )
+                            case_id = _auto_assignment_candidate(suggestion, candidates, document_text)
                             if case_id is not None:
                                 try:
                                     # Enforce the upload owner's edit permissions before assigning.
