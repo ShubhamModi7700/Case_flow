@@ -7,11 +7,6 @@ from zoneinfo import ZoneInfo
 from app import models, schemas
 
 
-def format_calendar_date(value: date) -> str:
-    # strftime('%Y') does not pad years below 1000 consistently across platforms.
-    return f"{value.day:02d}.{value.month:02d}.{value.year:04d}"
-
-
 def berlin_today(now: datetime | None = None) -> date:
     return (now or datetime.now(ZoneInfo("Europe/Berlin"))).astimezone(
         ZoneInfo("Europe/Berlin")
@@ -72,36 +67,13 @@ def build_worklist(
         if case.status == "Critical":
             reasons.append("Kritischer Fallstatus")
         if preparation and preparation <= through:
-            reasons.append(f"Vorbereitung ab {format_calendar_date(preparation)}")
+            reasons.append(f"Vorbereitung ab {preparation.strftime('%d.%m.%Y')}")
         if follow_up and follow_up <= through:
             reasons.append("Wiedervorlage fällig" if follow_up <= today else "Wiedervorlage in den nächsten 7 Tagen")
         if not owner:
             reasons.append("Verantwortung offen")
         if not action:
             reasons.append("Nächste Maßnahme offen")
-        # Explain only triggers that are active now (or on the future attention date).
-        # A later final deadline must not obscure an independent due follow-up.
-        attention_reasons = []
-        trigger_date = max(today, attention)
-        if deadline and deadline <= trigger_date:
-            attention_reasons.append(
-                "Frist überfällig" if overdue else "Heute fällig" if deadline == today
-                else f"Frist am {format_calendar_date(deadline)}"
-            )
-        if preparation and preparation <= trigger_date:
-            attention_reasons.append(f"Vorbereitung ab {format_calendar_date(preparation)}")
-        if follow_up and follow_up <= trigger_date:
-            attention_reasons.append(f"Wiedervorlage am {format_calendar_date(follow_up)}")
-        if task is not None and task.priority == "High":
-            attention_reasons.append("Hohe Aufgabenpriorität")
-        if case.risk == "High":
-            attention_reasons.append("Hohes Fallrisiko")
-        if case.status == "Critical":
-            attention_reasons.append("Kritischer Fallstatus")
-        if not owner:
-            attention_reasons.append("Verantwortung offen")
-        if not action:
-            attention_reasons.append("Nächste Maßnahme offen")
         items.append(schemas.DashboardWorkItem(
             key=f"task:{task.id}" if task is not None else f"case:{case.id}",
             kind="task" if task is not None else "case",
@@ -109,7 +81,7 @@ def build_worklist(
             task_id=task.id if task is not None else None,
             title=task.title if task is not None else "Fallmaßnahme / Wiedervorlage",
             responsible_person=owner, deadline=deadline, preparation_date=preparation,
-            attention_date=attention, attention_reasons=attention_reasons,
+            attention_date=attention,
             priority="overdue" if overdue else "urgent" if urgent else "normal",
             reasons=reasons, next_action=action or "Nächste Maßnahme festlegen",
         ))
@@ -127,5 +99,5 @@ def build_worklist(
     return schemas.DashboardWorklist(
         today=today, through=through, preparation_lead_days=lead_days,
         today_items=[item for item in items if item.attention_date <= today],
-        next_seven_days_items=[item for item in items if today < item.attention_date <= through],
+        next_seven_days_items=items,
     )
