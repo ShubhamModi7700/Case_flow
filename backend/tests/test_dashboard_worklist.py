@@ -7,11 +7,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app import models
+from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
 from app.routes import dashboard
-from app.services.dashboard_worklist import berlin_today, build_worklist, preparation_lead_days
+from app.services.dashboard_worklist import berlin_today, build_worklist, preparation_lead_days, format_calendar_date
 
 
 TODAY = date(2026, 11, 17)
@@ -184,6 +184,65 @@ def test_november_30_deadline_alone_does_not_qualify_on_november_18():
         today=date(2026, 11, 18), lead_days=3,
     )
     assert not result.today_items and not result.next_seven_days_items
+
+
+def test_cf0008_december_2026_follow_up_is_outside_november_18_window():
+    source = case(id=8, primary_deadline=date(2026, 11, 30), follow_up_date=date(2026, 12, 31))
+    before = deepcopy(vars(source))
+    result = build_worklist(cases=[source], tasks=[], today=date(2026, 11, 18), lead_days=3)
+    assert not result.today_items and not result.next_seven_days_items
+    # On preparation day the earlier November trigger takes precedence over December.
+    preparation_day = build_worklist(cases=[source], tasks=[], today=date(2026, 11, 27), lead_days=3)
+    item = preparation_day.today_items[0]
+    assert item.attention_date == date(2026, 11, 27)
+    assert item.preparation_date == date(2026, 11, 27)
+    assert item.attention_reasons == ["Vorbereitung ab 27.11.2026"]
+    assert vars(source) == before
+
+
+def test_cf0008_year_0026_reproduces_past_follow_up_without_hiding_or_rewriting_record():
+    source = case(id=8, primary_deadline=date(2026, 11, 30), follow_up_date=date(26, 12, 31))
+    before = deepcopy(vars(source))
+    result = build_worklist(cases=[source], tasks=[], today=date(2026, 11, 18), lead_days=3)
+    item = result.today_items[0]
+    assert item.attention_date == date(26, 12, 31)
+    assert item.attention_reasons == ["Wiedervorlage am 31.12.0026"]
+    payload = result.model_dump(mode="json")["today_items"][0]
+    assert payload["attention_date"] == "0026-12-31"
+    assert payload["deadline"] == "2026-11-30"
+    assert payload["preparation_date"] == "2026-11-27"
+    assert not result.next_seven_days_items
+    assert vars(source) == before
+
+
+@pytest.mark.parametrize("year", [1, 26, 999, 2026])
+def test_reason_year_format_is_unambiguous_across_platforms(year):
+    assert format_calendar_date(date(year, 12, 31)) == f"31.12.{year:04d}"
+
+
+@pytest.mark.parametrize("schema", [schemas.CaseCreate, schemas.CaseUpdate])
+@pytest.mark.parametrize("field", ["primary_deadline", "follow_up_date"])
+@pytest.mark.parametrize("value", ["0026-12-31", "31.12.26", "26-12-31"])
+def test_case_schedule_writes_reject_accidental_short_years_and_non_iso_dates(schema, field, value):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        schema.model_validate({"title": "Test", "category": "Other", field: value})
+
+
+@pytest.mark.parametrize("schema", [schemas.CaseCreate, schemas.CaseUpdate])
+@pytest.mark.parametrize("value", ["2026-12-31", "2026-11-30", None])
+def test_case_schedule_writes_preserve_valid_iso_dates_and_null(schema, value):
+    result = schema.model_validate({"title": "Test", "category": "Other", "follow_up_date": value})
+    assert result.model_dump(mode="json")["follow_up_date"] == value
+
+
+def test_legacy_short_year_case_response_remains_readable():
+    result = schemas.CaseResponse.model_validate({
+        "id": 8, "title": "Test", "category": "Other", "is_archived": False,
+        "created_at": "2026-11-18T10:00:00Z", "updated_at": "2026-11-18T10:00:00Z",
+        "follow_up_date": "0026-12-31",
+    })
+    assert result.model_dump(mode="json")["follow_up_date"] == "0026-12-31"
 
 
 @pytest.mark.parametrize("changes,reason", [

@@ -158,8 +158,20 @@ class CaseAccessResponse(BaseModel):
     can_edit: bool
 
 
+def validate_case_schedule_year(value: date | None) -> date | None:
+    # Validate writes only: existing dates must remain readable without reinterpretation.
+    if value is not None and value.year < 1000:
+        raise ValueError("Bitte das vollständige vierstellige Jahr eingeben (z. B. 2026 statt 0026).")
+    return value
+
+
 class CaseCreate(CaseBase):
     access: list[CaseAccessInput] = Field(default_factory=list)
+
+    @field_validator("primary_deadline", "follow_up_date")
+    @classmethod
+    def validate_schedule_year(cls, value: date | None) -> date | None:
+        return validate_case_schedule_year(value)
 
 
 class CaseUpdate(BaseModel):
@@ -204,6 +216,11 @@ class CaseUpdate(BaseModel):
     primary_deadline: date | None = None
     follow_up_date: date | None = None
     access: list[CaseAccessInput] | None = None
+
+    @field_validator("primary_deadline", "follow_up_date")
+    @classmethod
+    def validate_schedule_year(cls, value: date | None) -> date | None:
+        return validate_case_schedule_year(value)
 
     @field_validator("title", mode="before")
     @classmethod

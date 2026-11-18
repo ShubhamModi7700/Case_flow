@@ -6,8 +6,13 @@ import type { DashboardWorkItem, DashboardWorklistData } from "../types/dashboar
 
 function formatDate(value: string | null) {
   if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("de-DE");
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!parts || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    return `${value} (Datumsformat prüfen)`;
+  }
+  // Date-only API values retain their calendar day and all four year digits.
+  return `${parts[3]}.${parts[2]}.${parts[1]}`;
 }
 
 function priorityLabel(item: DashboardWorkItem) {
@@ -35,6 +40,8 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
   const deadline = formatDate(item.deadline);
   const preparation = formatDate(item.preparation_date);
   const attention = formatDate(item.attention_date);
+  const hasShortYear = [item.attention_date, item.deadline, item.preparation_date]
+    .some(value => value && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) < 1000);
   const attentionReasons = item.attention_reasons?.length ? item.attention_reasons : item.reasons;
   const isGenericTitle = /^(Fallmaßnahme\s*\/\s*Wiedervorlage|Fallmaßnahme|Wiedervorlage)$/i.test(item.title.trim());
   const action = item.next_action?.trim() ? item.next_action : "Nächste Maßnahme festlegen";
@@ -62,6 +69,10 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
 
       {attentionReasons.length > 0 && <p className="mt-3 text-xs leading-5 text-slate-600">
         <span className="font-semibold text-slate-800">Handlungsanlass:</span> {attentionReasons.join(" · ")}
+      </p>}
+      {hasShortYear && <p role="note" className="mt-2 text-xs leading-5 text-amber-800">
+        Datumsjahr prüfen: Das übermittelte Datum enthält ein Jahr vor 1000, z. B. 0026 statt 2026.
+        {" "}Die Priorisierung verwendet das übermittelte Jahr; es wurde nicht automatisch korrigiert.
       </p>}
 
       <p id={actionId} className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">

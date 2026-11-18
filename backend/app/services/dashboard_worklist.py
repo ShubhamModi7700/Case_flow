@@ -7,6 +7,11 @@ from zoneinfo import ZoneInfo
 from app import models, schemas
 
 
+def format_calendar_date(value: date) -> str:
+    # strftime('%Y') does not pad years below 1000 consistently across platforms.
+    return f"{value.day:02d}.{value.month:02d}.{value.year:04d}"
+
+
 def berlin_today(now: datetime | None = None) -> date:
     return (now or datetime.now(ZoneInfo("Europe/Berlin"))).astimezone(
         ZoneInfo("Europe/Berlin")
@@ -67,7 +72,7 @@ def build_worklist(
         if case.status == "Critical":
             reasons.append("Kritischer Fallstatus")
         if preparation and preparation <= through:
-            reasons.append(f"Vorbereitung ab {preparation.strftime('%d.%m.%Y')}")
+            reasons.append(f"Vorbereitung ab {format_calendar_date(preparation)}")
         if follow_up and follow_up <= through:
             reasons.append("Wiedervorlage fällig" if follow_up <= today else "Wiedervorlage in den nächsten 7 Tagen")
         if not owner:
@@ -81,12 +86,12 @@ def build_worklist(
         if deadline and deadline <= trigger_date:
             attention_reasons.append(
                 "Frist überfällig" if overdue else "Heute fällig" if deadline == today
-                else f"Frist am {deadline.strftime('%d.%m.%Y')}"
+                else f"Frist am {format_calendar_date(deadline)}"
             )
         if preparation and preparation <= trigger_date:
-            attention_reasons.append(f"Vorbereitung ab {preparation.strftime('%d.%m.%Y')}")
+            attention_reasons.append(f"Vorbereitung ab {format_calendar_date(preparation)}")
         if follow_up and follow_up <= trigger_date:
-            attention_reasons.append(f"Wiedervorlage am {follow_up.strftime('%d.%m.%Y')}")
+            attention_reasons.append(f"Wiedervorlage am {format_calendar_date(follow_up)}")
         if task is not None and task.priority == "High":
             attention_reasons.append("Hohe Aufgabenpriorität")
         if case.risk == "High":

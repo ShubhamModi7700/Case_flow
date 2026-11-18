@@ -165,4 +165,35 @@ describe("dashboard worklist", () => {
     await userEvent.click(button);
     expect(text.textContent).toBe(fullAction);
   });
+
+  it("shows CF-0008's actual ISO year 0026 and warns without hiding the legacy record", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: {
+      ...data, today: "2026-11-18", through: "2026-11-25", today_items: [{
+        ...item, key: "case:8", kind: "case", case_id: 8, case_title: "Testfall",
+        deadline: "2026-11-30", preparation_date: "2026-11-27", attention_date: "0026-12-31",
+        attention_reasons: ["Wiedervorlage am 31.12.0026"],
+      }], next_seven_days_items: [],
+    } });
+    show();
+    const card = (await screen.findByRole("link", { name: /CF-0008/ })).closest("article")!;
+    expect(within(card).getByText("Handlungsdatum:").parentElement?.textContent).toBe("Handlungsdatum: 31.12.0026");
+    expect(within(card).getByText("Frist:").parentElement?.textContent).toBe("Frist: 30.11.2026");
+    expect(within(card).getByText("Vorbereitungsbeginn:").parentElement?.textContent).toBe("Vorbereitungsbeginn: 27.11.2026");
+    expect(within(card).getByRole("note").textContent).toContain("Datumsjahr prüfen");
+  });
+
+  it("renders a real 2026 date without shortening its year or flagging it", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { ...data, today_items: [{ ...item, attention_date: "2026-12-31" }] } });
+    show();
+    await screen.findByRole("article");
+    expect(screen.getByText("Handlungsdatum:").parentElement?.textContent).toBe("Handlungsdatum: 31.12.2026");
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it.each(["31.12.26", "2026-02-30"])("marks invalid API date %s without guessing a replacement", async value => {
+    vi.mocked(api.get).mockResolvedValue({ data: { ...data, today_items: [{ ...item, attention_date: value }] } });
+    show();
+    await screen.findByRole("article");
+    expect(screen.getByText("Handlungsdatum:").parentElement?.textContent).toBe(`Handlungsdatum: ${value} (Datumsformat prüfen)`);
+  });
 });

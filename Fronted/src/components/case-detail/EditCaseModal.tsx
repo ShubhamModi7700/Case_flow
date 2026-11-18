@@ -326,6 +326,8 @@ export default function EditCaseModal({
               type="date"
               disabled={!isManager || status === "Completed"}
               value={primaryDeadline}
+              min="1000-01-01"
+              max="9999-12-31"
               onChange={(event) => setPrimaryDeadline(event.target.value)}
               className={`input ${readOnlyClass}`}
             />
@@ -336,6 +338,8 @@ export default function EditCaseModal({
               type="date"
               disabled={!isManager || status === "Completed"}
               value={followUpDate}
+              min="1000-01-01"
+              max="9999-12-31"
               onChange={(event) => setFollowUpDate(event.target.value)}
               className={`input ${readOnlyClass}`}
             />

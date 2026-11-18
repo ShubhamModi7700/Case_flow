@@ -295,6 +295,8 @@ export default function CreateCase() {
           <input
             type="date"
             name="primary_deadline"
+            min="1000-01-01"
+            max="9999-12-31"
             value={form.primary_deadline}
             onChange={handleChange}
             className="input"
@@ -305,6 +307,8 @@ export default function CreateCase() {
           <input
             type="date"
             name="follow_up_date"
+            min="1000-01-01"
+            max="9999-12-31"
             value={form.follow_up_date}
             onChange={handleChange}
             className="input"
