@@ -74,6 +74,29 @@ def build_worklist(
             reasons.append("Verantwortung offen")
         if not action:
             reasons.append("Nächste Maßnahme offen")
+        # Explain only triggers that are active now (or on the future attention date).
+        # A later final deadline must not obscure an independent due follow-up.
+        attention_reasons = []
+        trigger_date = max(today, attention)
+        if deadline and deadline <= trigger_date:
+            attention_reasons.append(
+                "Frist überfällig" if overdue else "Heute fällig" if deadline == today
+                else f"Frist am {deadline.strftime('%d.%m.%Y')}"
+            )
+        if preparation and preparation <= trigger_date:
+            attention_reasons.append(f"Vorbereitung ab {preparation.strftime('%d.%m.%Y')}")
+        if follow_up and follow_up <= trigger_date:
+            attention_reasons.append(f"Wiedervorlage am {follow_up.strftime('%d.%m.%Y')}")
+        if task is not None and task.priority == "High":
+            attention_reasons.append("Hohe Aufgabenpriorität")
+        if case.risk == "High":
+            attention_reasons.append("Hohes Fallrisiko")
+        if case.status == "Critical":
+            attention_reasons.append("Kritischer Fallstatus")
+        if not owner:
+            attention_reasons.append("Verantwortung offen")
+        if not action:
+            attention_reasons.append("Nächste Maßnahme offen")
         items.append(schemas.DashboardWorkItem(
             key=f"task:{task.id}" if task is not None else f"case:{case.id}",
             kind="task" if task is not None else "case",
@@ -81,7 +104,7 @@ def build_worklist(
             task_id=task.id if task is not None else None,
             title=task.title if task is not None else "Fallmaßnahme / Wiedervorlage",
             responsible_person=owner, deadline=deadline, preparation_date=preparation,
-            attention_date=attention,
+            attention_date=attention, attention_reasons=attention_reasons,
             priority="overdue" if overdue else "urgent" if urgent else "normal",
             reasons=reasons, next_action=action or "Nächste Maßnahme festlegen",
         ))
@@ -99,5 +122,5 @@ def build_worklist(
     return schemas.DashboardWorklist(
         today=today, through=through, preparation_lead_days=lead_days,
         today_items=[item for item in items if item.attention_date <= today],
-        next_seven_days_items=items,
+        next_seven_days_items=[item for item in items if today < item.attention_date <= through],
     )

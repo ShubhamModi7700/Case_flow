@@ -36,16 +36,16 @@ def worklist(cases=None, tasks=None, lead=3):
     return build_worklist(cases=cases or [case()], tasks=tasks or [], today=TODAY, lead_days=lead)
 
 
-@pytest.mark.parametrize("offset,in_today,in_week", [(-1, True, True), (0, True, True),
-    (3, True, True), (4, False, True), (7, False, True), (8, False, True),
+@pytest.mark.parametrize("offset,in_today,in_week", [(-1, True, False), (0, True, False),
+    (3, True, False), (4, False, True), (7, False, True), (8, False, True),
     (10, False, True), (11, False, False)])
 def test_deadline_and_preparation_boundaries(offset, in_today, in_week):
     deadline = TODAY + timedelta(days=offset)
     result = worklist(tasks=[task(due_date=deadline)])
     assert bool(result.today_items) is in_today
     assert bool(result.next_seven_days_items) is in_week
-    if in_week:
-        item = result.next_seven_days_items[0]
+    if in_today or in_week:
+        item = (result.today_items + result.next_seven_days_items)[0]
         assert item.deadline == deadline
         assert item.preparation_date == deadline - timedelta(days=3)
 
@@ -106,7 +106,7 @@ def test_urgent_undated_task():
     assert "Hohe Aufgabenpriorität" in item.reasons
 
 
-@pytest.mark.parametrize("offset,in_today,in_week", [(-1, True, True), (0, True, True),
+@pytest.mark.parametrize("offset,in_today,in_week", [(-1, True, False), (0, True, False),
     (7, False, True), (8, False, False)])
 def test_explicit_follow_up_with_later_final_deadline(offset, in_today, in_week):
     result = worklist([case(primary_deadline=TODAY + timedelta(days=30),
@@ -160,6 +160,63 @@ def test_default_preparation_policy(monkeypatch):
     assert preparation_lead_days() == 3
 
 
+@pytest.mark.parametrize("follow_up,expected_date", [
+    (date(2026, 11, 18), date(2026, 11, 18)),
+    (date(2026, 11, 16), date(2026, 11, 16)),
+])
+def test_november_30_deadline_with_independent_follow_up(follow_up, expected_date):
+    result = build_worklist(
+        cases=[case(primary_deadline=date(2026, 11, 30), follow_up_date=follow_up)],
+        tasks=[], today=date(2026, 11, 18), lead_days=3,
+    )
+    item = result.today_items[0]
+    assert item.deadline == date(2026, 11, 30)
+    assert item.preparation_date == date(2026, 11, 27)
+    assert item.attention_date == expected_date
+    assert item.attention_reasons == [f"Wiedervorlage am {follow_up.strftime('%d.%m.%Y')}"]
+    assert not result.next_seven_days_items
+
+
+def test_november_30_deadline_alone_does_not_qualify_on_november_18():
+    result = build_worklist(
+        cases=[case(primary_deadline=date(2026, 11, 30))],
+        tasks=[task(due_date=date(2026, 11, 30))],
+        today=date(2026, 11, 18), lead_days=3,
+    )
+    assert not result.today_items and not result.next_seven_days_items
+
+
+@pytest.mark.parametrize("changes,reason", [
+    ({"risk": "High"}, "Hohes Fallrisiko"),
+    ({"status": "Critical"}, "Kritischer Fallstatus"),
+    ({"responsible_person": None}, "Verantwortung offen"),
+    ({"next_action": None}, "Nächste Maßnahme offen"),
+])
+def test_later_deadline_can_need_attention_today_for_explicit_other_reasons(changes, reason):
+    result = build_worklist(
+        cases=[case(primary_deadline=date(2026, 11, 30), **changes)], tasks=[],
+        today=date(2026, 11, 18), lead_days=3,
+    )
+    item = result.today_items[0]
+    assert item.attention_date == date(2026, 11, 18)
+    assert item.attention_reasons == [reason]
+
+
+def test_preparation_and_follow_up_choose_earliest_date_without_duplicate_views():
+    result = build_worklist(
+        cases=[case(primary_deadline=date(2026, 11, 20), follow_up_date=date(2026, 11, 19)),
+               case(id=2, primary_deadline=date(2026, 11, 30), follow_up_date=date(2026, 11, 25))],
+        tasks=[], today=date(2026, 11, 18), lead_days=3,
+    )
+    assert result.today_items[0].attention_date == date(2026, 11, 17)
+    assert result.today_items[0].attention_reasons == ["Vorbereitung ab 17.11.2026"]
+    assert result.next_seven_days_items[0].attention_date == date(2026, 11, 25)
+    assert result.next_seven_days_items[0].attention_reasons == ["Wiedervorlage am 25.11.2026"]
+    assert {item.key for item in result.today_items}.isdisjoint(
+        item.key for item in result.next_seven_days_items
+    )
+
+
 def test_ai_proposals_are_ignored_and_inputs_unchanged():
     source = case(next_action=None, suggested_next_action="AI action", suggested_deadline=TODAY)
     before = deepcopy(vars(source))
@@ -186,6 +243,9 @@ def test_endpoint_contract_scoping_and_no_writes(monkeypatch):
     assert body["today"] == "2026-11-17" and body["through"] == "2026-11-24"
     assert body["timezone"] == "Europe/Berlin"
     assert body["today_items"][0]["task_id"] == 1
+    assert body["today_items"][0]["attention_date"] == "2026-11-14"
+    assert body["today_items"][0]["attention_reasons"] == ["Heute fällig", "Vorbereitung ab 14.11.2026"]
+    assert body["next_seven_days_items"] == []
     scope.assert_called_once_with(db.query.return_value, user)
     assert db.query.call_count == 2
     assert {call.args[0] for call in db.query.call_args_list} == {models.Case, models.Task}

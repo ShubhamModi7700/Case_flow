@@ -16,6 +16,7 @@ export interface DashboardWorkItem {
   deadline: string | null;
   preparation_date: string | null;
   attention_date: string | null;
+  attention_reasons?: string[];
   priority: "overdue" | "urgent" | "normal";
   reasons: string[];
   next_action: string;

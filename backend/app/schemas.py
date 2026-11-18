@@ -354,6 +354,7 @@ class DashboardWorkItem(BaseModel):
     deadline: date | None
     preparation_date: date | None
     attention_date: date | None
+    attention_reasons: list[str] = Field(default_factory=list)
     priority: Literal["overdue", "urgent", "normal"]
     reasons: list[str]
     next_action: str

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { formatCaseNumber } from "../types";
@@ -16,14 +16,29 @@ function priorityLabel(item: DashboardWorkItem) {
   return "Anstehend";
 }
 
+const ACTION_PREVIEW_LENGTH = 280;
+
+function actionPreview(text: string) {
+  if (text.length <= ACTION_PREVIEW_LENGTH) return text;
+  const prefix = text.slice(0, ACTION_PREVIEW_LENGTH);
+  const sentenceEnds = [...prefix.matchAll(/[.!?](?=\s|$)/g)];
+  const sentenceEnd = sentenceEnds.at(-1)?.index;
+  const end = sentenceEnd !== undefined ? sentenceEnd + 1 : prefix.lastIndexOf(" ");
+  return `${prefix.slice(0, end > 0 ? end : prefix.length).trimEnd()}…`;
+}
+
 function WorkItemCard({ item }: { item: DashboardWorkItem }) {
   const [showDetails, setShowDetails] = useState(false);
+  const [showFullAction, setShowFullAction] = useState(false);
+  const actionId = useId();
+  const reasonsId = useId();
   const deadline = formatDate(item.deadline);
   const preparation = formatDate(item.preparation_date);
+  const attention = formatDate(item.attention_date);
+  const attentionReasons = item.attention_reasons?.length ? item.attention_reasons : item.reasons;
   const isGenericTitle = /^(Fallmaßnahme\s*\/\s*Wiedervorlage|Fallmaßnahme|Wiedervorlage)$/i.test(item.title.trim());
-  // Remove the legacy AI prefix only from the displayed action; preserve the stored text.
-  const rawAction = item.next_action?.trim() || "Nächste Maßnahme festlegen";
-  const action = rawAction.replace(/^KI\s*[-–]?\s*Vorschlag\s*:\s*/i, "").trim() || "Nächste Maßnahme festlegen";
+  const action = item.next_action?.trim() ? item.next_action : "Nächste Maßnahme festlegen";
+  const preview = actionPreview(action);
   const title = !isGenericTitle && item.title.trim() ? item.title : "Nächste Maßnahme";
   const badgeClass = item.priority === "overdue"
     ? "bg-red-50 text-red-700 ring-red-200"
@@ -45,12 +60,26 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
         </span>
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
-        {action}
+      {attentionReasons.length > 0 && <p className="mt-3 text-xs leading-5 text-slate-600">
+        <span className="font-semibold text-slate-800">Handlungsanlass:</span> {attentionReasons.join(" · ")}
+      </p>}
+
+      <p id={actionId} className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+        {showFullAction ? action : preview}
       </p>
+      {preview !== action && <button
+        type="button"
+        aria-expanded={showFullAction}
+        aria-controls={actionId}
+        onClick={() => setShowFullAction(value => !value)}
+        className="mt-2 text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
+      >
+        {showFullAction ? "Weniger anzeigen" : "Vollständige Maßnahme anzeigen"}
+      </button>}
 
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
         <span><span className="font-semibold text-slate-800">Verantwortlich:</span> {item.responsible_person || "Nicht zugewiesen"}</span>
+        {attention && <span><span className="font-semibold text-slate-800">Handlungsdatum:</span> {attention}</span>}
         <span><span className="font-semibold text-slate-800">Frist:</span> {deadline || "Keine Frist"}</span>
         {preparation && <span><span className="font-semibold text-slate-800">Vorbereitungsbeginn:</span> {preparation}</span>}
       </div>
@@ -60,13 +89,14 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
           <button
             type="button"
             aria-expanded={showDetails}
+            aria-controls={reasonsId}
             onClick={() => setShowDetails(value => !value)}
             className="text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
           >
             {showDetails ? "Priorisierungsgründe ausblenden" : `Handlungsgrund (${item.reasons.length})`}
           </button>
           {showDetails && (
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
+            <ul id={reasonsId} className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
               {item.reasons.map((reason, index) => <li key={`${item.key}-${index}`}>{reason}</li>)}
             </ul>
           )}
