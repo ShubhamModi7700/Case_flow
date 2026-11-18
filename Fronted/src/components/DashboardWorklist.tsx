@@ -16,9 +16,15 @@ function formatDate(value: string | null) {
 }
 
 function priorityLabel(item: DashboardWorkItem) {
-  if (item.priority === "overdue") return "Überfällig";
-  if (item.priority === "urgent") return "Dringend";
-  return "Anstehend";
+  if (item.priority === "overdue") return "Frist überfällig";
+  if (item.priority === "urgent") {
+    if (item.reasons.includes("Kritischer Fallstatus")) return "Kritischer Fallstatus";
+    if (item.reasons.includes("Hohes Fallrisiko")) return "Hohes Fallrisiko";
+    if (item.reasons.includes("Hohe Aufgabenpriorität")) return "Hohe Aufgabenpriorität";
+    return "Erhöhte Priorität";
+  }
+  if (item.deadline && item.deadline === item.attention_date) return "Heute fällig";
+  return "Regulär";
 }
 
 const ACTION_PREVIEW_LENGTH = 280;

@@ -29,6 +29,7 @@ export interface DashboardWorklistData {
   preparation_lead_days: number;
   today_items: DashboardWorkItem[];
   next_seven_days_items: DashboardWorkItem[];
+  undated_items?: DashboardWorkItem[];
 }
 
 export interface DashboardAttentionItem {

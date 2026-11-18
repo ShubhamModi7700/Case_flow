@@ -35,6 +35,7 @@ def build_worklist(
         if not case.is_archived and case.status != "Completed"
     }
     items = []
+    undated_items = []
 
     def add(case, task=None):
         deadline = task.due_date if task is not None else case.primary_deadline
@@ -66,7 +67,7 @@ def build_worklist(
             triggers.append((today, "Nächste Maßnahme offen"))
         attention = min((trigger_date for trigger_date, _ in triggers), default=None)
         attention_reasons = [reason for trigger_date, reason in triggers if trigger_date == attention]
-        if attention is None or attention > through:
+        if attention is not None and attention > through:
             return
         reasons = []
         if overdue:
@@ -89,7 +90,8 @@ def build_worklist(
             reasons.append("Verantwortung offen")
         if not action:
             reasons.append("Nächste Maßnahme offen")
-        items.append(schemas.DashboardWorkItem(
+        target_items = undated_items if attention is None else items
+        target_items.append(schemas.DashboardWorkItem(
             key=f"task:{task.id}" if task is not None else f"case:{case.id}",
             kind="task" if task is not None else "case",
             case_id=case.id, case_title=case.title,
@@ -115,4 +117,5 @@ def build_worklist(
         today=today, through=through, preparation_lead_days=lead_days,
         today_items=[item for item in items if item.attention_date <= today],
         next_seven_days_items=[item for item in items if today < item.attention_date <= through],
+        undated_items=sorted(undated_items, key=lambda item: (item.case_id, item.task_id or 0)),
     )

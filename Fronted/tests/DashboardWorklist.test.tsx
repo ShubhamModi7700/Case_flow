@@ -197,3 +197,25 @@ describe("dashboard worklist", () => {
     expect(screen.getByText("Handlungsdatum:").parentElement?.textContent).toBe(`Handlungsdatum: ${value} (Datumsformat prüfen)`);
   });
 });
+
+
+describe("undated work and explicit priority labels", () => {
+  it("keeps undated cases out of the two action tabs without inventing a date", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { ...data, today_items: [], next_seven_days_items: [], undated_items: [{
+      ...item, key: "case:12", kind: "case", task_id: null, deadline: null, preparation_date: null, attention_date: null, attention_reasons: [], reasons: [],
+    }] } });
+    show();
+    await screen.findByRole("button", { name: "Heute (0)" });
+    expect(screen.queryByRole("button", { name: /Ohne Termin/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /CF-0012/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Kommende 7 Tage (0)" }));
+    expect(screen.queryByRole("link", { name: /CF-0012/ })).toBeNull();
+  });
+
+  it("uses a precise high-risk label instead of ambiguous Dringend", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { ...data, today_items: [{ ...item, priority: "urgent", reasons: ["Hohes Fallrisiko"] }] } });
+    show();
+    expect(await screen.findByText("Hohes Fallrisiko")).toBeTruthy();
+    expect(screen.queryByText("Dringend")).toBeNull();
+  });
+});

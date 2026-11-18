@@ -346,3 +346,29 @@ def test_database_queries_filter_tasks_through_visible_active_cases(monkeypatch)
         assert "cases.is_archived IS false" in sql
     assert "tasks.status = 'Open'" in statements[1]
     assert "tasks.case_id IN (SELECT cases.id" in statements[1]
+
+
+def test_undated_assigned_case_is_visible_only_in_undated_tab():
+    result = worklist([case(primary_deadline=None, follow_up_date=None)])
+    assert not result.today_items
+    assert not result.next_seven_days_items
+    assert len(result.undated_items) == 1
+    item = result.undated_items[0]
+    assert item.kind == "case" and item.attention_date is None
+    assert item.deadline is None and item.preparation_date is None
+    assert item.priority == "normal"
+
+def test_undated_open_task_is_visible_in_undated_tab():
+    result = worklist([case()], [task(due_date=None)])
+    assert {item.key for item in result.undated_items} == {"case:1", "task:1"}
+    assert not result.today_items
+
+def test_missing_action_or_owner_still_requires_attention_today():
+    result = worklist([case(next_action=None, responsible_person=None)])
+    assert len(result.today_items) == 1
+    assert not result.undated_items
+    assert result.today_items[0].attention_reasons == ["Verantwortung offen", "Nächste Maßnahme offen"]
+
+def test_future_follow_up_does_not_become_undated():
+    result = worklist([case(follow_up_date=TODAY + timedelta(days=30))])
+    assert not result.today_items and not result.next_seven_days_items and not result.undated_items

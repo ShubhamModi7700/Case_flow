@@ -384,6 +384,7 @@ class DashboardWorklist(BaseModel):
     preparation_lead_days: int
     today_items: list[DashboardWorkItem]
     next_seven_days_items: list[DashboardWorkItem]
+    undated_items: list[DashboardWorkItem] = Field(default_factory=list)
 
 
 
