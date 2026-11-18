@@ -4,40 +4,79 @@ import { api } from "../api";
 import { formatCaseNumber } from "../types";
 import type { DashboardWorkItem, DashboardWorklistData } from "../types/dashboard";
 
-function formatDate(value: string | null, fallback: string) {
-  if (!value) return fallback;
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE");
+function formatDate(value: string | null) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("de-DE");
 }
 
-function WorklistTable({ items, caption }: { items: DashboardWorkItem[]; caption: string }) {
-  if (!items.length) {
-    return <p className="px-6 py-5 text-sm text-slate-500">Keine Aufgaben in diesem Abschnitt.</p>;
-  }
+function priorityLabel(item: DashboardWorkItem) {
+  if (item.priority === "overdue") return "Überfällig";
+  if (item.priority === "urgent") return "Dringend";
+  return "Anstehend";
+}
+
+function WorkItemCard({ item }: { item: DashboardWorkItem }) {
+  const [showDetails, setShowDetails] = useState(false);
+  const deadline = formatDate(item.deadline);
+  const preparation = formatDate(item.preparation_date);
+  const isGenericTitle = /^(Fallmaßnahme\s*\/\s*Wiedervorlage|Fallmaßnahme|Wiedervorlage)$/i.test(item.title.trim());
+  const action = item.next_action?.trim() || "Nächste Maßnahme festlegen";
+  const title = !isGenericTitle && item.title.trim() ? item.title : "Nächster Schritt";
+  const badgeClass = item.priority === "overdue"
+    ? "bg-red-50 text-red-700 ring-red-200"
+    : item.priority === "urgent"
+      ? "bg-amber-50 text-amber-800 ring-amber-200"
+      : "bg-slate-100 text-slate-700 ring-slate-200";
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] text-left text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
-          <tr>{["Fall", "Aufgabe", "Verantwortlich", "Frist", "Vorbereitung ab", "Warum priorisiert?", "Nächste Maßnahme"].map(label => (
-            <th key={label} scope="col" className="px-4 py-3">{label}</th>
-          ))}</tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {items.map(item => (
-            <tr key={item.key} className="align-top hover:bg-slate-50">
-              <td className="px-4 py-4"><Link className="font-semibold text-slate-950 hover:underline" to={`/cases/${item.case_id}`}>{formatCaseNumber(item.case_id)} — {item.case_title}</Link></td>
-              <td className="px-4 py-4 text-slate-700">{item.title}<span className="mt-1 block text-xs text-slate-500">{item.kind === "task" ? "Aufgabe" : "Fallmaßnahme"}</span></td>
-              <td className="px-4 py-4">{item.responsible_person || "Nicht zugewiesen"}</td>
-              <td className="whitespace-nowrap px-4 py-4">{formatDate(item.deadline, "Keine Frist")}</td>
-              <td className="whitespace-nowrap px-4 py-4">{formatDate(item.preparation_date, "Nicht berechenbar")}</td>
-              <td className={`px-4 py-4 ${item.priority === "overdue" ? "text-red-700" : item.priority === "urgent" ? "text-amber-800" : "text-slate-700"}`}>{item.reasons.join(" · ")}</td>
-              <td className="px-4 py-4 text-slate-700">{item.next_action}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <Link to={`/cases/${item.case_id}`} className="text-sm font-semibold text-slate-950 hover:underline">
+            {formatCaseNumber(item.case_id)} — {item.case_title}
+          </Link>
+          <h4 className="mt-2 text-sm font-semibold text-slate-800">{title}</h4>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${badgeClass}`}>
+          {priorityLabel(item)}
+        </span>
+      </div>
+
+      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+        {action}
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+        <span><span className="font-semibold text-slate-800">Verantwortlich:</span> {item.responsible_person || "Nicht zugewiesen"}</span>
+        <span><span className="font-semibold text-slate-800">Frist:</span> {deadline || "Keine Frist"}</span>
+        {preparation && <span><span className="font-semibold text-slate-800">Vorbereitung ab:</span> {preparation}</span>}
+      </div>
+
+      {item.reasons.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            aria-expanded={showDetails}
+            onClick={() => setShowDetails(value => !value)}
+            className="text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
+          >
+            {showDetails ? "Priorisierungsgründe ausblenden" : `Warum priorisiert? (${item.reasons.length})`}
+          </button>
+          {showDetails && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
+              {item.reasons.map((reason, index) => <li key={`${item.key}-${index}`}>{reason}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </article>
   );
+}
+
+function WorkItemList({ items, emptyMessage }: { items: DashboardWorkItem[]; emptyMessage: string }) {
+  if (!items.length) return <p className="py-4 text-sm text-slate-500">{emptyMessage}</p>;
+  return <div className="grid gap-3">{items.map(item => <WorkItemCard key={item.key} item={item} />)}</div>;
 }
 
 export default function DashboardWorklist() {
@@ -59,38 +98,36 @@ export default function DashboardWorklist() {
   const upcomingItems = weekItems.filter(item => !todayKeys.has(item.key));
 
   return (
-    <section aria-labelledby="worklist-heading" className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-6 py-5">
+    <section aria-labelledby="worklist-heading" className="mt-7 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm sm:p-6">
+      <div className="mb-5">
         <h2 id="worklist-heading" className="text-lg font-semibold text-slate-950">Aufgaben und nächste Schritte</h2>
-        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Zeitraum">
+        <p className="mt-1 text-sm text-slate-500">Priorisierte Maßnahmen über alle Fälle hinweg</p>
+        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Zeitraum">
           {([ ["today", "Heute", todayItems.length], ["week", "Nächste 7 Tage", weekItems.length] ] as const).map(([value, label, count]) => (
-            <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === value ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
+            <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === value ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"}`}>
               {label} <span className="ml-1 opacity-75">({data ? count : "…"})</span>
             </button>
           ))}
         </div>
-        {data && <p className="mt-3 text-xs text-slate-500">
-          {formatDate(data.today, "")} – {formatDate(view === "today" ? data.today : data.through, "")} ({data.timezone}).
-          {" "}Inklusive überfälliger und dringender Arbeit. Vorbereitung: {data.preparation_lead_days} Kalendertage vor der Frist (vorläufige Planungsregel; keine neue Frist).
+        {data && <p className="mt-3 text-xs leading-5 text-slate-500">
+          Stand: {formatDate(data.today)} · {view === "week" ? `Bis ${formatDate(data.through)} · ` : ""}
+          Vorbereitung {data.preparation_lead_days} Kalendertage vor Frist (Planungsregel, keine neue Frist).
         </p>}
       </div>
-      {error ? <p role="alert" className="p-6 text-sm text-red-700">Die Aufgabenübersicht konnte nicht geladen werden.</p>
-        : !data ? <p role="status" className="p-6 text-sm text-slate-500">Aufgabenübersicht wird geladen…</p>
+      {error ? <p role="alert" className="rounded-xl bg-white p-5 text-sm text-red-700">Die Aufgabenübersicht konnte nicht geladen werden.</p>
+        : !data ? <p role="status" className="rounded-xl bg-white p-5 text-sm text-slate-500">Aufgabenübersicht wird geladen…</p>
         : view === "today" ? (
-          todayItems.length ? <WorklistTable items={todayItems} caption="Heute: priorisierte Aufgaben und Fallmaßnahmen" />
-            : <p role="status" className="p-6 text-sm text-slate-500">Keine Aufgaben mit Handlungsbedarf heute.</p>
+          <WorkItemList items={todayItems} emptyMessage="Keine Aufgaben mit Handlungsbedarf heute." />
         ) : (
-          <div>
-            <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-              <h3 className="font-semibold text-slate-900">Jetzt erledigen ({todayItems.length})</h3>
-              <p className="mt-1 text-xs text-slate-500">Bereits fällige, überfällige oder dringende Arbeit.</p>
+          <div className="space-y-7">
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-slate-900">Jetzt erledigen ({todayItems.length})</h3>
+              <WorkItemList items={todayItems} emptyMessage="Keine unmittelbar anstehenden Aufgaben." />
             </div>
-            <WorklistTable items={todayItems} caption="Nächste 7 Tage: Jetzt erledigen" />
-            <div className="border-y border-slate-100 bg-slate-50/50 px-6 py-4">
-              <h3 className="font-semibold text-slate-900">Später diese Woche ({upcomingItems.length})</h3>
-              <p className="mt-1 text-xs text-slate-500">Arbeit, deren Handlungsbedarf erst innerhalb der nächsten sieben Tage beginnt.</p>
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-slate-900">Später diese Woche ({upcomingItems.length})</h3>
+              <WorkItemList items={upcomingItems} emptyMessage="Keine zusätzlichen Aufgaben in den nächsten sieben Tagen." />
             </div>
-            <WorklistTable items={upcomingItems} caption="Nächste 7 Tage: Später diese Woche" />
           </div>
         )}
     </section>

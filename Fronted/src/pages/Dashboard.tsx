@@ -2,25 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
-import { type DashboardData, formatCaseNumber } from "../types";
+import { type DashboardData } from "../types";
 import DashboardWorklist from "../components/DashboardWorklist";
-
-const PREVIEW_MAX = 150;
-
-function compact(value: string | null | undefined, fallback: string) {
-  const text = value
-    ?.replace(/^(?:Als\s+)?KI[- ]Vorschlag\s*:\s*/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!text) return fallback;
-  return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX).trim()}…` : text;
-}
-
-function formatDeadline(value: string | null) {
-  if (!value) return "Keine Frist";
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("de-DE");
-}
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -57,39 +40,6 @@ export default function Dashboard() {
       </div>
 
       <DashboardWorklist />
-
-      <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">Handlungsbedarf</h2>
-            <p className="mt-1 text-sm text-slate-500">Priorisiert nach überfälliger Frist, hohem Risiko und fehlenden Angaben.</p>
-          </div>
-          <Link to="/cases?status_group=open" className="text-sm font-medium text-slate-600 hover:text-slate-950">Alle offenen Fälle</Link>
-        </div>
-
-        {!data.attention_items.length ? (
-          <p className="m-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Aktuell besteht kein hervorgehobener Handlungsbedarf.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr><th className="px-6 py-3">Fall</th><th className="px-4 py-3">Warum Handlungsbedarf?</th><th className="px-4 py-3">Nächste Maßnahme</th><th className="px-4 py-3">Verantwortlich</th><th className="px-6 py-3">Frist</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.attention_items.map((item) => (
-                  <tr key={item.case_id} className="align-top hover:bg-slate-50">
-                    <td className="px-6 py-4"><Link to={`/cases/${item.case_id}`} className="font-semibold text-slate-950 hover:underline">{formatCaseNumber(item.case_id)} — {item.title}</Link></td>
-                    <td className="px-4 py-4"><span className={item.risk === "High" ? "font-medium text-red-700" : "font-medium text-slate-700"}>{item.reason}</span></td>
-                    <td className="max-w-md px-4 py-4 leading-6 text-slate-600">{compact(item.next_action, item.has_pending_ai_action ? "Maßnahme wartet auf Freigabe" : "Noch nicht festgelegt")}</td>
-                    <td className="px-4 py-4 text-slate-700">{item.responsible_person?.trim() || "Nicht zugewiesen"}</td>
-                    <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-700">{formatDeadline(item.deadline)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
       <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500">
         <span><strong className="text-slate-800">{data.open_cases}</strong> offene Fälle</span>
