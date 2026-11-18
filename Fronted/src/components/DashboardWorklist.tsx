@@ -103,7 +103,7 @@ export default function DashboardWorklist() {
         <h2 id="worklist-heading" className="text-lg font-semibold text-slate-950">Aufgaben und nächste Schritte</h2>
         <p className="mt-1 text-sm text-slate-500">Priorisierte Maßnahmen über alle Fälle hinweg</p>
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Zeitraum">
-          {([ ["today", "Heute", todayItems.length], ["week", "Nächste 7 Tage", weekItems.length] ] as const).map(([value, label, count]) => (
+          {([ ["today", "Heute", todayItems.length], ["week", "Nächste 7 Tage", upcomingItems.length] ] as const).map(([value, label, count]) => (
             <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === value ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"}`}>
               {label} <span className="ml-1 opacity-75">({data ? count : "…"})</span>
             </button>
@@ -119,15 +119,10 @@ export default function DashboardWorklist() {
         : view === "today" ? (
           <WorkItemList items={todayItems} emptyMessage="Keine Aufgaben mit Handlungsbedarf heute." />
         ) : (
-          <div className="space-y-7">
-            <div>
-              <h3 className="mb-3 text-sm font-semibold text-slate-900">Jetzt erledigen ({todayItems.length})</h3>
-              <WorkItemList items={todayItems} emptyMessage="Keine unmittelbar anstehenden Aufgaben." />
-            </div>
-            <div>
-              <h3 className="mb-3 text-sm font-semibold text-slate-900">Später diese Woche ({upcomingItems.length})</h3>
-              <WorkItemList items={upcomingItems} emptyMessage="Keine zusätzlichen Aufgaben in den nächsten sieben Tagen." />
-            </div>
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">Neu anstehend in den nächsten 7 Tagen ({upcomingItems.length})</h3>
+            <p className="mb-4 text-xs leading-5 text-slate-500">Nur zusätzliche Maßnahmen ab morgen. Überfällige und bereits heute anstehende Maßnahmen stehen unter „Heute“.</p>
+            <WorkItemList items={upcomingItems} emptyMessage="Keine zusätzlichen Aufgaben in den nächsten sieben Tagen. Alle derzeit anstehenden Maßnahmen finden Sie unter „Heute“." />
           </div>
         )}
     </section>
