@@ -38,7 +38,9 @@ describe("dashboard worklist", () => {
     expect(screen.getByText("Anna")).toBeTruthy();
     expect(screen.getByText("20.11.2026")).toBeTruthy();
     expect(screen.getByText("17.11.2026")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /Handlungsgrund/ }));
     expect(screen.getByText("Vorbereitung ab 17.11.2026")).toBeTruthy();
+    expect(screen.getByText("Vorbereitungsbeginn:")).toBeTruthy();
     expect(screen.queryByText("Antwort versenden")).toBeNull();
     expect(api.get).toHaveBeenCalledExactlyOnceWith("/dashboard/worklist");
   });
@@ -46,11 +48,11 @@ describe("dashboard worklist", () => {
   it("switches to next seven days and back without another request", async () => {
     vi.mocked(api.get).mockResolvedValue({ data });
     show();
-    await screen.findByRole("table");
-    await userEvent.click(screen.getByRole("button", { name: "Nächste 7 Tage" }));
+    await screen.findByRole("link", { name: /CF-0012/ });
+    await userEvent.click(screen.getByRole("button", { name: "Kommende 7 Tage (1)" }));
     expect(screen.getAllByText("Antwort versenden")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Nächste 7 Tage" }).getAttribute("aria-pressed")).toBe("true");
-    await userEvent.click(screen.getByRole("button", { name: "Heute" }));
+    expect(screen.getByRole("button", { name: "Kommende 7 Tage (1)" }).getAttribute("aria-pressed")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: /^Heute \(\d+\)$/ }));
     expect(screen.queryByText("Antwort versenden")).toBeNull();
     expect(api.get).toHaveBeenCalledTimes(1);
   });
@@ -62,7 +64,7 @@ describe("dashboard worklist", () => {
     }] } });
     show();
     expect(await screen.findByText("Keine Frist")).toBeTruthy();
-    expect(screen.getByText("Nicht berechenbar")).toBeTruthy();
+    expect(screen.queryByText("Vorbereitungsbeginn:")).toBeNull();
     expect(screen.getByText("Nicht zugewiesen")).toBeTruthy();
     expect(screen.getByText("Nächste Maßnahme festlegen")).toBeTruthy();
   });
@@ -71,7 +73,7 @@ describe("dashboard worklist", () => {
     vi.mocked(api.get).mockResolvedValue({ data: { ...data, today_items: [] } });
     show();
     expect(screen.getByRole("status").textContent).toContain("wird geladen");
-    expect(await screen.findByText("Keine Aufgaben mit Handlungsbedarf in diesem Zeitraum.")).toBeTruthy();
+    expect(await screen.findByText("Keine Maßnahmen mit Handlungsbedarf heute.")).toBeTruthy();
   });
 
   it("contains request failures in the worklist section", async () => {

@@ -26,8 +26,8 @@ export default function Dashboard() {
       <header className="mb-7 flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Case Flow</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">Management Cockpit</h1>
-          <p className="mt-2 text-sm text-slate-500">Auf einen Blick: Wo besteht Handlungsbedarf?</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">Meine Übersicht</h1>
+          <p className="mt-2 text-sm text-slate-500">Was muss heute erledigt werden?</p>
         </div>
         <Link to="/cases/new" className="shrink-0 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">+ Fall anlegen</Link>
       </header>
@@ -35,8 +35,8 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AttentionCard to="/cases?risk=High" title="Kritisch" value={data.high_risk_cases} hint="Fälle mit hohem Risiko" tone="red" />
         <AttentionCard to="/cases?overdue=true" title="Überfällig" value={data.overdue_deadlines} hint="Fristen mit sofortigem Handlungsbedarf" tone="amber" />
-        <AttentionCard to="/cases?missing_owner=true" title="Ohne Verantwortlichen" value={data.cases_without_responsible} hint="Zuständigkeit festlegen" />
-        <AttentionCard to="/cases?missing_next_action=true" title="Ohne nächste Maßnahme" value={data.cases_without_next_action} hint="Nächsten Schritt festlegen" />
+        <AttentionCard to="/cases?missing_owner=true" title="Ohne Zuständigkeit" value={data.cases_without_responsible} hint="Zuständigkeit festlegen" />
+        <AttentionCard to="/cases?missing_next_action=true" title="Maßnahme fehlt" value={data.cases_without_next_action} hint="Nächste Maßnahme festlegen" />
       </div>
 
       <DashboardWorklist />

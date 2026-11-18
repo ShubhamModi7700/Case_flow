@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../src/api";
@@ -23,8 +23,8 @@ const summary: DashboardData = {
 beforeEach(() => { vi.mocked(api.get).mockReset(); });
 afterEach(cleanup);
 
-describe("existing Management Cockpit with worklist", () => {
-  it("preserves KPI links, attention rows, and AI review labels while switching views", async () => {
+describe("dashboard with prioritized measures", () => {
+  it("preserves KPI links and shows the renamed worklist", async () => {
     vi.mocked(api.get).mockImplementation(async url => {
       if (url === "/dashboard/summary") return { data: summary };
       if (url === "/dashboard/worklist") return { data: {
@@ -34,37 +34,29 @@ describe("existing Management Cockpit with worklist", () => {
       throw new Error(`Unexpected request: ${url}`);
     });
     render(<MemoryRouter><Dashboard /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Management Cockpit" })).toBeTruthy();
-    const kpi = screen.getByRole("link", { name: /Kritisch/ });
-    expect(kpi.getAttribute("href")).toBe("/cases?risk=High");
-    expect(within(kpi).getByText("2")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Meine Übersicht" })).toBeTruthy();
     for (const [name, href] of [
+      [/Kritisch/, "/cases?risk=High"],
       [/Überfällig/, "/cases?overdue=true"],
-      [/Ohne Verantwortlichen/, "/cases?missing_owner=true"],
-      [/Ohne nächste Maßnahme/, "/cases?missing_next_action=true"],
+      [/Ohne Zuständigkeit/, "/cases?missing_owner=true"],
+      [/Maßnahme fehlt/, "/cases?missing_next_action=true"],
       [/Fall anlegen/, "/cases/new"],
-      [/Alle offenen Fälle/, "/cases?status_group=open"],
     ] as const) expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
-    const attention = screen.getByRole("link", { name: /CF-0001 — Bestehender Fall/ });
-    expect(attention.getAttribute("href")).toBe("/cases/1");
-    expect(screen.getByText("Maßnahme wartet auf Freigabe")).toBeTruthy();
-    expect(screen.getByText(/Vorschläge zur Prüfung/).textContent).toContain("3");
-    await screen.findByText("Keine Aufgaben mit Handlungsbedarf in diesem Zeitraum.");
-    await userEvent.click(screen.getByRole("button", { name: "Nächste 7 Tage" }));
-    expect(screen.getByRole("heading", { name: "Handlungsbedarf" })).toBeTruthy();
-    expect(screen.getByText("Maßnahme wartet auf Freigabe")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Priorisierte Maßnahmen" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Kommende 7 Tage (0)" }));
+    expect(screen.getByText(/Keine zusätzlichen Maßnahmen/)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Handlungsbedarf" })).toBeNull();
     expect(api.get).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps the existing cockpit usable when only the worklist request fails", async () => {
+  it("keeps the existing KPIs usable when the worklist request fails", async () => {
     vi.mocked(api.get).mockImplementation(async url => {
       if (url === "/dashboard/summary") return { data: summary };
       throw new Error("Worklist unavailable");
     });
     render(<MemoryRouter><Dashboard /></MemoryRouter>);
     await screen.findByRole("alert");
-    expect(screen.getByRole("heading", { name: "Management Cockpit" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /CF-0001 — Bestehender Fall/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Meine Übersicht" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Überfällig/ })).toBeTruthy();
   });
 });

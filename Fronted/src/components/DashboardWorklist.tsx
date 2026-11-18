@@ -21,8 +21,10 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
   const deadline = formatDate(item.deadline);
   const preparation = formatDate(item.preparation_date);
   const isGenericTitle = /^(Fallmaßnahme\s*\/\s*Wiedervorlage|Fallmaßnahme|Wiedervorlage)$/i.test(item.title.trim());
-  const action = item.next_action?.trim() || "Nächste Maßnahme festlegen";
-  const title = !isGenericTitle && item.title.trim() ? item.title : "Nächster Schritt";
+  // Remove the legacy AI prefix only from the displayed action; preserve the stored text.
+  const rawAction = item.next_action?.trim() || "Nächste Maßnahme festlegen";
+  const action = rawAction.replace(/^KI\s*[-–]?\s*Vorschlag\s*:\s*/i, "").trim() || "Nächste Maßnahme festlegen";
+  const title = !isGenericTitle && item.title.trim() ? item.title : "Nächste Maßnahme";
   const badgeClass = item.priority === "overdue"
     ? "bg-red-50 text-red-700 ring-red-200"
     : item.priority === "urgent"
@@ -50,7 +52,7 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
         <span><span className="font-semibold text-slate-800">Verantwortlich:</span> {item.responsible_person || "Nicht zugewiesen"}</span>
         <span><span className="font-semibold text-slate-800">Frist:</span> {deadline || "Keine Frist"}</span>
-        {preparation && <span><span className="font-semibold text-slate-800">Vorbereitung ab:</span> {preparation}</span>}
+        {preparation && <span><span className="font-semibold text-slate-800">Vorbereitungsbeginn:</span> {preparation}</span>}
       </div>
 
       {item.reasons.length > 0 && (
@@ -61,7 +63,7 @@ function WorkItemCard({ item }: { item: DashboardWorkItem }) {
             onClick={() => setShowDetails(value => !value)}
             className="text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
           >
-            {showDetails ? "Priorisierungsgründe ausblenden" : `Warum priorisiert? (${item.reasons.length})`}
+            {showDetails ? "Priorisierungsgründe ausblenden" : `Handlungsgrund (${item.reasons.length})`}
           </button>
           {showDetails && (
             <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
@@ -100,10 +102,10 @@ export default function DashboardWorklist() {
   return (
     <section aria-labelledby="worklist-heading" className="mt-7 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm sm:p-6">
       <div className="mb-5">
-        <h2 id="worklist-heading" className="text-lg font-semibold text-slate-950">Aufgaben und nächste Schritte</h2>
+        <h2 id="worklist-heading" className="text-lg font-semibold text-slate-950">Priorisierte Maßnahmen</h2>
         <p className="mt-1 text-sm text-slate-500">Priorisierte Maßnahmen über alle Fälle hinweg</p>
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Zeitraum">
-          {([ ["today", "Heute", todayItems.length], ["week", "Nächste 7 Tage", upcomingItems.length] ] as const).map(([value, label, count]) => (
+          {([ ["today", "Heute", todayItems.length], ["week", "Kommende 7 Tage", upcomingItems.length] ] as const).map(([value, label, count]) => (
             <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === value ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"}`}>
               {label} <span className="ml-1 opacity-75">({data ? count : "…"})</span>
             </button>
@@ -111,18 +113,18 @@ export default function DashboardWorklist() {
         </div>
         {data && <p className="mt-3 text-xs leading-5 text-slate-500">
           Stand: {formatDate(data.today)} · {view === "week" ? `Bis ${formatDate(data.through)} · ` : ""}
-          Vorbereitung {data.preparation_lead_days} Kalendertage vor Frist (Planungsregel, keine neue Frist).
+          Vorbereitungsbeginn {data.preparation_lead_days} Kalendertage vor Frist (Planungsregel, keine neue Frist).
         </p>}
       </div>
       {error ? <p role="alert" className="rounded-xl bg-white p-5 text-sm text-red-700">Die Aufgabenübersicht konnte nicht geladen werden.</p>
         : !data ? <p role="status" className="rounded-xl bg-white p-5 text-sm text-slate-500">Aufgabenübersicht wird geladen…</p>
         : view === "today" ? (
-          <WorkItemList items={todayItems} emptyMessage="Keine Aufgaben mit Handlungsbedarf heute." />
+          <WorkItemList items={todayItems} emptyMessage="Keine Maßnahmen mit Handlungsbedarf heute." />
         ) : (
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-slate-900">Neu anstehend in den nächsten 7 Tagen ({upcomingItems.length})</h3>
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">Zusätzliche Maßnahmen in den kommenden 7 Tagen ({upcomingItems.length})</h3>
             <p className="mb-4 text-xs leading-5 text-slate-500">Nur zusätzliche Maßnahmen ab morgen. Überfällige und bereits heute anstehende Maßnahmen stehen unter „Heute“.</p>
-            <WorkItemList items={upcomingItems} emptyMessage="Keine zusätzlichen Aufgaben in den nächsten sieben Tagen. Alle derzeit anstehenden Maßnahmen finden Sie unter „Heute“." />
+            <WorkItemList items={upcomingItems} emptyMessage="Keine zusätzlichen Maßnahmen in den kommenden sieben Tagen. Alle derzeit anstehenden Maßnahmen finden Sie unter „Heute“." />
           </div>
         )}
     </section>
