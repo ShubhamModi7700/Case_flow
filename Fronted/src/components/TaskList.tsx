@@ -5,6 +5,7 @@ import type { TaskItem } from "../types";
 
 interface TaskListProps {
   tasks: TaskItem[];
+  canEdit: boolean;
   onTaskUpdated: (task: TaskItem) => void;
   onTaskDeleted: (taskId: number) => void;
 }
@@ -13,9 +14,12 @@ type StatusFilter = "All" | "Open" | "Completed" | "Overdue";
 
 export default function TaskList({
   tasks,
+  canEdit,
   onTaskUpdated,
   onTaskDeleted,
 }: TaskListProps) {
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<TaskItem | null>(null);
   const [workingTaskId, setWorkingTaskId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
@@ -37,6 +41,38 @@ export default function TaskList({
     if (personFilter && !splitPeople(task.responsible_person).includes(personFilter)) return false;
     return true;
   });
+
+  function beginEdit(task: TaskItem) {
+    setError("");
+    setDraft({ ...task });
+    setEditingTaskId(task.id);
+  }
+
+  async function saveEdit(taskId: number): Promise<void> {
+    if (!draft?.title.trim()) {
+      setError("Ein Aufgabentitel ist erforderlich.");
+      return;
+    }
+    try {
+      setWorkingTaskId(taskId);
+      setError("");
+      const response = await api.patch<TaskItem>(`/tasks/${taskId}`, {
+        title: draft.title.trim(),
+        description: draft.description?.trim() || null,
+        category: draft.category?.trim() || null,
+        responsible_person: draft.responsible_person?.trim() || null,
+        due_date: draft.due_date || null,
+        priority: draft.priority,
+      });
+      onTaskUpdated(response.data);
+      setEditingTaskId(null);
+      setDraft(null);
+    } catch (requestError: unknown) {
+      setError(getApiErrorMessage(requestError, "Die Aufgabe konnte nicht aktualisiert werden."));
+    } finally {
+      setWorkingTaskId(null);
+    }
+  }
 
   async function completeTask(taskId: number): Promise<void> {
     try {
@@ -116,7 +152,8 @@ export default function TaskList({
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500"><span><b>Verantwortlich:</b> {task.responsible_person ?? "Nicht zugewiesen"}</span><span><b>Fällig:</b> {task.due_date ?? "Keine Frist"}</span></div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {completed ? (
+          {canEdit && <button type="button" disabled={working} onClick={() => editingTaskId === task.id ? (setEditingTaskId(null), setDraft(null)) : beginEdit(task)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">{editingTaskId === task.id ? "Abbrechen" : "Bearbeiten"}</button>}
+          {canEdit && (completed ? (
             <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
               Erledigt
             </span>
@@ -129,18 +166,27 @@ export default function TaskList({
             >
               {working ? "Wird verarbeitet..." : "Als erledigt markieren"}
             </button>
-          )}
+          ))}
 
-          <button
+          {canEdit && <button
             type="button"
             disabled={working}
             onClick={() => void deleteTask(task)}
             className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
             Löschen
-          </button>
+          </button>}
         </div>
         </div>
+        {canEdit && editingTaskId === task.id && draft && <form className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={event => { event.preventDefault(); void saveEdit(task.id); }}>
+          <label className="text-sm font-medium">Titel<input className="input mt-1" required value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} /></label>
+          <label className="text-sm font-medium">Beschreibung<textarea className="input mt-1" rows={3} value={draft.description ?? ""} onChange={event => setDraft({ ...draft, description: event.target.value })} /></label>
+          <label className="text-sm font-medium">Kategorie<input className="input mt-1" value={draft.category ?? ""} onChange={event => setDraft({ ...draft, category: event.target.value })} /></label>
+          <label className="text-sm font-medium">Verantwortlich<input className="input mt-1" value={draft.responsible_person ?? ""} onChange={event => setDraft({ ...draft, responsible_person: event.target.value })} /></label>
+          <label className="text-sm font-medium">Fälligkeitsdatum<input className="input mt-1" type="date" value={draft.due_date ?? ""} onChange={event => setDraft({ ...draft, due_date: event.target.value })} /></label>
+          <label className="text-sm font-medium">Priorität<select className="input mt-1" value={draft.priority} onChange={event => setDraft({ ...draft, priority: event.target.value as TaskItem["priority"] })}><option value="Low">Niedrig</option><option value="Medium">Mittel</option><option value="High">Hoch</option></select></label>
+          <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={working} type="submit">{working ? "Speichern…" : "Änderungen speichern"}</button>
+        </form>}
       </article>;
     })}</div>
   </div>;

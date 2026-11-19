@@ -141,6 +141,54 @@ def list_tasks(
     )
 
 
+
+
+@router.patch(
+    "/tasks/{task_id}",
+    response_model=schemas.TaskResponse,
+)
+def update_task(
+    task_id: int,
+    task_data: schemas.TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    task = get_task_or_404(task_id, db)
+    require_case_edit(db, current_user, task.case_id)
+    changes = task_data.model_dump(exclude_unset=True)
+    if not changes:
+        return task
+    if "title" in changes and changes["title"] is None:
+        raise HTTPException(status_code=422, detail="Ein Aufgabentitel ist erforderlich.")
+    if "priority" in changes and changes["priority"] is None:
+        raise HTTPException(status_code=422, detail="Eine Priorität ist erforderlich.")
+    if "status" in changes and changes["status"] is None:
+        raise HTTPException(status_code=422, detail="Ein Status ist erforderlich.")
+    changed_fields = [name for name, value in changes.items() if getattr(task, name) != value]
+    if not changed_fields:
+        return task
+    try:
+        for name in changed_fields:
+            setattr(task, name, changes[name])
+        db.add(models.History(
+            case_id=task.case_id,
+            change="Aufgabe bearbeitet",
+            responsible_person=task.responsible_person,
+            note=f"Task '{task.title}' updated: {', '.join(changed_fields)}.",
+        ))
+        case = get_case_or_404(task.case_id, db)
+        refresh_risk_suggestion(case)
+        db.commit()
+        db.refresh(task)
+        return task
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Die Aufgabe konnte nicht aktualisiert werden.",
+        ) from exc
+
+
 @router.patch(
     "/tasks/{task_id}/complete",
     response_model=schemas.TaskResponse,

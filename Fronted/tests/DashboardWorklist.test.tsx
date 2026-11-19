@@ -163,7 +163,7 @@ describe("dashboard worklist", () => {
     const text = document.getElementById(button.getAttribute("aria-controls")!)!;
     expect(text.textContent!.length).toBeLessThanOrEqual(281);
     await userEvent.click(button);
-    expect(text.textContent).toBe(fullAction);
+    expect(text.textContent).toBe(fullAction.replace(/^KI-Vorschlag:\s*/i, ""));
   });
 
   it("shows CF-0008's actual ISO year 0026 and warns without hiding the legacy record", async () => {

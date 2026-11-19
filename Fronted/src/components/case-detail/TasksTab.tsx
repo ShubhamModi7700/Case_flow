@@ -32,6 +32,7 @@ export default function TasksTab({
         <div className="mt-5">
           <TaskList
             tasks={tasks}
+            canEdit={canEdit}
             onTaskUpdated={(task) => {
               onTaskUpdated(task);
               void refreshHistory();
