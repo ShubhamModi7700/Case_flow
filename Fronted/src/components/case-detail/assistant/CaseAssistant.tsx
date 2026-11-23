@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AssistantMarkdown from "./AssistantMarkdown";
+import { api } from "../../../api";
+import type { TaskItem } from "../../../types";
 
 import {
   queryCaseAssistant,
@@ -23,6 +25,8 @@ import {
 
 type Props = {
   caseId: number;
+  canEdit?: boolean;
+  onTaskCreated?: (task: TaskItem) => void;
 };
 
 function errorMessage(error: unknown): string {
@@ -445,7 +449,77 @@ function BriefDraftView({ item, sourcesById }: { item: AssistantBriefDraft; sour
 }
 
 
-function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; sourcesById: Map<string, AssistantSource> }) {
+type ReviewTaskPriority = "Low" | "Medium" | "High";
+
+function ReviewCheckTask({
+  check, caseId, canEdit, onTaskCreated,
+}: {
+  check: string;
+  caseId: number;
+  canEdit: boolean;
+  onTaskCreated?: (task: TaskItem) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(check);
+  const [description, setDescription] = useState(`KI-RED-REVIEW – empfohlene Prüfung (nicht fachlich freigegeben):\n${check}\n\nQuellen: Bitte die Belege im KI-RED-REVIEW prüfen. Die Empfehlung enthält keine eigenständig verifizierte Quellenzuordnung.`);
+  const [priority, setPriority] = useState<ReviewTaskPriority>("Medium");
+  const [responsible, setResponsible] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  async function saveTask(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!title.trim() || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await api.post<TaskItem>(`/cases/${caseId}/tasks`, {
+        title: title.trim(),
+        description: description.trim() || null,
+        category: "KI-RED-REVIEW / Prüfung",
+        responsible_person: responsible.trim() || null,
+        due_date: dueDate || null,
+        priority,
+        status: "Open",
+      });
+      onTaskCreated?.(response.data);
+      setSaved(true);
+      setEditing(false);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="rounded-lg border border-slate-200 p-3">
+      <p className="text-sm text-slate-800">{check}</p>
+      {saved ? <p role="status" className="mt-2 text-xs font-semibold text-emerald-700">Aufgabe erstellt. Sie erscheint im Reiter Aufgaben.</p> : canEdit && !editing ? (
+        <button type="button" className="mt-2 rounded-md border border-violet-300 px-3 py-1.5 text-xs font-medium text-violet-800" onClick={() => setEditing(true)}>Als Aufgabe übernehmen</button>
+      ) : null}
+      {editing && !saved && (
+        <form onSubmit={(event) => void saveTask(event)} className="mt-3 space-y-3 rounded-lg bg-slate-50 p-3">
+          <p className="text-xs font-semibold text-slate-700">Aufgabe vor dem Speichern prüfen</p>
+          <label className="block text-xs font-medium">Titel *<input required maxLength={250} className="input mt-1 w-full" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label className="block text-xs font-medium">Begründung / Belegstatus<textarea rows={4} className="input mt-1 w-full" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block text-xs font-medium">Priorität<select className="input mt-1 w-full" value={priority} onChange={(event) => setPriority(event.target.value as ReviewTaskPriority)}><option value="Low">Niedrig</option><option value="Medium">Mittel</option><option value="High">Hoch</option></select></label>
+            <label className="block text-xs font-medium">Verantwortlich<input className="input mt-1 w-full" value={responsible} onChange={(event) => setResponsible(event.target.value)} placeholder="Noch nicht zugewiesen" /></label>
+            <label className="block text-xs font-medium">Planungsdatum (optional)<input type="date" className="input mt-1 w-full" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></label>
+          </div>
+          <p className="text-xs text-amber-800">Das Datum ist ein manuell festgelegtes Planungsdatum, keine von der KI bestätigte gesetzliche Frist. Quellen vor Freigabe selbst prüfen.</p>
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+          <div className="flex gap-2"><button type="submit" disabled={saving || !title.trim()} className="rounded-md bg-violet-700 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{saving ? "Speichert..." : "Aufgabe verbindlich erstellen"}</button><button type="button" disabled={saving} onClick={() => setEditing(false)} className="rounded-md border px-3 py-2 text-xs">Abbrechen</button></div>
+        </form>
+      )}
+    </li>
+  );
+}
+
+function BriefReviewView({ item, sourcesById, caseId, canEdit, onTaskCreated }: { item: AssistantBriefReview; sourcesById: Map<string, AssistantSource>; caseId: number; canEdit: boolean; onTaskCreated?: (task: TaskItem) => void }) {
   return (
     <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div>
@@ -459,7 +533,7 @@ function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; so
       {item.contradictions.length > 0 && <div><h4 className="mb-2 font-semibold">Widersprüche</h4><EvidenceList items={item.contradictions} sourcesById={sourcesById}/></div>}
       {item.evidence_gaps.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h4 className="font-semibold text-amber-900">Beweislücken</h4><ul className="mt-2 list-disc pl-5 text-sm text-amber-900">{item.evidence_gaps.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
       {item.legal_review_points.length > 0 && <div className="rounded-lg bg-white p-4"><h4 className="font-semibold">Rechtlich zu prüfen</h4><ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{item.legal_review_points.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
-      {item.recommended_checks.length > 0 && <div className="rounded-lg bg-white p-4"><h4 className="font-semibold">Empfohlene Prüfungen vor Freigabe</h4><ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{item.recommended_checks.map((x,i)=><li key={`${x}-${i}`}>{x}</li>)}</ul></div>}
+      {item.recommended_checks.length > 0 && <div className="rounded-lg bg-white p-4"><h4 className="font-semibold">Empfohlene Prüfungen vor Freigabe</h4><ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{item.recommended_checks.map((x,i)=><ReviewCheckTask key={`${x}-${i}`} check={x} caseId={caseId} canEdit={canEdit} onTaskCreated={onTaskCreated} />)}</ul></div>}
     </div>
   );
 }
@@ -583,7 +657,7 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
   );
 }
 
-export default function CaseAssistant({ caseId }: Props) {
+export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }: Props) {
   const [selectedChatSource, setSelectedChatSource] = useState<string | null>(null);
   const question = "";
   const [chatOpen, setChatOpen] = useState(true);
@@ -1010,7 +1084,7 @@ export default function CaseAssistant({ caseId }: Props) {
           )}
 
           {result.brief_review && (
-            <BriefReviewView item={result.brief_review} sourcesById={sourcesById} />
+            <BriefReviewView item={result.brief_review} sourcesById={sourcesById} caseId={caseId} canEdit={canEdit} onTaskCreated={onTaskCreated} />
           )}
 
           {result.task_type === "report" && <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">

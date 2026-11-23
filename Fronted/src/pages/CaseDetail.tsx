@@ -440,7 +440,7 @@ export default function CaseDetail() {
         )}
 
         {activeTab === "assistant" && (
-          <CaseAssistant caseId={caseItem.id} />
+          <CaseAssistant caseId={caseItem.id} canEdit={canEdit} onTaskCreated={(task) => { handleTaskCreated(task); void loadTimeline(); }} />
         )}
 
         {activeTab === "KI" && (
