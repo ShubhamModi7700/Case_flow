@@ -837,7 +837,33 @@ export default function CaseAssistant({ caseId }: Props) {
               <div key={turn.id} className={`flex ${turn.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`min-w-0 ${turn.role === "user" ? "max-w-[92%] sm:max-w-[80%]" : "w-full max-w-full"} rounded-2xl px-4 py-3 text-sm ${turn.role === "user" ? "bg-slate-100 text-slate-900" : "border border-slate-100 bg-white text-slate-800"}`}>
                   <div className="mb-2 text-xs font-semibold text-slate-500">{turn.role === "user" ? "Sie" : "Case Flow"}</div>
-                  <AssistantMarkdown content={turn.role === "assistant" ? turn.content.replace(/\s*\[S\d+\]/g, "") : turn.content} />
+                  <AssistantMarkdown
+                    content={turn.content}
+                    sources={turn.role === "assistant" ? turn.response?.sources : undefined}
+                    sourcePrefix={turn.role === "assistant" ? `chat-${turn.id}` : undefined}
+                  />
+                  {turn.role === "assistant" && turn.response && (
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                      {turn.response.sources.length > 0 ? (
+                        <>
+                          <p className="mb-2 text-xs text-slate-500">Abgerufene Textstellen; die Zuordnung einzelner Aussagen bitte prüfen.</p>
+                          <details className="rounded-lg border border-slate-200 bg-slate-50">
+                            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Quellen anzeigen ({turn.response.sources.length})</summary>
+                            <div className="space-y-2 border-t border-slate-200 p-3">
+                              {turn.response.sources.map((source) => (
+                                <div key={source.source_id} id={`chat-${turn.id}-source-${source.source_id}`} className="rounded-md bg-white p-2 text-xs text-slate-700">
+                                  <strong>[{source.source_id}] {source.filename}</strong>
+                                  {sourceLocation(source) && <span> · {sourceLocation(source)}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </>
+                      ) : (
+                        <p className="text-xs text-amber-800">Keine Dokumentquellen für diese Antwort verfügbar.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
