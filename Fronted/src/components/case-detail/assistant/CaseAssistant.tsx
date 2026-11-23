@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import AssistantMarkdown from "./AssistantMarkdown";
 import { api } from "../../../api";
 import type { TaskItem } from "../../../types";
@@ -316,6 +316,40 @@ function EntitiesView({
         ))}
       </div>
     </div>
+  );
+}
+
+function BriefCompactResult({
+  title,
+  subtitle,
+  highlights,
+  detail,
+}: {
+  title: string;
+  subtitle: string;
+  highlights: string[];
+  detail: ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5" aria-label={title}>
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-xs text-slate-600">{subtitle}</p>
+      {highlights.length > 0 ? (
+        <ol className="mt-4 space-y-2">
+          {highlights.slice(0, 3).map((highlight, index) => (
+            <li key={`${index}-${highlight}`} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-800">
+              <span className="font-semibold text-violet-700">{index + 1}.</span>
+              <span className="min-w-0 break-words">{highlight}</span>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="mt-3 text-sm text-slate-500">Keine Kurzübersicht verfügbar. Vollständiges Ergebnis prüfen.</p>}
+      <details className="mt-4 rounded-lg border border-slate-200">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-violet-800">Vollständiges Ergebnis und Belege anzeigen</summary>
+        <div className="border-t border-slate-200 p-3 sm:p-4">{detail}</div>
+      </details>
+      <p className="mt-2 text-xs text-slate-500">Kurzübersicht ohne eigene fachliche Prüfung. Maßgeblich sind die vollständigen Ergebnisse und Quellen.</p>
+    </section>
   );
 }
 
@@ -1072,19 +1106,43 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
       {result && (
         <div className="mt-6 space-y-5">
           {result.brief_evidence_package && (
-            <BriefEvidenceView item={result.brief_evidence_package} sourcesById={sourcesById} />
+            <BriefCompactResult
+              title="1. Beweispaket"
+              subtitle={`${result.brief_evidence_package.established_facts.length} Tatsachen · ${result.brief_evidence_package.key_evidence.length} Belege · ${result.brief_evidence_package.open_issues.length} offene Punkte`}
+              highlights={result.brief_evidence_package.open_issues.length > 0
+                ? result.brief_evidence_package.open_issues
+                : result.brief_evidence_package.established_facts.map((fact) => fact.text)}
+              detail={<BriefEvidenceView item={result.brief_evidence_package} sourcesById={sourcesById} />}
+            />
           )}
 
           {result.brief_outline && (
-            <BriefOutlineView item={result.brief_outline} sourcesById={sourcesById} />
+            <BriefCompactResult
+              title="2. Gliederung"
+              subtitle={`${result.brief_outline.sections.length} Abschnitte · ${result.brief_outline.open_issues.length} offene Punkte`}
+              highlights={result.brief_outline.sections.map((section) => section.heading)}
+              detail={<BriefOutlineView item={result.brief_outline} sourcesById={sourcesById} />}
+            />
           )}
 
           {result.brief_draft && (
-            <BriefDraftView item={result.brief_draft} sourcesById={sourcesById} />
+            <BriefCompactResult
+              title="3. KI-Entwurf"
+              subtitle={`${result.brief_draft.sections.length} Abschnitte · ${result.brief_draft.open_issues.length} offene Punkte · Nicht freigegeben`}
+              highlights={[result.brief_draft.title, ...result.brief_draft.sections.map((section) => section.heading)]}
+              detail={<BriefDraftView item={result.brief_draft} sourcesById={sourcesById} />}
+            />
           )}
 
           {result.brief_review && (
-            <BriefReviewView item={result.brief_review} sourcesById={sourcesById} caseId={caseId} canEdit={canEdit} onTaskCreated={onTaskCreated} />
+            <BriefCompactResult
+              title="4. KI-RED-REVIEW"
+              subtitle={`${result.brief_review.factual_risks.length} Beweisrisiken · ${result.brief_review.counterarguments.length} Gegenargumente · ${result.brief_review.recommended_checks.length} empfohlene Prüfungen`}
+              highlights={result.brief_review.recommended_checks.length > 0
+                ? result.brief_review.recommended_checks
+                : result.brief_review.factual_risks.map((risk) => risk.risk)}
+              detail={<BriefReviewView item={result.brief_review} sourcesById={sourcesById} caseId={caseId} canEdit={canEdit} onTaskCreated={onTaskCreated} />}
+            />
           )}
 
           {result.task_type === "report" && <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
