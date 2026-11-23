@@ -846,8 +846,21 @@ export default function CaseAssistant({ caseId }: Props) {
                     <div className="mt-3 border-t border-slate-100 pt-3">
                       {turn.response.sources.length > 0 ? (
                         <>
+                          {!/\[S\d+\]/.test(turn.content) && turn.response.claims?.some((claim) => claim.source_ids.length > 0) && (
+                            <details className="mb-3 rounded-lg border border-slate-200 bg-white">
+                              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Aussagen mit zugeordneten Belegen anzeigen</summary>
+                              <div className="space-y-3 border-t border-slate-100 p-3">
+                                {turn.response.claims.filter((claim) => claim.source_ids.length > 0).map((claim, index) => (
+                                  <div key={`${claim.text}-${index}`} className="rounded-md bg-slate-50 p-2 text-sm">
+                                    <p>{claim.text}</p>
+                                    <SourceBadges sourceIds={claim.source_ids} sourcesById={new Map(turn.response!.sources.map((source) => [source.source_id, source]))} />
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                           <p className="mb-2 text-xs text-slate-500">Abgerufene Textstellen; die Zuordnung einzelner Aussagen bitte prüfen.</p>
-                          <details className="rounded-lg border border-slate-200 bg-slate-50">
+                          <details open={/\[S\d+\]/.test(turn.content) ? true : undefined} className="rounded-lg border border-slate-200 bg-slate-50">
                             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Quellen anzeigen ({turn.response.sources.length})</summary>
                             <div className="space-y-2 border-t border-slate-200 p-3">
                               {turn.response.sources.map((source) => (
