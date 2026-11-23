@@ -811,6 +811,7 @@ export default function CaseAssistant({ caseId }: Props) {
           <option value="compact">Kurzbericht</option>
           <option value="detailed">Detailbericht</option>
         </select>
+        <button type="button" aria-expanded={showBriefForm} aria-controls="case-brief-form" onClick={() => { setChatOpen(false); setShowBriefForm(true); setResult(null); setIntelligence(null); setWorkStatus(null); }} className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-900">Schriftsatzvorbereitung</button>
         <button type="button" disabled={loading} onClick={() => { setChatOpen(false); void submit("report", reportMode === "compact" ? "KURZBERICHT: Erstelle einen kompakten, belegten Management-Fallbericht mit Sachstand, wichtigsten Risiken, Fristen, Entscheidungen und Maßnahmen." : "DETAILBERICHT: Erstelle einen ausführlichen belegten Fallbericht mit Chronologie, Beteiligten, Finanzen, Risiken und offenen Punkten."); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Fallbericht erstellen</button>
       </div>
 
@@ -911,7 +912,7 @@ export default function CaseAssistant({ caseId }: Props) {
         </section>
       )}
       {showBriefForm && (
-        <div className="mb-4 rounded-xl border border-violet-200 bg-white p-4">
+        <div id="case-brief-form" className="mb-4 rounded-xl border border-violet-200 bg-white p-4">
           <div className="mb-3">
             <h3 className="font-semibold text-slate-900">Auftrag für die Schriftsatzvorbereitung</h3>
             <p className="mt-1 text-xs text-slate-600">Beweispaket, Gliederung, KI-Entwurf und kritische Gegenprüfung verwenden denselben aufgabenbezogenen Kontext.</p>
