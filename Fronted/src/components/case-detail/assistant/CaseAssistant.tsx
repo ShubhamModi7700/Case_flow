@@ -465,6 +465,7 @@ function BriefReviewView({ item, sourcesById }: { item: AssistantBriefReview; so
 }
 
 function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceResponse }) {
+
   const sourcesById = useMemo(
     () => new Map(item.sources.map((source) => [source.source_id, source])),
     [item.sources],
@@ -583,6 +584,7 @@ function WorkStatusView({ item }: { item: AssistantCaseWorkStatus }) {
 }
 
 export default function CaseAssistant({ caseId }: Props) {
+  const [selectedChatSource, setSelectedChatSource] = useState<string | null>(null);
   const question = "";
   const [chatOpen, setChatOpen] = useState(true);
   const [reportMode, setReportMode] = useState<"compact" | "detailed">("compact");
@@ -841,6 +843,16 @@ export default function CaseAssistant({ caseId }: Props) {
                     content={turn.content}
                     sources={turn.role === "assistant" ? turn.response?.sources : undefined}
                     sourcePrefix={turn.role === "assistant" ? `chat-${turn.id}` : undefined}
+                    onSourceClick={turn.role === "assistant" ? (sourceId) => {
+                      const elementId = `chat-${turn.id}-source-${sourceId}`;
+                      const target = document.getElementById(elementId);
+                      if (!target) return;
+                      const disclosure = target.closest("details");
+                      if (disclosure instanceof HTMLDetailsElement) disclosure.open = true;
+                      setSelectedChatSource(elementId);
+                      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                      target.focus({ preventScroll: true });
+                    } : undefined}
                   />
                   {turn.role === "assistant" && turn.response && (
                     <div className="mt-3 border-t border-slate-100 pt-3">
@@ -864,7 +876,7 @@ export default function CaseAssistant({ caseId }: Props) {
                             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Quellen anzeigen ({turn.response.sources.length})</summary>
                             <div className="space-y-2 border-t border-slate-200 p-3">
                               {turn.response.sources.map((source) => (
-                                <div key={source.source_id} id={`chat-${turn.id}-source-${source.source_id}`} className="rounded-md bg-white p-2 text-xs text-slate-700">
+                                <div key={source.source_id} id={`chat-${turn.id}-source-${source.source_id}`} className={`rounded-md p-2 text-xs text-slate-700 ${selectedChatSource === `chat-${turn.id}-source-${source.source_id}` ? "bg-blue-100 ring-2 ring-blue-500" : "bg-white"}`} tabIndex={-1}>
                                   <strong>[{source.source_id}] {source.filename}</strong>
                                   {sourceLocation(source) && <span> · {sourceLocation(source)}</span>}
                                 </div>
