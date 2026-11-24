@@ -36,7 +36,6 @@ def _heartbeat(job_id: int, attempt: int, stop: threading.Event) -> None:
             log.exception("Failed to renew lease: job=%s", job_id)
 
 
-# Conservative initial gate. Recalibrate using labeled Flach/Isenbüttel tests.
 AUTO_ASSIGN_CONFIDENCE = 0.95
 AUTO_ASSIGN_SIMILARITY = 0.85
 AUTO_ASSIGN_MARGIN = 0.08
@@ -57,7 +56,7 @@ def _has_case_specific_evidence(document_text: str, title: str) -> bool:
     """
     ignored = {"projekt", "vertrag", "kunde", "fall", "sache", "vorgang",
                "rechnung", "dokument", "angebot", "unternehmen", "service",
-               "strom", "versorgung", "betreff", "anfrage"}
+               "strom", "versorgung", "stromversorgung", "betreff", "anfrage"}
     title_words = {word for word in _normalized_words(title) if word not in ignored}
     return bool(title_words and title_words.intersection(_normalized_words(document_text)))
 
@@ -97,10 +96,6 @@ def run_once() -> bool:
                 raise RuntimeError("Document was deleted")
             if document.embedding_status != "Ready" or document.processing_status not in {"Ready", "Partial"}:
                 index_document(document=document, db=db)
-        # Generate suggestions after indexing; assign only exceptionally clear matches.
-        # Never create new cases automatically.
-        # A failed AI request must not turn a successfully indexed document into
-        # a failed processing job.
         try:
             with SessionLocal() as db:
                 document = db.get(models.Document, document_id)
@@ -132,7 +127,6 @@ def run_once() -> bool:
                                 }, ensure_ascii=False, default=str),
                             ))
                             db.commit()
-                            # Read the same indexed evidence used for the suggestion.
                             document_text = "\n".join(
                                 row[0] for row in db.query(models.DocumentChunk.content)
                                 .filter(models.DocumentChunk.document_id == document_id)
@@ -141,9 +135,7 @@ def run_once() -> bool:
                             case_id = _auto_assignment_candidate(suggestion, candidates, document_text)
                             if case_id is not None:
                                 try:
-                                    # Enforce the upload owner's edit permissions before assigning.
                                     require_case_edit(db, owner, case_id)
-                                    # Guard against a manual assignment made while AI was running.
                                     changed = db.query(models.Document).filter(
                                         models.Document.id == document_id,
                                         models.Document.case_id.is_(None),

@@ -164,7 +164,7 @@ def test_chunk_retrieval_embeds_acl_in_vector_query():
     assert "public.case_access" in source
     assert "ca.user_id = :requesting_user_id" in source
     assert "ca.case_id = d.case_id" in source
-    assert "order by dc.embedding" in source
+    assert "partition by dc.document_id order by dc.embedding" in source
     assert "limit :match_count" in source
 
     assert "match_document_chunks(" not in source

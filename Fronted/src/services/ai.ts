@@ -434,7 +434,10 @@ export type AssistantSource = {
   attachment_depth: number;
 };
 
+export type EvidenceCoverage = { total_documents: number; ready_documents: number; failed_documents: number; other_documents: number; supplied_documents: number; supplied_chunks: number; omitted_documents: {document_id: number; filename: string}[] };
+
 export type CaseAssistantResponse = {
+  coverage?: EvidenceCoverage | null;
   task_type: AssistantTaskType;
   answer: string;
   claims: AssistantEvidenceStatement[];

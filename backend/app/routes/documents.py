@@ -161,8 +161,6 @@ def _validate_file_type(*, file_name: str, content_type: str) -> None:
     application/octet-stream, so the extension is checked as a fallback.
     """
     extension = Path(file_name).suffix.lower()
-    # Require an allowed extension even when the browser supplies an allowed MIME.
-    # MIME alone is not trustworthy (and may not match the file content).
     if extension not in ALLOWED_FILE_EXTENSIONS:
         raise HTTPException(
             status_code=415,
@@ -685,7 +683,6 @@ def assign_document_to_case(
         document.case_id = None
 
     if previous_case_id != document.case_id:
-        # Keep indexed chunks consistent with the document's current case.
         db.query(models.DocumentChunk).filter(
             models.DocumentChunk.document_id == document.id
         ).update({"case_id": document.case_id}, synchronize_session=False)

@@ -47,7 +47,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-// Show case number, title and company consistently in every selector.
 function getCaseLabel(item: CaseItem): string {
   const caseNumber = formatCaseNumber(item.id);
   const title = item.title?.trim();
@@ -101,8 +100,6 @@ export default function DocumentsPage() {
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
-  // A case-detail upload link locks the destination case only after it is
-  // confirmed to be in the user's accessible, non-archived case list.
   const linkedCaseId = searchParams.get("upload") === "1"
     ? searchParams.get("case_id")
     : null;
@@ -139,8 +136,6 @@ export default function DocumentsPage() {
     "idle" | "uploaded" | "routing" | "route-review" | "analyzing" | "review-ready"
   >("idle");
 
-  // Case-detail deep links open the existing uploader automatically.
-  // The case_id is validated against accessible cases in loadData below.
   useEffect(() => {
     if (canEdit && searchParams.get("upload") === "1") {
       setShowUpload(true);

@@ -238,8 +238,6 @@ export default function KITab({
       setWorking("summary");
       setError("");
       setNotice("");
-      // Process and analyze every not-yet-indexed document before creating a summary.
-      // Do not silently generate an unsupported summary when a document fails.
       const pendingDocuments = documents.filter(
         (document) =>
           document.processing_status !== "Ready" ||

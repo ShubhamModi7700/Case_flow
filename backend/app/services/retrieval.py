@@ -77,7 +77,9 @@ def retrieve_chunks(
 
     statement = text(
         """
+        with ranked as (
         select
+            row_number() over (partition by dc.document_id order by dc.embedding <=> cast(:query_embedding as extensions.vector), dc.id) as document_rank,
             dc.id as chunk_id,
             dc.document_id as document_id,
             d.case_id as case_id,
@@ -123,7 +125,9 @@ def retrieve_chunks(
           and (
               1 - (dc.embedding <=> cast(:query_embedding as extensions.vector))
           ) >= :match_threshold
-        order by dc.embedding <=> cast(:query_embedding as extensions.vector)
+        )
+        select * from ranked
+        order by case when cast(:requested_case_id as integer) is not null then document_rank else 1 end, similarity desc, chunk_id
         limit :match_count
         """
     )

@@ -193,8 +193,6 @@ def extract_eml(content: bytes) -> ExtractedDocument:
     message = BytesParser(policy=policy.default).parsebytes(content)
     body_parts: list[str] = []
     html_parts: list[str] = []
-    # Prefer the plain-text alternative to avoid duplicate content. HTML-only
-    # emails must still be searchable; attachment payloads are never body text.
     for part in message.walk():
         if part.is_multipart() or part.get_filename() or part.get_content_disposition() == "attachment":
             continue

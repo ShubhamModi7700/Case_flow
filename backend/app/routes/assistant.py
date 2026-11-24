@@ -6,6 +6,7 @@ from app import models, schemas
 from app.auth import get_current_user
 from app.database import get_db
 from app.services.case_access import require_case_view
+from app.services.evidence_coverage import select_prompt_chunks, summarize_coverage
 from app.services.ai_audit import (
     create_ai_query_log,
     mark_ai_query_completed,
@@ -129,6 +130,9 @@ def query_case_assistant(
             question=audit_request_text,
             task_type=payload.task_type,
         )
+        chunks = select_prompt_chunks(chunks, payload.task_type)
+        documents = db.query(models.Document).filter(models.Document.case_id == case_id).order_by(models.Document.id).all()
+        coverage = summarize_coverage(documents, chunks)
         sources = build_sources(chunks)
 
         record_ai_query_sources(
@@ -167,6 +171,7 @@ def query_case_assistant(
         **result.model_dump(),
         task_type=payload.task_type,
         sources=public_sources(sources),
+        coverage=coverage,
     )
 
 
@@ -248,7 +253,6 @@ def chat_case_assistant(case_id: int, payload: ChatTurnRequest, db: Session = De
     
     result = query_case_assistant(case_id, schemas.CaseAssistantQueryRequest(question=contextual_question, task_type="question"), db, current_user)
     import re
-    # Preserve validated [S1] citation markers for the chat UI and audit history.
     db.add(models.AssistantChatMessage(case_id=case_id, user_id=current_user.id, role="user", content=payload.message))
     db.add(models.AssistantChatMessage(case_id=case_id, user_id=current_user.id, role="assistant", content=result.answer, response_json=result.model_dump(mode="json")))
     db.commit()

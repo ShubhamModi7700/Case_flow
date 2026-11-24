@@ -164,8 +164,6 @@ def suggest_document_case_route(
             )
 
     if suggestion.decision == "new_case":
-        # Week 2: routing only targets existing cases; never initiate a new case
-        # draft during background processing or a routing suggestion.
         suggestion.decision = "uncertain"
         suggestion.suggested_case_id = None
         suggestion.confidence = 0.0

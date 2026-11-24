@@ -86,8 +86,6 @@ def retrieve_case_evidence(
         return selected
 
     if task_type == "report":
-        # Search several independent aspects of the case instead of ranking all
-        # excerpts against one generic query. Preserve document diversity.
         angles = (
             "Fallverlauf Chronologie Ereignisse Kommunikation Entscheidungen aktueller Sachstand",
             "Fristen Termine Fälligkeiten Verpflichtungen offene Aufgaben Zuständigkeiten",
@@ -638,6 +636,7 @@ def answer_case_question(
         )
 
     if task_type == "question":
+        sources = sources[:18]
         evidence_context = build_evidence_context([
             {**source, "content": source["content"][:2400]}
             for source in sources[:18]
@@ -650,6 +649,8 @@ def answer_case_question(
         brief_context=brief_context,
     )
     system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
+
+    system_prompt += "\nDie Evidenz besteht aus ausgewählten Textauszügen. Behaupte niemals eine vollständige Prüfung aller Falldokumente."
 
     if task_type == "report":
         if question.lstrip().startswith("KURZBERICHT:"):

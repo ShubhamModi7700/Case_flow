@@ -23,7 +23,6 @@ function formatDate(value: string | null) {
     return `${value} (Datumsformat prüfen)`;
   }
 
-  // Preserve the calendar day and all four year digits.
   return `${parts[3]}.${parts[2]}.${parts[1]}`;
 }
 
@@ -57,8 +56,6 @@ function priorityLabel(item: DashboardWorkItem) {
 
 const ACTION_PREVIEW_LENGTH = 280;
 
-// Remove legacy AI prefixes from the display only.
-// The original next_action value is not modified.
 function cleanActionText(value: string | null | undefined) {
   const fallback = "Nächste Maßnahme festlegen";
   const raw = value?.trim() || fallback;
@@ -128,7 +125,6 @@ function WorkItemCard({
       item.title.trim()
     );
 
-  // Clean the prefix before generating the preview.
   const action = cleanActionText(item.next_action);
   const preview = actionPreview(action);
 

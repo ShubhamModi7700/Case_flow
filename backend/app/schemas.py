@@ -159,7 +159,6 @@ class CaseAccessResponse(BaseModel):
 
 
 def validate_case_schedule_year(value: date | None) -> date | None:
-    # Validate writes only: existing dates must remain readable without reinterpretation.
     if value is not None and value.year < 1000:
         raise ValueError("Bitte das vollständige vierstellige Jahr eingeben (z. B. 2026 statt 0026).")
     return value
@@ -788,7 +787,23 @@ class CaseAssistantModelAnswer(BaseModel):
     intelligence: AssistantCaseIntelligence | None = None
 
 
+class CoverageDocument(BaseModel):
+    document_id: int
+    filename: str
+
+
+class EvidenceCoverage(BaseModel):
+    total_documents: int
+    ready_documents: int
+    failed_documents: int
+    other_documents: int
+    supplied_documents: int
+    supplied_chunks: int
+    omitted_documents: list[CoverageDocument] = Field(default_factory=list)
+
+
 class CaseAssistantResponse(CaseAssistantModelAnswer):
+    coverage: EvidenceCoverage | None = None
     task_type: Literal["question", "chronology", "evidence", "entities", "brief_evidence", "brief_outline", "brief_draft", "brief_review", "intelligence", "report"] = "question"
     sources: list[AssistantSource] = Field(default_factory=list)
 

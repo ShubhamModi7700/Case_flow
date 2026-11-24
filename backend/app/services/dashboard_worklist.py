@@ -54,7 +54,6 @@ def build_worklist(
             triggers.append((preparation, f"Vorbereitung ab {format_calendar_date(preparation)}"))
         if follow_up is not None:
             triggers.append((follow_up, f"Wiedervorlage am {format_calendar_date(follow_up)}"))
-        # Missing case metadata is actionable now; an unassigned task also needs assignment.
         if case.risk == "High":
             triggers.append((today, "Hohes Fallrisiko"))
         if case.status == "Critical":
@@ -67,6 +66,8 @@ def build_worklist(
             triggers.append((today, "Nächste Maßnahme offen"))
         attention = min((trigger_date for trigger_date, _ in triggers), default=None)
         attention_reasons = [reason for trigger_date, reason in triggers if trigger_date == attention]
+        if deadline == today:
+            attention_reasons.insert(0, "Heute fällig")
         if attention is not None and attention > through:
             return
         reasons = []

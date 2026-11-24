@@ -29,12 +29,10 @@ export async function uploadDirectFile(
           description: options.description ?? null,
         },
       );
-      // Direct-to-storage upload: never send file bytes through Vercel Functions.
       await axios.put(init.data.upload_url, file, {
         headers: { "Content-Type": file.type || "application/octet-stream" },
         timeout: 180000,
       });
-      // Retry completion with the SAME token; the backend deduplicates by path.
       for (let completionAttempt = 0; completionAttempt < 3; completionAttempt++) {
         try {
           const response = await api.post("/documents/upload-complete", {

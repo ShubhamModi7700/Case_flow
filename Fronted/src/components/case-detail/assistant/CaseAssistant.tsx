@@ -76,6 +76,16 @@ function SourceBadges({
   );
 }
 
+function CoverageView({ coverage }: { coverage: CaseAssistantResponse["coverage"] }) {
+  if (!coverage) return null;
+  return <details className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700">
+    <summary className="cursor-pointer font-semibold">Dokumentenabdeckung: {coverage.supplied_documents} von {coverage.total_documents} Dokumenten im KI-Kontext</summary>
+    <p className="mt-2">{coverage.ready_documents} vollständig verarbeitet · {coverage.failed_documents} fehlgeschlagen · {coverage.other_documents} sonstiger Status · {coverage.supplied_chunks} Textauszüge</p>
+    <p className="mt-2 text-amber-800">Ausgewählte Textauszüge, keine vollständige Dokumenten- oder Rechtsprüfung.</p>
+    {coverage.omitted_documents.length > 0 && <details className="mt-2"><summary className="cursor-pointer">Nicht im KI-Kontext ({coverage.omitted_documents.length})</summary><ul className="mt-2 max-h-48 overflow-auto list-disc pl-5">{coverage.omitted_documents.map(doc => <li key={doc.document_id}>{doc.filename}</li>)}</ul></details>}
+  </details>;
+}
+
 function SourcesDisclosure({ sources }: { sources: AssistantSource[] }) {
   if (sources.length === 0) return null;
   return (
@@ -319,30 +329,60 @@ function EntitiesView({
   );
 }
 
+function cleanBriefHeading(value: string): string {
+  return value.replace(/^\s*\d+[.)]\s+/, "");
+}
+
+function BriefDraftPreview({ item }: { item: AssistantBriefDraft }) {
+  const [copyStatus, setCopyStatus] = useState("");
+  const paragraphs = (items: AssistantEvidenceStatement[]) => items.map((x) => x.text).join("\n\n");
+  const body = [item.title, paragraphs(item.introduction), ...item.sections.map((section, index) => `${index + 1}. ${cleanBriefHeading(section.heading)}\n\n${paragraphs(section.paragraphs)}`), paragraphs(item.conclusion)].filter(Boolean).join("\n\n");
+  async function copyDraft() {
+    try {
+      await navigator.clipboard.writeText(body);
+      setCopyStatus("Entwurf kopiert. Vor Verwendung fachlich prüfen.");
+    } catch {
+      setCopyStatus("Kopieren nicht möglich. Bitte Text manuell markieren.");
+    }
+  }
+  return <div className="mt-4 space-y-3">
+    <p className="text-xs font-semibold text-amber-800">KI-ENTWURF · Nicht freigegeben</p>
+    <div className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-white p-5 text-sm leading-7 text-slate-900">{body}</div>
+    <button type="button" onClick={() => void copyDraft()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">Entwurf kopieren</button>
+    <p role="status" className="text-xs text-slate-600">{copyStatus || "Belege und interne Prüfhinweise sind im vollständigen Ergebnis verfügbar."}</p>
+  </div>;
+}
+
 function BriefCompactResult({
   title,
   subtitle,
   highlights,
   detail,
+  preview,
+  highlightLabel = "Auszug",
 }: {
   title: string;
   subtitle: string;
   highlights: string[];
   detail: ReactNode;
+  preview?: ReactNode;
+  highlightLabel?: string;
 }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5" aria-label={title}>
       <h3 className="text-base font-semibold text-slate-900">{title}</h3>
       <p className="mt-1 text-xs text-slate-600">{subtitle}</p>
-      {highlights.length > 0 ? (
-        <ol className="mt-4 space-y-2">
+      {preview ? preview : highlights.length > 0 ? (
+        <div className="mt-4"><p className="mb-2 text-xs font-semibold text-slate-600">{highlightLabel} ({Math.min(3, highlights.length)} von {highlights.length})</p><ol className="space-y-2">
           {highlights.slice(0, 3).map((highlight, index) => (
             <li key={`${index}-${highlight}`} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-800">
               <span className="font-semibold text-violet-700">{index + 1}.</span>
-              <span className="min-w-0 break-words">{highlight}</span>
+              <div className="min-w-0 flex-1 break-words">
+                {highlight.length > 180 ? <details><summary className="cursor-pointer">{highlight.slice(0, 180).replace(/\s+\S*$/, "")}…</summary><p className="mt-2 whitespace-pre-wrap text-slate-700">{highlight}</p></details> : highlight}
+              </div>
             </li>
           ))}
-        </ol>
+        </ol></div>
       ) : <p className="mt-3 text-sm text-slate-500">Keine Kurzübersicht verfügbar. Vollständiges Ergebnis prüfen.</p>}
       <details className="mt-4 rounded-lg border border-slate-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-violet-800">Vollständiges Ergebnis und Belege anzeigen</summary>
@@ -366,7 +406,7 @@ function BriefEvidenceView({
         <div className="text-xs font-semibold uppercase tracking-wide text-violet-700">Schriftsatzvorbereitung</div>
         <h3 className="mt-1 text-base font-semibold text-slate-900">Aufgabenbezogenes Beweispaket</h3>
         {item.task_summary && <p className="mt-2 text-sm leading-6 text-slate-700">{item.task_summary}</p>}
-        <p className="mt-2 text-xs text-slate-600">Noch kein Schriftsatzentwurf. Dieses Paket dient als geprüfte Tatsachen- und Beweisgrundlage.</p>
+        <p className="mt-2 text-xs text-slate-600">Noch kein Schriftsatzentwurf. Dieses KI-Paket dient als vorläufige Tatsachen- und Beweisgrundlage und muss fachlich geprüft werden.</p>
       </div>
 
       {item.established_facts.length > 0 && (
@@ -418,7 +458,7 @@ function BriefOutlineView({
       <ol className="space-y-3">
         {item.sections.map((section, index) => (
           <li key={`${section.heading}-${index}`} className="rounded-lg border border-indigo-100 bg-white p-4">
-            <h4 className="font-semibold text-slate-900">{index + 1}. {section.heading}</h4>
+            <h4 className="font-semibold text-slate-900">{index + 1}. {cleanBriefHeading(section.heading)}</h4>
             {section.purpose && <p className="mt-1 text-sm text-slate-600">{section.purpose}</p>}
             {section.factual_basis.length > 0 && (
               <div className="mt-3">
@@ -471,7 +511,7 @@ function BriefDraftView({ item, sourcesById }: { item: AssistantBriefDraft; sour
       {item.introduction.length > 0 && <div className="rounded-lg bg-white p-4">{renderStatements(item.introduction)}</div>}
       {item.sections.map((section, index) => (
         <div key={`${section.heading}-${index}`} className="rounded-lg border border-emerald-100 bg-white p-4">
-          <h4 className="mb-3 font-semibold text-slate-900">{index + 1}. {section.heading}</h4>
+          <h4 className="mb-3 font-semibold text-slate-900">{index + 1}. {cleanBriefHeading(section.heading)}</h4>
           {renderStatements(section.paragraphs)}
         </div>
       ))}
@@ -703,7 +743,6 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
   const [chatError, setChatError] = useState("");
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
   const [chatReloadKey, setChatReloadKey] = useState(0);
-  // Refs guard against rapid Enter/click submissions and outdated async responses.
   const chatSendingRef = useRef(false);
   const chatGenerationRef = useRef(0);
   const chatHistoryRequestRef = useRef(0);
@@ -730,8 +769,6 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
         }
       })
       .finally(() => {
-        // A send can invalidate the history request; it must not leave
-        // chatHistoryLoading stuck true until the next page refresh.
         if (generation === chatGenerationRef.current) setChatHistoryLoading(false);
       });
     return () => { ++chatGenerationRef.current; };
@@ -742,7 +779,6 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
     chatSendingRef.current = true;
     const generation = chatGenerationRef.current;
     const sendingCaseId = caseId;
-    // Invalidate any earlier history response that could overwrite this send.
     ++chatHistoryRequestRef.current;
     setChatLoading(true);
     setChatError("");
@@ -972,6 +1008,7 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
                   />
                   {turn.role === "assistant" && turn.response && (
                     <div className="mt-3 border-t border-slate-100 pt-3">
+                      <CoverageView coverage={turn.response.coverage} />
                       {turn.response.sources.length > 0 ? (
                         <>
                           {!/\[S\d+\]/.test(turn.content) && turn.response.claims?.some((claim) => claim.source_ids.length > 0) && (
@@ -1105,10 +1142,12 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
 
       {result && (
         <div className="mt-6 space-y-5">
+          <CoverageView coverage={result.coverage} />
           {result.brief_evidence_package && (
             <BriefCompactResult
               title="1. Beweispaket"
               subtitle={`${result.brief_evidence_package.established_facts.length} Tatsachen · ${result.brief_evidence_package.key_evidence.length} Belege · ${result.brief_evidence_package.open_issues.length} offene Punkte`}
+              highlightLabel="Offene Punkte bzw. Tatsachen – Auszug"
               highlights={result.brief_evidence_package.open_issues.length > 0
                 ? result.brief_evidence_package.open_issues
                 : result.brief_evidence_package.established_facts.map((fact) => fact.text)}
@@ -1120,7 +1159,8 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
             <BriefCompactResult
               title="2. Gliederung"
               subtitle={`${result.brief_outline.sections.length} Abschnitte · ${result.brief_outline.open_issues.length} offene Punkte`}
-              highlights={result.brief_outline.sections.map((section) => section.heading)}
+              highlightLabel="Gliederung – Auszug"
+              highlights={result.brief_outline.sections.map((section) => cleanBriefHeading(section.heading))}
               detail={<BriefOutlineView item={result.brief_outline} sourcesById={sourcesById} />}
             />
           )}
@@ -1129,7 +1169,8 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
             <BriefCompactResult
               title="3. KI-Entwurf"
               subtitle={`${result.brief_draft.sections.length} Abschnitte · ${result.brief_draft.open_issues.length} offene Punkte · Nicht freigegeben`}
-              highlights={[result.brief_draft.title, ...result.brief_draft.sections.map((section) => section.heading)]}
+              highlights={[]}
+              preview={<BriefDraftPreview item={result.brief_draft} />}
               detail={<BriefDraftView item={result.brief_draft} sourcesById={sourcesById} />}
             />
           )}
@@ -1138,6 +1179,7 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
             <BriefCompactResult
               title="4. KI-RED-REVIEW"
               subtitle={`${result.brief_review.factual_risks.length} Beweisrisiken · ${result.brief_review.counterarguments.length} Gegenargumente · ${result.brief_review.recommended_checks.length} empfohlene Prüfungen`}
+              highlightLabel="Empfohlene Prüfungen bzw. Risiken – Auszug"
               highlights={result.brief_review.recommended_checks.length > 0
                 ? result.brief_review.recommended_checks
                 : result.brief_review.factual_risks.map((risk) => risk.risk)}

@@ -27,7 +27,6 @@ function answer(id: number, filename: string): ChatMessage {
 
 beforeEach(() => {
   vi.mocked(getCaseChat).mockReset();
-  // jsdom does not implement scrolling; verify that navigation requests it.
   Element.prototype.scrollIntoView = vi.fn();
 });
 afterEach(cleanup);
@@ -42,7 +41,6 @@ describe("KI-Chat citation navigation", () => {
     const sourceEntry = document.getElementById("chat-101-source-S6");
     expect(sourceEntry).not.toBeNull();
     const disclosure = sourceEntry!.closest("details") as HTMLDetailsElement;
-    // Collapse it first: clicking the inline citation must reopen it.
     if (disclosure.open) await user.click(within(disclosure).getByText("Quellen anzeigen (1)"));
     expect(disclosure.open).toBe(false);
 

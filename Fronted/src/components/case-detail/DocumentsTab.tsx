@@ -52,13 +52,11 @@ export default function DocumentsTab({
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [error, setError] = useState("");
-  // Preserve the existing AI navigation callback.
   void onOpenAI;
 
   async function openDocument(
     document: DocumentItem,
   ): Promise<void> {
-    // Open the tab before the async request to avoid popup blocking.
     const previewWindow = window.open("", "_blank");
 
     if (!previewWindow) {
@@ -79,8 +77,6 @@ export default function DocumentsTab({
         },
       );
 
-      // Compatible with Axios versions where headers.get()
-      // is not guaranteed to be callable.
       const rawContentType =
         response.headers["content-type"];
 
@@ -99,8 +95,6 @@ export default function DocumentsTab({
       previewWindow.opener = null;
       previewWindow.location.replace(previewUrl);
 
-      // Keep the object URL available while the preview tab
-      // is open. Release it when the parent page unloads.
       window.addEventListener(
         "pagehide",
         () => URL.revokeObjectURL(previewUrl),
