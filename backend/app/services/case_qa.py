@@ -518,6 +518,9 @@ def validate_answer_sources(
                     unsupported.append(item.text)
             return valid_items
 
+        from app.services.issue_consolidation import consolidate_issues
+        intelligence.issues = consolidate_issues(intelligence.issues, valid_ids)
+
         intelligence.executive_summary = validate_intel_statements(intelligence.executive_summary)
         intelligence.key_facts = validate_intel_statements(intelligence.key_facts)
         intelligence.documented_obligations = validate_intel_statements(intelligence.documented_obligations)
@@ -651,6 +654,9 @@ def answer_case_question(
     system_prompt = (CHAT_CONVERSATIONAL_PROMPT if task_type == "question" else f"{BASE_SYSTEM_PROMPT}\n\n{TASK_PROMPTS[task_type]}")
 
     system_prompt += "\nDie Evidenz besteht aus ausgewählten Textauszügen. Behaupte niemals eine vollständige Prüfung aller Falldokumente."
+
+    if task_type == "intelligence":
+        system_prompt += "\nGruppiere die Evidenz zusätzlich in issues nach konkreten fallbezogenen Themen. Je Thema: title, facts (belegte Tatsachen), party_claims (Parteibehauptungen), counterevidence (Gegenbelege), gaps (offene Nachweise). Jede Aussage mit source_ids. Keine unbelegten Tatsachen; Lücken nur bezogen auf die vorliegenden Auszüge. Vermeide doppelte Themen."
 
     if task_type == "report":
         if question.lstrip().startswith("KURZBERICHT:"):

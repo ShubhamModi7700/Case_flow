@@ -137,6 +137,9 @@ def referenced_source_ids(result: schemas.CaseAssistantModelAnswer) -> set[str]:
 
     intelligence = result.intelligence
     if intelligence is not None:
+        for issue in intelligence.issues:
+            for item in issue.facts + issue.party_claims + issue.counterevidence:
+                ids.update(item.source_ids)
         for item in intelligence.executive_summary:
             ids.update(item.source_ids)
         for item in intelligence.key_facts:

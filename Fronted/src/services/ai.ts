@@ -348,6 +348,7 @@ export type AssistantBriefReview = {
 };
 
 export type AssistantCaseIntelligence = {
+  issues?: { title: string; facts: AssistantEvidenceStatement[]; party_claims: AssistantEvidenceStatement[]; counterevidence: AssistantEvidenceStatement[]; gaps: string[] }[];
   executive_summary: AssistantEvidenceStatement[];
   key_facts: AssistantEvidenceStatement[];
   documented_obligations: AssistantEvidenceStatement[];

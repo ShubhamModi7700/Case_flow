@@ -12,7 +12,7 @@ function inline(text: string, sources?: AssistantSource[], sourcePrefix?: string
     const marker = /^\[(S\d+)\]$/.exec(part);
     if (marker && byId.has(marker[1]) && sourcePrefix) {
       const source = byId.get(marker[1])!;
-      return <button key={i} type="button" onClick={() => onSourceClick?.(marker[1])} title={`${source.filename}${source.page_number ? ` · Seite ${source.page_number}` : ""}`} className="inline rounded bg-blue-50 px-1 font-semibold text-blue-800 underline underline-offset-2 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-600" aria-label={`Quelle ${marker[1]} anzeigen: ${source.filename}`}>{part}</button>;
+      return <button key={i} type="button" onClick={() => onSourceClick?.(marker[1])} title={`${source.filename}${source.page_number ? ` · Seite ${source.page_number}` : ""}`} className="inline rounded px-0.5 align-super text-[10px] leading-none font-medium text-slate-500 hover:bg-slate-100 hover:text-blue-800 focus-visible:outline-2 focus-visible:outline-blue-600" aria-label={`Quelle ${marker[1]} anzeigen: ${source.filename}`}>{marker[1].slice(1)}</button>;
     }
     return part;
   });

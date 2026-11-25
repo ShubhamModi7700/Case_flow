@@ -756,7 +756,16 @@ class AssistantSource(BaseModel):
     attachment_depth: int = 0
 
 
+class AssistantCaseIssue(BaseModel):
+    title: str
+    facts: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    party_claims: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    counterevidence: list[AssistantEvidenceStatement] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+
+
 class AssistantCaseIntelligence(BaseModel):
+    issues: list[AssistantCaseIssue] = Field(default_factory=list)
     executive_summary: list[AssistantEvidenceStatement] = Field(default_factory=list)
     key_facts: list[AssistantEvidenceStatement] = Field(default_factory=list)
     documented_obligations: list[AssistantEvidenceStatement] = Field(default_factory=list)

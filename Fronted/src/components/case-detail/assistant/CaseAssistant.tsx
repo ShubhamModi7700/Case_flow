@@ -76,11 +76,11 @@ function SourceBadges({
   );
 }
 
-function CoverageView({ coverage }: { coverage: CaseAssistantResponse["coverage"] }) {
+function CoverageView({ coverage, compact = false }: { coverage: CaseAssistantResponse["coverage"]; compact?: boolean }) {
   if (!coverage) return null;
-  return <details className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700">
-    <summary className="cursor-pointer font-semibold">Dokumentenabdeckung: {coverage.supplied_documents} von {coverage.total_documents} Dokumenten im KI-Kontext</summary>
-    <p className="mt-2">{coverage.ready_documents} vollständig verarbeitet · {coverage.failed_documents} fehlgeschlagen · {coverage.other_documents} sonstiger Status · {coverage.supplied_chunks} Textauszüge</p>
+  return <details className={compact ? "text-xs text-slate-600 [&>summary]:list-none [&>summary::-webkit-details-marker]:hidden" : "rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700"}>
+    <summary className="cursor-pointer font-semibold" title="Dokumentenabdeckung anzeigen" aria-label="Dokumentenabdeckung anzeigen">{compact ? <span className="inline-flex items-center gap-1"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v1"/></svg>{coverage.failed_documents > 0 && <span className="text-amber-800">{coverage.failed_documents} fehlgeschlagen</span>}{coverage.supplied_documents < coverage.total_documents && <span className="text-amber-800">Teilabdeckung</span>}</span> : `Dokumentenabdeckung: ${coverage.supplied_documents} von ${coverage.total_documents} Dokumenten im KI-Kontext`}</summary>
+    <p className="mt-2">{coverage.supplied_documents} von {coverage.total_documents} Dokumenten im KI-Kontext</p><p className="mt-2">{coverage.ready_documents} vollständig verarbeitet · {coverage.failed_documents} fehlgeschlagen · {coverage.other_documents} sonstiger Status · {coverage.supplied_chunks} Textauszüge</p>
     <p className="mt-2 text-amber-800">Ausgewählte Textauszüge, keine vollständige Dokumenten- oder Rechtsprüfung.</p>
     {coverage.omitted_documents.length > 0 && <details className="mt-2"><summary className="cursor-pointer">Nicht im KI-Kontext ({coverage.omitted_documents.length})</summary><ul className="mt-2 max-h-48 overflow-auto list-disc pl-5">{coverage.omitted_documents.map(doc => <li key={doc.document_id}>{doc.filename}</li>)}</ul></details>}
   </details>;
@@ -634,6 +634,7 @@ function CaseIntelligenceView({ item }: { item: AssistantCaseIntelligenceRespons
         )}
         {intel.executive_summary.length > 0 && <div className="mt-3"><EvidenceList items={intel.executive_summary} sourcesById={sourcesById} /></div>}
       </div>
+      {!!intel.issues?.length && <section className="space-y-2"><h4 className="font-semibold">Fallthemen und Belege</h4><p className="text-xs text-slate-500">Aus ausgewählten Textauszügen; keine vollständige Aktenprüfung.</p>{intel.issues.map((issue, index) => <details key={index} className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer font-semibold">{issue.title}</summary><div className="mt-3 space-y-3">{([{label: "Belegte Tatsachen", items: issue.facts}, {label: "Parteibehauptungen", items: issue.party_claims}, {label: "Gegenbelege", items: issue.counterevidence}]).map(group => group.items.length > 0 && <div key={group.label}><h5 className="text-sm font-semibold">{group.label}</h5><EvidenceList items={group.items} sourcesById={sourcesById} /></div>)}{issue.gaps.length > 0 && <div><h5 className="text-sm font-semibold">Offene Nachweise</h5><ul className="list-disc pl-5 text-sm">{issue.gaps.map((gap, i) => <li key={i}>{gap}</li>)}</ul></div>}</div></details>)}</section>}
       {intel.key_facts.length > 0 && <div><h4 className="mb-2 font-semibold">Wichtigste Kerntatsachen</h4><EvidenceList items={intel.key_facts.slice(0, 5)} sourcesById={sourcesById} /></div>}
       {intel.documented_obligations?.length > 0 && <div><h4 className="mb-2 font-semibold">Dokumentierte Verpflichtungen</h4><EvidenceList items={intel.documented_obligations} sourcesById={sourcesById} /></div>}
       <div className="grid gap-3 md:grid-cols-2">
@@ -1007,8 +1008,8 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
                     } : undefined}
                   />
                   {turn.role === "assistant" && turn.response && (
-                    <div className="mt-3 border-t border-slate-100 pt-3">
-                      <CoverageView coverage={turn.response.coverage} />
+                    <div className="mt-2 flex flex-wrap items-start gap-3 text-slate-500">
+                      <CoverageView coverage={turn.response.coverage} compact />
                       {turn.response.sources.length > 0 ? (
                         <>
                           {!/\[S\d+\]/.test(turn.content) && turn.response.claims?.some((claim) => claim.source_ids.length > 0) && (
@@ -1024,10 +1025,10 @@ export default function CaseAssistant({ caseId, canEdit = false, onTaskCreated }
                               </div>
                             </details>
                           )}
-                          <p className="mb-2 text-xs text-slate-500">Abgerufene Textstellen; die Zuordnung einzelner Aussagen bitte prüfen.</p>
-                          <details open={/\[S\d+\]/.test(turn.content) ? true : undefined} className="rounded-lg border border-slate-200 bg-slate-50">
-                            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Quellen anzeigen ({turn.response.sources.length})</summary>
+                          <details className="text-xs text-slate-600 [&>summary]:list-none [&>summary::-webkit-details-marker]:hidden">
+                            <summary className="cursor-pointer text-slate-500 hover:text-slate-900" title={`Quellen anzeigen (${turn.response.sources.length})`} aria-label={`Quellen anzeigen (${turn.response.sources.length})`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 6C8 3 4 4 3 5v14c3-2 6-2 9 0 3-2 6-2 9 0V5c-3-2-6-2-9 1v13"/></svg></summary>
                             <div className="space-y-2 border-t border-slate-200 p-3">
+                              <p className="text-xs text-slate-500">Abgerufene Textstellen; die Zuordnung einzelner Aussagen bitte prüfen.</p>
                               {turn.response.sources.map((source) => (
                                 <div key={source.source_id} id={`chat-${turn.id}-source-${source.source_id}`} className={`rounded-md p-2 text-xs text-slate-700 ${selectedChatSource === `chat-${turn.id}-source-${source.source_id}` ? "bg-blue-100 ring-2 ring-blue-500" : "bg-white"}`} tabIndex={-1}>
                                   <strong>[{source.source_id}] {source.filename}</strong>

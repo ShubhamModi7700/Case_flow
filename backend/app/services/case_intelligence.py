@@ -10,7 +10,9 @@ from app.services.case_intelligence_persistence import (
     persist_snapshot,
     response_from_snapshot,
 )
-from app.services.case_qa import CASE_ASSISTANT_PROMPT_VERSION, answer_case_question, build_sources, public_sources, retrieve_case_evidence
+from app.services.case_qa import CASE_ASSISTANT_PROMPT_VERSION, build_sources, public_sources
+from app.services.intelligence_batches import load_case_chunks, analyze_batches
+from app.services.case_access import require_case_view
 from app.services.case_work_status import build_case_work_status
 from app.services.openai_client import analysis_model
 
@@ -44,6 +46,7 @@ def build_case_intelligence(
     case: models.Case,
     force_refresh: bool = False,
 ) -> schemas.AssistantCaseIntelligenceResponse:
+    require_case_view(db, user, case.id)
     tasks, documents = _case_inputs(db, case_id=case.id)
     work_status = build_case_work_status(case=case, tasks=tasks)
     fingerprint = build_input_fingerprint(case=case, tasks=tasks, documents=documents)
@@ -66,16 +69,10 @@ def build_case_intelligence(
         prompt_version=CASE_ASSISTANT_PROMPT_VERSION,
     )
     try:
-        chunks = retrieve_case_evidence(
-            db=db,
-            user=user,
-            case_id=case.id,
-            question=INTELLIGENCE_REQUEST,
-            task_type="intelligence",
-        )
+        chunks = load_case_chunks(db, user, case.id)
         sources = build_sources(chunks)
         record_ai_query_sources(db=db, query=query, chunks=chunks, sources=sources)
-        result = answer_case_question(question=INTELLIGENCE_REQUEST, sources=sources, task_type="intelligence")
+        result = analyze_batches(INTELLIGENCE_REQUEST, sources, documents)
         mark_ai_query_completed(db=db, query_id=query.id, result=result)
 
         intelligence = result.intelligence or schemas.AssistantCaseIntelligence(
